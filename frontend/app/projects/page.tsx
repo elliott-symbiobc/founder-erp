@@ -384,7 +384,7 @@ function PipelineView({ projects: initialProjects, tabKey, onDelete, onUpdate, s
 
 type SortKey = "name" | "stage" | "status" | "expected_revenue" | "date_deadline" | "last_email_at" | "task_count";
 
-function TableView({ projects, onDelete }: { projects: Project[]; onDelete: (id: string) => void }) {
+function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]; onDelete: (id: string) => void; onStatusChange: (id: string, status: string) => void }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date_deadline", dir: "asc" });
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
@@ -435,7 +435,15 @@ function TableView({ projects, onDelete }: { projects: Project[]; onDelete: (id:
                 </td>
                 <td className="py-2.5 px-3"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${TYPE_BADGE[p.project_type] ?? "bg-gray-100 text-gray-500"}`}>{TYPE_LABELS[p.project_type] ?? p.project_type}</span></td>
                 <td className="py-2.5 px-3">{p.stage ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STAGE_COLORS[p.stage] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{p.stage}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
-                <td className="py-2.5 px-3"><span className="text-xs text-zinc-600 dark:text-zinc-300">{STATUS_LABEL[p.status] ?? p.status.replace("_", " ")}</span></td>
+                <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                  <select
+                    value={p.status}
+                    onChange={e => onStatusChange(p.project_id, e.target.value)}
+                    className="text-xs text-zinc-600 dark:text-zinc-300 bg-transparent border-0 cursor-pointer focus:outline-none appearance-none p-0 leading-none hover:text-zinc-900 dark:hover:text-zinc-100"
+                  >
+                    {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </td>
                 <td className="py-2.5 px-3">{p.contact_name ? <div className="flex items-center gap-1.5"><Avatar name={p.contact_name} url={p.contact_avatar} size={5} /><span className="text-xs text-zinc-600 dark:text-zinc-300 truncate max-w-[140px]">{p.contact_name}</span></div> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
                 <td className="py-2.5 px-3 text-xs text-zinc-600 dark:text-zinc-300 font-mono">{fmtCurrency(p.expected_revenue) ?? "—"}</td>
                 <td className="py-2.5 px-3 text-xs whitespace-nowrap">{p.date_deadline ? <span className={deadline !== null && deadline < 0 ? "text-red-500 font-medium" : deadline !== null && deadline < 7 ? "text-amber-500" : "text-zinc-500 dark:text-zinc-400"}>{fmtDate(p.date_deadline)}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
@@ -1488,6 +1496,14 @@ function ProjectsContent() {
     await fetch(`/api/projects/${id}`, { method: "DELETE" });
   }, []);
 
+  const handleStatusChange = useCallback(async (id: string, status: string) => {
+    setProjects(prev => prev.map(p => p.project_id === id ? { ...p, status } : p));
+    await fetch(`/api/proxy/projects/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+  }, []);
+
   const viewOptions: { key: ViewMode; label: string }[] = [
     ...(CONTRACT_TABS.includes(activeTab) ? [] : [{ key: "command" as ViewMode, label: "Overview" }]),
     ...(activeTab === "all" ? [] : [{ key: "pipeline" as ViewMode, label: "Pipeline" }]),
@@ -1555,7 +1571,7 @@ function ProjectsContent() {
           {safeViewMode === "pipeline" && activeTab !== "partnership" && (
             <PipelineView projects={tabProjects} tabKey={activeTab} onDelete={handleDelete} onUpdate={load} />
           )}
-          {safeViewMode === "table" && <TableView projects={tabProjects} onDelete={handleDelete} />}
+          {safeViewMode === "table" && <TableView projects={tabProjects} onDelete={handleDelete} onStatusChange={handleStatusChange} />}
           {safeViewMode === "timeline" && <TimelineView projects={tabProjects} />}
         </>
       )}
