@@ -29,8 +29,8 @@ only infrastructure that applies to any organisation.
 ## Quick start
 
 ```bash
-git clone https://github.com/elliott-symbiobc/collective-erp.git
-cd collective-erp
+git clone https://github.com/elliott-symbiobc/open-erp.git
+cd open-erp
 cp .env.example .env        # fill in your keys
 docker compose up -d
 ```
