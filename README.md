@@ -38,7 +38,48 @@ docker compose up -d
 The frontend is served at `http://localhost:8080`. On first start the API
 applies `sql/schema.sql` to an empty database.
 
-Deploying to Railway uses `api/railway.toml` and `frontend/railway.toml`.
+---
+
+## Deploying to Railway
+
+The repository is set up for a Railway deployment of four services: **Postgres**
+(with the `pgvector` extension), **Redis**, the **API**, and the **frontend**.
+Per-service build and health-check settings live in `api/railway.toml` and
+`frontend/railway.toml`.
+
+The API image carries `sql/schema.sql` and applies it on first start when the
+target database has no `users` table, so a fresh Postgres needs no manual
+migration step.
+
+### Service settings
+
+| Service  | Root directory | Dockerfile           | Health check  |
+|----------|----------------|----------------------|---------------|
+| api      | `/`            | `api/Dockerfile`     | `/api/health` |
+| frontend | `frontend/`    | `frontend/Dockerfile` (target `runner`) | `/` |
+
+The API builds from the repository root — it needs `sql/` as well as `api/app/`.
+
+### Required environment variables
+
+| Variable | Service | Notes |
+|---|---|---|
+| `DATABASE_URL` | api, frontend | Postgres connection string; `pgvector` must be available |
+| `REDIS_URL` | api | Redis connection string |
+| `INTERNAL_API_SECRET` | api, frontend | **Required.** Generate with `openssl rand -hex 32`; must match on both |
+| `NEXTAUTH_SECRET` | frontend | Session signing key |
+| `NEXTAUTH_URL` | frontend | Public URL of the frontend |
+| `PORT` | api, frontend | Injected by Railway |
+
+`INTERNAL_API_SECRET` is not optional. The frontend proxy is the authentication
+boundary: it forwards the signed-in user as an `X-User-Id` header, and the API
+trusts that header only when the caller also presents this secret. Deploy the
+API without a public domain, or without this secret set on both services, and
+anything able to reach the API can assert any user.
+
+Integrations (Google, Plaid, QuickBooks, Stripe, Anthropic, OpenAI, Twilio) are
+optional — the modules that use them degrade rather than fail when their keys
+are absent.
 
 ---
 

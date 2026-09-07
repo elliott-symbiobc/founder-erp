@@ -12,7 +12,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict zBcwnFfggaG7axIwepjUI0xKEzIPiBpdHvLdh6K47kklCJjz4WIVfso4VQEot5b
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
 -- Dumped by pg_dump version 16.13 (Debian 16.13-1.pgdg12+1)
@@ -8425,5 +8424,4 @@ ALTER TABLE ONLY public.weekly_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zBcwnFfggaG7axIwepjUI0xKEzIPiBpdHvLdh6K47kklCJjz4WIVfso4VQEot5b
 

@@ -166,7 +166,7 @@ app.include_router(activity_router.router)
 
 def _init_db():
     """Apply sql/schema.sql if the database has not been initialized yet."""
-    schema_path = os.path.join(os.path.dirname(__file__), "..", "..", "sql", "schema.sql")
+    schema_path = os.path.join(os.path.dirname(__file__), "..", "sql", "schema.sql")
     if not os.path.exists(schema_path):
         logger.warning("schema.sql not found, skipping DB init")
         return
@@ -178,7 +178,13 @@ def _init_db():
             if not cur.fetchone()[0]:
                 logger.info("Initializing database schema...")
                 with open(schema_path, "r") as f:
-                    cur.execute(f.read())
+                    # pg_dump emits \restrict / \unrestrict psql meta-commands.
+                    # psql understands them; the driver does not, so drop them.
+                    sql = "\n".join(
+                        line for line in f.read().splitlines()
+                        if not line.startswith("\\")
+                    )
+                cur.execute(sql)
                 conn.commit()
                 logger.info("Database schema applied.")
             cur.close()

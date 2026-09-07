@@ -1,49 +1,31 @@
+# Web
 fastapi==0.110.0
 uvicorn[standard]==0.27.0
-celery[redis]==5.3.6
-sqlalchemy[asyncio]==2.0.27
-asyncpg==0.29.0
-pydantic==2.6.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-anthropic>=0.40.0
-biopython==1.83
-psycopg2-binary==2.9.9
-rapidfuzz==3.6.1
-pandas==2.2.0
-numpy==1.26.4
-scikit-learn==1.4.0
-xgboost==2.0.3
-shap==0.44.1
-mapie==0.8.3
-biosteam==2.47.0
-thermosteam==0.46.0
-pyalex==0.13
-semanticscholar==0.8.4
-requests>=2.31.0
-aiohttp==3.9.3
-httpx==0.27.0
-scipy==1.15.2
-SALib==1.5.0
-joblib==1.3.2
-alembic==1.13.1
 python-multipart==0.0.9
-pdfplumber>=0.11
-umap-learn==0.5.6
-python-docx==1.1.2
-openpyxl==3.1.2
-google-auth>=2.28.0
-google-auth-oauthlib>=1.2.0
-google-api-python-client>=2.120.0
+pydantic==2.6.1
+httpx==0.27.0
+requests>=2.31.0
 websockets>=12.0
-fpdf2==2.8.3
+
+# Database / queue
+psycopg2-binary==2.9.9
+celery[redis]==5.3.6
+redis>=5.0
+
+# Auth
+bcrypt>=4.1
+cryptography>=42.0
+PyJWT>=2.8
+
+# AI
+anthropic>=0.40.0
 openai>=1.30.0
-markdown==3.6
-wiley-tdm>=1.1.0
-pdfminer.six>=20221105
+
+# Documents
+openpyxl==3.1.2
+fpdf2==2.8.3
+
+# Integrations
 twilio
-ipykernel>=6.29
-jupyter_client>=8.6
-nbformat>=5.10
-nbclient>=0.10
-ipywidgets>=8.1
+beautifulsoup4>=4.12
+python-jobspy>=1.1.76
