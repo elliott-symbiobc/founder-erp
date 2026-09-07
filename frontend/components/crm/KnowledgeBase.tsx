@@ -100,7 +100,7 @@ const AUTOMATIONS: { trigger: string; effect: string }[] = [
   },
   {
     trigger: "Delete a deal",
-    effect: "An active deal is archived and stays recoverable. Deleting a deal that is already in the archive is permanent — the deal and its plan items, contacts, sidestream and history are erased.",
+    effect: "An active deal is archived and stays recoverable. Deleting a deal that is already in the archive is permanent — the deal and its plan items, contacts and history are erased.",
   },
 ];
 
@@ -165,23 +165,7 @@ const FIELD_GROUPS: { section: string; blurb: string; fields: Field[] }[] = [
       { name: "NDA", req: "Required at Initial Assessment", what: "Date the NDA and data-sharing agreement were signed." },
       { name: "Feasibility Study", req: "Required at Contract Sent", what: "Owner, target / completed / sent dates, status and analysis link. Numbers are never copied into the CRM." },
     ],
-  },
-  {
-    section: "Sidestreams",
-    blurb: "One sidestream per deal — for another sidestream at the same company, create a new deal. Only Substrate / Type is visible at first sight.",
-    fields: [
-      { name: "Substrate / Type", req: "Required at Qualification", what: "The material itself; free text, resolved to a canonical profile." },
-      { name: "Volume + Unit", req: "Required at Initial Assessment", what: "Annual basis unless stated; state wet or dry." },
-      { name: "Moisture / Basis", req: "Required to reach Initial Assessment", what: "Wet or dry basis — composition is meaningless without it." },
-      { name: "Composition (7 fractions)", req: "Required at Initial Assessment", what: "Protein, lipid, starch, cellulose, hemicellulose, lignin, ash — % dry basis." },
-      { name: "Composition Data Source", req: "Required when composition entered", what: "Lab report, third-party, literature, estimated — sets how much weight it carries." },
-      { name: "Sample or Data Received", req: "Required at Initial Assessment", what: "Date the sample/data actually arrived — the highest-signal field in the CRM." },
-      { name: "Location", req: "Required at Initial Assessment", what: "Where the sidestream is produced." },
-      { name: "Desired Output", req: "Required at Initial Assessment", what: "What the client wants the stream turned into." },
-      { name: "Current Waste P/L", req: "Recommended", what: "What the stream costs or earns today — the status-quo number." },
-      { name: "Current Use / Seasonality / Contamination", req: "Optional / Recommended", what: "Present handling, campaign vs continuous availability, and processing constraints." },
-    ],
-  },
+  }
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────

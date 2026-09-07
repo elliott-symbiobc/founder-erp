@@ -12,7 +12,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict mIOlqietahFFT3IimhW1dbpsgRSeoaexom8hh0AqUlAR7gGa5YOPJuzdZjLdzBy
+\restrict kfbq1T2N14rMg5iSbeZ1MBsxEImhWVwMGGajhNefRFx33FNecP5h33DgDXuiIk5
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
 -- Dumped by pg_dump version 16.13 (Debian 16.13-1.pgdg12+1)
@@ -1005,9 +1005,7 @@ CREATE TABLE public.crm_systems (
     spreadsheet_id text,
     description text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    substrate_id uuid,
-    tea_id uuid
+    updated_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -3187,16 +3185,6 @@ CREATE TABLE public.projects (
     company_description text,
     esg_url text,
     lead_source text,
-    sidestream_type text,
-    sidestream_volume text,
-    sidestream_composition text,
-    sidestream_composition_source text,
-    sidestream_location text,
-    sidestream_current_use text,
-    sidestream_waste_pnl numeric,
-    sidestream_desired_output text,
-    sidestream_waste_pnl_unit text,
-    sidestream_volume_unit text,
     linked_opportunity_id uuid,
     linked_investor_id uuid,
     assigned_to uuid,
@@ -6103,6 +6091,13 @@ CREATE INDEX idx_funding_notes_opp ON public.funding_notes USING btree (opportun
 
 
 --
+-- Name: idx_funding_org_fit; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_funding_org_fit ON public.funding_opportunities USING btree (org_fit);
+
+
+--
 -- Name: idx_funding_platforms_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6135,13 +6130,6 @@ CREATE INDEX idx_funding_suggestions_open ON public.funding_email_suggestions US
 --
 
 CREATE INDEX idx_funding_suggestions_thread ON public.funding_email_suggestions USING btree (thread_id_normalised) WHERE (status = 'accepted'::text);
-
-
---
--- Name: idx_funding_org_fit; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_funding_org_fit ON public.funding_opportunities USING btree (org_fit);
 
 
 --
@@ -8438,69 +8426,5 @@ ALTER TABLE ONLY public.weekly_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mIOlqietahFFT3IimhW1dbpsgRSeoaexom8hh0AqUlAR7gGa5YOPJuzdZjLdzBy
-
-
---
--- crm_sidestreams: retained because the CRM deal endpoints and deal detail
--- UI still read and write it. Domain-specific; a candidate for removal once
--- those endpoints are generalised.
---
-
-
-\restrict gtGoAzf03i547BXFOpox8uOpyNKqV4FXnY1GzaiholYWAxTwPgtX5JGwfy5QuwC
-
-
-
-
-
-
-CREATE TABLE public.crm_sidestreams (
-    sidestream_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    deal_id uuid NOT NULL,
-    substrate_type text,
-    volume numeric,
-    volume_unit text,
-    moisture_basis text,
-    comp_protein numeric,
-    comp_lipid numeric,
-    comp_starch numeric,
-    comp_cellulose numeric,
-    comp_hemicellulose numeric,
-    comp_lignin numeric,
-    comp_ash numeric,
-    composition_data_source text,
-    sample_or_data_received date,
-    location text,
-    desired_output text[] DEFAULT '{}'::text[] NOT NULL,
-    current_waste_pnl numeric,
-    current_waste_pnl_unit text,
-    current_use text,
-    seasonality text,
-    contamination_constraints text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_sidestreams_compsrc_chk CHECK (((composition_data_source IS NULL) OR (composition_data_source = ANY (ARRAY['Customer lab report'::text, 'Third-party lab'::text, 'Literature'::text, 'Estimated'::text, 'None yet'::text])))),
-    CONSTRAINT crm_sidestreams_moisture_chk CHECK (((moisture_basis IS NULL) OR (moisture_basis = ANY (ARRAY['Wet'::text, 'Dry'::text, 'Unknown'::text])))),
-    CONSTRAINT crm_sidestreams_volume_unit_chk CHECK (((volume_unit IS NULL) OR (volume_unit = ANY (ARRAY['t/yr'::text, 'kg/yr'::text, 't/batch'::text, 'kg/hr'::text]))))
-);
-
-
-
-ALTER TABLE ONLY public.crm_sidestreams
-    ADD CONSTRAINT crm_sidestreams_deal_id_key UNIQUE (deal_id);
-
-
-
-ALTER TABLE ONLY public.crm_sidestreams
-    ADD CONSTRAINT crm_sidestreams_pkey PRIMARY KEY (sidestream_id);
-
-
-
-ALTER TABLE ONLY public.crm_sidestreams
-    ADD CONSTRAINT crm_sidestreams_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES public.crm_deals(deal_id) ON DELETE CASCADE;
-
-
-
-\unrestrict gtGoAzf03i547BXFOpox8uOpyNKqV4FXnY1GzaiholYWAxTwPgtX5JGwfy5QuwC
+\unrestrict kfbq1T2N14rMg5iSbeZ1MBsxEImhWVwMGGajhNefRFx33FNecP5h33DgDXuiIk5
 

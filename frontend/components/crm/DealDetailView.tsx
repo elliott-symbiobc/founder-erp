@@ -11,7 +11,6 @@ import {
   URGENCY_CHIP, URGENCY_DOT, URGENCY_FALLBACK, URGENCY_LABEL, URGENCY_HELP,
   SITE_REGIONS, ROLE_IN_DECISION, CONTACT_FUNCTIONS,
   CLOSED_LOST_CATEGORIES, CLOSED_LOST_OTHER,
-  VOLUME_UNITS, MOISTURE_BASIS, COMPOSITION_SOURCES, COMPOSITION_FIELDS,
   PLAN_ITEM_TYPES, planStatusesFor,
 } from "@/lib/contractStages";
 
@@ -53,7 +52,6 @@ export type DealRow = {
   archived: boolean | null;
 };
 
-export type Sidestream = Record<string, unknown> & { sidestream_id?: string };
 
 export type CustomField = { id: string; kind: "line" | "textbox" | "date"; label: string; value: string | null };
 
@@ -87,7 +85,6 @@ type DetailPayload = {
     title: string | null; role_in_decision: string | null; contact_function: string | null;
     role: string; is_primary: boolean;
   }[];
-  sidestream: Sidestream | null;
   plan_items: PlanItem[];
   stage_history: StageHistoryEntry[];
 };
@@ -703,106 +700,6 @@ function CompanySection({ data, patch, reload }: {
   );
 }
 
-// ── SIDESTREAM ────────────────────────────────────────────────────────────────
-
-function SidestreamSection({ dealId, sidestream, reload }: {
-  dealId: string; sidestream: Sidestream | null; reload: () => Promise<void>;
-}) {
-  const s: Record<string, unknown> = sidestream ?? {};
-  const save = useCallback(async (fields: Record<string, unknown>) => {
-    await fetch(`/api/proxy/crm/deals/${dealId}/sidestream`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields),
-    });
-    await reload();
-  }, [dealId, reload]);
-
-  const hasComposition = COMPOSITION_FIELDS.some(f => s[f.key] !== null && s[f.key] !== undefined);
-  const hasVolume = s.volume !== null && s.volume !== undefined;
-  const needsMoisture = (hasVolume || hasComposition) && !str(s.moisture_basis);
-  const needsCompSource = hasComposition && !str(s.composition_data_source);
-
-  return (
-    <Section title="Sidestream" summary={str(s.substrate_type) || "No substrate set"}>
-      <div className="space-y-2.5">
-        <Row label="Substrate / Type">
-          <Field value={str(s.substrate_type)} placeholder="+ Add substrate / type"
-            onSave={v => save({ substrate_type: v })} />
-        </Row>
-
-        <Row label="Volume + Unit">
-          <div className="flex items-center gap-1.5">
-            <Field value={str(s.volume)} numeric placeholder="—"
-              onSave={v => save({ volume: v ? parseFloat(v) : null })} />
-            <select value={str(s.volume_unit)} onChange={e => save({ volume_unit: e.target.value || null })}
-              className={SEL_XS}>
-              <option value="">unit…</option>
-              {VOLUME_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-        </Row>
-
-        <Row label="Moisture / Basis">
-          <select value={str(s.moisture_basis)} onChange={e => save({ moisture_basis: e.target.value || null })}
-            className={SEL_XS + " w-full" + (needsMoisture ? " ring-2 ring-amber-400/70" : "")}>
-            <option value="">—</option>
-            {MOISTURE_BASIS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          {needsMoisture && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Required to reach Initial Assessment.</p>}
-        </Row>
-
-        <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
-          <span className={LABEL + " block mb-1.5"}>Composition — % dry basis</span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {COMPOSITION_FIELDS.map(f => (
-              <div key={f.key}>
-                <span className="text-[10px] text-zinc-400 block">{f.label}</span>
-                <Field value={str(s[f.key])} numeric placeholder="—"
-                  onSave={v => save({ [f.key]: v ? parseFloat(v) : null })} />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <Row label="Composition Source">
-          <select value={str(s.composition_data_source)}
-            onChange={e => save({ composition_data_source: e.target.value || null })}
-            className={SEL_XS + " w-full" + (needsCompSource ? " ring-2 ring-amber-400/70" : "")}>
-            <option value="">—</option>
-            {COMPOSITION_SOURCES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Row>
-
-        <Row label="Sample/Data Received">
-          <input type="date" value={dateVal(s.sample_or_data_received)} className={DATE_INPUT}
-            onChange={e => save({ sample_or_data_received: e.target.value || null })} />
-        </Row>
-        <Row label="Location">
-          <Field value={str(s.location)} onSave={v => save({ location: v })} />
-        </Row>
-        <Row label="Desired Output">
-          <Field value={Array.isArray(s.desired_output) ? (s.desired_output as string[]).join(", ") : ""}
-            placeholder="+ Add (comma separated)"
-            onSave={v => save({ desired_output: v ? v.split(",").map(x => x.trim()).filter(Boolean) : [] })} />
-        </Row>
-        <Row label="Waste Profit/Loss">
-          <div className="flex items-center gap-1.5">
-            <Field value={str(s.current_waste_pnl)} numeric placeholder="—"
-              onSave={v => save({ current_waste_pnl: v ? parseFloat(v) : null })} />
-            <Field value={str(s.current_waste_pnl_unit)} placeholder="unit"
-              onSave={v => save({ current_waste_pnl_unit: v })} />
-          </div>
-        </Row>
-        <Row label="Current Use"><Field value={str(s.current_use)} onSave={v => save({ current_use: v })} /></Row>
-        <Row label="Seasonality"><Field value={str(s.seasonality)} onSave={v => save({ seasonality: v })} /></Row>
-        <Row label="Contamination">
-          <Field value={str(s.contamination_constraints)} multiline
-            onSave={v => save({ contamination_constraints: v })} />
-        </Row>
-      </div>
-    </Section>
-  );
-}
-
 // ── PLAN ──────────────────────────────────────────────────────────────────────
 
 /** Email plan item: subject + message, plus its (not yet wired) Test / Send actions. */
@@ -1187,7 +1084,7 @@ export function DealDetailView({ dealId, onUpdate, onDeleted }: { dealId: string
   const onDelete = useCallback(async () => {
     const isArchived = !!data?.deal?.archived;
     const msg = isArchived
-      ? "Permanently delete this deal? This cannot be undone \u2014 the deal and all of its plan items, contacts, sidestream and history will be erased."
+      ? "Permanently delete this deal? This cannot be undone \u2014 the deal and all of its plan items, contacts and history will be erased."
       : "Delete this deal? It will be moved to Archived (you can restore or permanently delete it from there).";
     if (!window.confirm(msg)) return;
     await fetch(`/api/proxy/crm/deals/${dealId}`, { method: "DELETE" });
@@ -1207,7 +1104,6 @@ export function DealDetailView({ dealId, onUpdate, onDeleted }: { dealId: string
       <GeneralSection deal={data.deal} patch={patch} onStage={onStage} stageError={stageError} busy={busy} />
       <WorkspaceButtons deal={data.deal} />
       <CompanySection data={data} patch={patch} reload={reload} />
-      <SidestreamSection dealId={dealId} sidestream={data.sidestream} reload={reload} />
       <div className="space-y-3">
         <EntityContacts entityType="deal" entityId={dealId}
           entityName={data.deal.company_name ?? data.deal.title ?? null} onChanged={reload} />

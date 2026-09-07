@@ -350,11 +350,6 @@ REAPPROACH_CLOCK = {
     "Technical / methodology fit": None,
 }
 
-COMPOSITION_COLS = [
-    "comp_protein", "comp_lipid", "comp_starch", "comp_cellulose",
-    "comp_hemicellulose", "comp_lignin", "comp_ash",
-]
-
 # Expected Close Date is seeded on first entry into a dated stage: today + offset.
 # It stays blank (and unasked for) at Lead / Prospect.
 STAGE_CLOSE_OFFSETS = {
@@ -444,13 +439,10 @@ def _load_deal_context(cur, deal_id):
     )
     primary = cur.fetchone()
 
-    cur.execute("SELECT * FROM crm_sidestreams WHERE deal_id=%s", [deal_id])
-    side = cur.fetchone()
-
     cur.execute("SELECT * FROM crm_plan_items WHERE deal_id=%s", [deal_id])
     items = [dict(r) for r in cur.fetchall()]
 
-    return deal, (dict(primary) if primary else None), (dict(side) if side else None), items
+    return deal, (dict(primary) if primary else None), items
 
 
 def _blank(v):
@@ -471,7 +463,7 @@ def validate_stage_entry(cur, deal_id, target_stage):
     rather than a progression — a deal can be lost from any stage — so it only
     enforces the always-on fields plus its own category/reason.
     """
-    deal, primary, side, items = _load_deal_context(cur, deal_id)
+    deal, primary, items = _load_deal_context(cur, deal_id)
     target_idx = _stage_index(target_stage)
     missing = []
 
@@ -525,31 +517,11 @@ def validate_stage_entry(cur, deal_id, target_stage):
                  "Role in Decision (primary contact)")
             need(_blank(primary.get("contact_function")),
                  "Function (primary contact)")
-        need(side is None or _blank(side.get("substrate_type")),
-             "Substrate / Type (Sidestream)")
 
     # ── Initial Assessment and beyond ───────────────────────────────────────
     if target_idx >= _stage_index("Initial Assessment"):
         nda = [i for i in items if i["item_type"] == "nda" and i.get("nda_signed_date")]
         need(not nda, "A signed NDA (Plan)")
-
-        if side is None:
-            missing.extend([
-                "Volume + Unit (Sidestream)", "Composition (Sidestream)",
-                "Moisture / Basis (Sidestream)",
-                "Sample or Data Received (Sidestream)", "Location (Sidestream)",
-                "Desired Output (Sidestream)",
-            ])
-        else:
-            need(_blank(side.get("volume")) or _blank(side.get("volume_unit")),
-                 "Volume + Unit (Sidestream)")
-            has_comp = any(side.get(c) is not None for c in COMPOSITION_COLS)
-            need(not has_comp, "Composition (Sidestream)")
-            need(_blank(side.get("moisture_basis")), "Moisture / Basis (Sidestream)")
-            need(_blank(side.get("sample_or_data_received")),
-                 "Sample or Data Received (Sidestream)")
-            need(_blank(side.get("location")), "Location (Sidestream)")
-            need(_blank(side.get("desired_output")), "Desired Output (Sidestream)")
 
     # ── Contract Sent and beyond ────────────────────────────────────────────
     if target_idx >= _stage_index("Contract Sent"):
@@ -560,12 +532,6 @@ def validate_stage_entry(cur, deal_id, target_stage):
     # ── Closed Won ──────────────────────────────────────────────────────────
     if target_stage == "Closed Won":
         need(_blank(deal.get("success_criteria")), "Success Criteria")
-
-    # ── Conditional rules that apply at any stage once data exists ──────────
-    if side is not None:
-        has_comp = any(side.get(c) is not None for c in COMPOSITION_COLS)
-        if has_comp and _blank(side.get("composition_data_source")):
-            missing.append("Composition Data Source (Sidestream)")
 
     # de-duplicate, preserve order
     seen, out = set(), []
@@ -679,7 +645,6 @@ def list_deals(
                    co.name AS company_name,
                    pc.name AS primary_contact_name,
                    u.name  AS deal_lead_name,
-                   s.substrate_type,
                    (SELECT count(*) FROM (
                        SELECT 1 FROM crm_plan_items p
                          WHERE p.deal_id=d.deal_id AND p.status='open'
@@ -706,7 +671,6 @@ def list_deals(
             FROM crm_deals d
             LEFT JOIN companies co ON co.company_id = d.company_id
             LEFT JOIN users u      ON u.user_id     = d.deal_lead_id
-            LEFT JOIN crm_sidestreams s ON s.deal_id = d.deal_id
             LEFT JOIN LATERAL (
               SELECT c.name FROM crm_deal_contacts dc
               JOIN contacts c ON c.contact_id = dc.contact_id
@@ -1178,7 +1142,7 @@ def stage_check(deal_id: str, target: str, request: Request):
 def delete_deal(deal_id: str, request: Request):
     """Two-tier delete. An active deal is archived (recoverable). Deleting a deal
     that is ALREADY archived is permanent: the row and its CRM children (plan
-    items, contacts, sidestream, stage history, milestones) are removed via ON
+    items, contacts, stage history, milestones) are removed via ON
     DELETE CASCADE. A linked project is only unlinked (crm_deal_id -> NULL),
     never deleted."""
     _require_user(request)
@@ -1207,75 +1171,6 @@ def delete_deal(deal_id: str, request: Request):
     finally:
         conn.close()
     return result
-
-
-# ── Sidestream (exactly one per deal) ─────────────────────────────────────────
-
-class SidestreamUpsert(BaseModel):
-    substrate_type: Optional[str] = None
-    volume: Optional[float] = None
-    volume_unit: Optional[str] = None
-    moisture_basis: Optional[str] = None
-    comp_protein: Optional[float] = None
-    comp_lipid: Optional[float] = None
-    comp_starch: Optional[float] = None
-    comp_cellulose: Optional[float] = None
-    comp_hemicellulose: Optional[float] = None
-    comp_lignin: Optional[float] = None
-    comp_ash: Optional[float] = None
-    composition_data_source: Optional[str] = None
-    sample_or_data_received: Optional[str] = None
-    location: Optional[str] = None
-    desired_output: Optional[List[str]] = None
-    current_waste_pnl: Optional[float] = None
-    current_waste_pnl_unit: Optional[str] = None
-    current_use: Optional[str] = None
-    seasonality: Optional[str] = None
-    contamination_constraints: Optional[str] = None
-
-
-SIDESTREAM_FIELDS = [
-    "substrate_type", "volume", "volume_unit", "moisture_basis",
-    "comp_protein", "comp_lipid", "comp_starch", "comp_cellulose",
-    "comp_hemicellulose", "comp_lignin", "comp_ash", "composition_data_source",
-    "sample_or_data_received", "location", "desired_output",
-    "current_waste_pnl", "current_waste_pnl_unit", "current_use",
-    "seasonality", "contamination_constraints",
-]
-
-
-@router.put("/deals/{deal_id}/sidestream")
-def upsert_sidestream(deal_id: str, body: SidestreamUpsert, request: Request):
-    """A deal carries at most one sidestream; this creates or updates it."""
-    _require_user(request)
-    payload = {f: getattr(body, f) for f in SIDESTREAM_FIELDS
-               if getattr(body, f) is not None}
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT sidestream_id FROM crm_sidestreams WHERE deal_id=%s", [deal_id])
-        existing = cur.fetchone()
-        if existing:
-            if payload:
-                sets = ", ".join(f"{k} = %s" for k in payload)
-                cur.execute(
-                    f"UPDATE crm_sidestreams SET {sets}, updated_at=now() WHERE deal_id=%s RETURNING *",
-                    list(payload.values()) + [deal_id],
-                )
-            else:
-                cur.execute("SELECT * FROM crm_sidestreams WHERE deal_id=%s", [deal_id])
-        else:
-            cols = ["deal_id"] + list(payload)
-            cur.execute(
-                f"INSERT INTO crm_sidestreams ({', '.join(cols)}) "
-                f"VALUES ({', '.join(['%s'] * len(cols))}) RETURNING *",
-                [deal_id] + list(payload.values()),
-            )
-        row = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
-    return _jsonsafe(dict(row))
 
 
 # ── Plan items (repeating child collection) ───────────────────────────────────
@@ -1615,10 +1510,6 @@ def deal_detail(deal_id: str, request: Request):
         crow = cur.fetchone()
         company = _jsonsafe(dict(crow)) if crow else None
 
-        cur.execute("SELECT * FROM crm_sidestreams WHERE deal_id=%s", [deal_id])
-        srow = cur.fetchone()
-        sidestream = _jsonsafe(dict(srow)) if srow else None
-
         cur.execute(
             """
             SELECT p.*, u.name AS owner_name
@@ -1670,7 +1561,6 @@ def deal_detail(deal_id: str, request: Request):
         "deal": deal,
         "company": company,
         "contacts": contacts,
-        "sidestream": sidestream,
         "plan_items": plan_items,
         "open_task_count": open_task_count,
         "stage_history": stage_history,

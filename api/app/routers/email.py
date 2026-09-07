@@ -232,7 +232,7 @@ def search_email(
 ):
     """Search the user's Gmail with a free-text query. Returns lightweight
     message metadata (id, subject, from, date, snippet) for attaching as a
-    substrate data source."""
+    data source."""
     import httpx as _httpx
 
     user_id = request.headers.get("X-User-Id")
@@ -277,7 +277,7 @@ def search_drive(
     max_results: int = Query(15, ge=1, le=50),
 ):
     """Search the user's Google Drive by file name. Returns file metadata for
-    attaching as a substrate data source."""
+    attaching as a data source."""
     import httpx as _httpx
 
     user_id = request.headers.get("X-User-Id")

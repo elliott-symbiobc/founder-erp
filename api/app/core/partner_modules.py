@@ -3,7 +3,7 @@
 Two lists used to describe the same thing in different vocabularies: the
 frontend named the *modules* a cohort could be granted, and partner_guard named
 the *URL segments* each permission unlocked. Nothing checked that they agreed,
-so they drifted — `/reports` was reachable by anyone holding `analyses` even
+so they drifted — `/reports` was reachable by anyone holding an unrelated grant even
 though no cohort could be granted Reports at all, and adding a module meant
 remembering to edit a file in the other language.
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # ── permission -> the URL segments it unlocks ─────────────────────────────────
 #
-# A segment is the first path element of an API route: /strains/abc -> "strains".
+# A segment is the first path element of an API route: /projects/abc -> "projects".
 # Several permissions may list the same segment; holding ANY of them opens it,
 # because one API legitimately serves more than one module. The Enzymes tab
 # appears inside both Inventory and System Design, so either grant opens
@@ -41,25 +41,6 @@ logger = logging.getLogger(__name__)
 # permission should open it.
 
 PERMISSION_SEGMENTS: dict[str, tuple[str, ...]] = {
-    # ── Lab ──
-    # "Inventory" is one grant covering all five of its sub-tabs, so every
-    # inventory API answers to the same permission. Splitting `enzymes` off
-    # would let a partner open the Enzymes tab and get a 403.
-    "strains":       ("strains", "substrates", "enzymes", "chemicals", "consumables", "equipment"),
-    "protocols":     ("protocols",),
-    "log_runs":      ("runs",),
-    "notebook":      ("notebook",),
-
-    # ── R&D ──
-    "literature":    ("papers",),          # the Literature module reads /papers
-    "queue_upload":  ("queue",),           # Review Queue
-    "analyses":      ("analyses", "methodology", "tea-params", "lca-params"),
-    "model":         ("model",),
-    "model_retrain": ("jobs",),
-    "compounds":     ("compounds",),
-    "explore":       ("explore",),
-    "system_design": ("system-design", "enzymes", "chemicals", "projects", "methodology", "tea-params"),
-
     # ── Collaboration ──
     "projects":      ("projects", "tasks", "milestones"),
 
@@ -97,26 +78,12 @@ class PartnerModule:
         }
 
 
-MODULE_GROUPS = ["Learning", "Lab", "R&D", "Collaboration"]
+MODULE_GROUPS = ["Learning", "Collaboration"]
 
 PARTNER_MODULES: list[PartnerModule] = [
     # Learning is always on for a partner account — it is the role's one
     # default — so it is listed for ordering but is not a real grant.
     PartnerModule("learn", "Learning", "/learn", "Learning"),
-
-    PartnerModule("protocols", "Protocols", "/protocols", "Lab"),
-    PartnerModule("strains", "Inventory", "/strains", "Lab",
-                  covers="Strains, Enzymes, Chemicals, Consumables, Equipment"),
-    PartnerModule("log_runs", "Log Run", "/runs", "Lab"),
-    PartnerModule("notebook", "Notebook", "/notebook", "Lab"),
-
-    PartnerModule("literature", "Literature", "/literature", "R&D"),
-    PartnerModule("queue_upload", "Review Queue", "/queue", "R&D"),
-    PartnerModule("analyses", "Analysis", "/analyses", "R&D"),
-    PartnerModule("model", "ML Models", "/model", "R&D"),
-    PartnerModule("compounds", "Compounds", "/compounds", "R&D"),
-    PartnerModule("system_design", "System Design", "/system-design", "R&D",
-                  covers="Flowsheet, Systems, Unit Operations, Chemicals, Enzymes, Vendor Quotes"),
 
     PartnerModule("projects", "Projects", "/projects", "Collaboration"),
 ]
@@ -159,7 +126,7 @@ def check_consistency(permission_keys: set[str] | None = None) -> list[str]:
         landing = module.href.strip("/").split("/", 1)[0]
         if landing and landing not in PERMISSION_SEGMENTS[module.key]:
             # Only a warning: some pages are served entirely by another
-            # segment's API (Literature lives at /literature but reads /papers).
+            # segment's API.
             logger.debug(
                 "partner module %s links to /%s, which its own grant does not open",
                 module.key, landing,

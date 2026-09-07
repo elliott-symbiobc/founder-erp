@@ -6,16 +6,16 @@ Usage in an agent module:
 
     # At module level, register the default prompt text:
     register_prompt(
-        agent_module="app.agents.composition_agent",
-        prompt_key="extraction_prompt",
-        default=_DEFAULT_EXTRACTION_PROMPT,
-        description="Extract composition values from paper text",
-        variables=["substrate_name", "field_ref"],
+        agent_module="app.agents.lead_enrichment_agent",
+        prompt_key="enrichment_prompt",
+        default=_DEFAULT_ENRICHMENT_PROMPT,
+        description="Enrich a lead from public sources",
+        variables=["company_name", "field_ref"],
     )
 
     # At call time, get the active prompt (DB override wins over default):
-    template = get_prompt("app.agents.composition_agent", "extraction_prompt")
-    prompt = template.format(substrate_name=substrate_name, field_ref=field_ref)
+    template = get_prompt("app.agents.lead_enrichment_agent", "enrichment_prompt")
+    prompt = template.format(company_name=company_name, field_ref=field_ref)
 """
 from __future__ import annotations
 

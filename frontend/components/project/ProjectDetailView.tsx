@@ -72,11 +72,6 @@ export interface Project {
   }>; strategic_goals: StrategicGoalLink[]; fpa_links: FpaLink[];
   template_id: string | null; crm_deal_id: string | null; crm_type: string | null;
   company_description: string | null; esg_url: string | null; lead_source: string | null;
-  sidestream_type: string | null; sidestream_volume: string | null; sidestream_composition: string | null;
-  sidestream_composition_source: string | null; sidestream_location: string | null;
-  sidestream_current_use: string | null; sidestream_waste_pnl: number | null;
-  sidestream_waste_pnl_unit: string | null; sidestream_volume_unit: string | null;
-  sidestream_desired_output: string | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -960,100 +955,6 @@ function InfoPanel({ project, onUpdate }: { project: Project; onUpdate: () => vo
   );
 }
 
-type FieldDef =
-  | { key: keyof Project; label: string; type?: "textarea" }
-  | { key: keyof Project; label: string; type: "numeric+unit"; unitKey: keyof Project };
-
-function SidestreamInfoSection({ project, onUpdate }: { project: Project; onUpdate: () => void }) {
-  const fields: FieldDef[] = [
-    { key: "sidestream_type", label: "Type" },
-    { key: "sidestream_volume", label: "Volume", type: "numeric+unit", unitKey: "sidestream_volume_unit" },
-    { key: "sidestream_composition", label: "Composition", type: "textarea" },
-    { key: "sidestream_composition_source", label: "Composition data source" },
-    { key: "sidestream_location", label: "Location" },
-    { key: "sidestream_current_use", label: "Current use" },
-    { key: "sidestream_waste_pnl", label: "Current waste profit/loss", type: "numeric+unit", unitKey: "sidestream_waste_pnl_unit" },
-    { key: "sidestream_desired_output", label: "Desired output", type: "textarea" },
-  ];
-  const allKeys = [...fields.map(f => f.key as string), "sidestream_volume_unit", "sidestream_waste_pnl_unit"];
-  const [values, setValues] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const k of allKeys) init[k] = project[k as keyof Project] != null ? String(project[k as keyof Project]) : "";
-    return init;
-  });
-  const [editing, setEditing] = useState<string | null>(null);
-  async function save(patch: Record<string, unknown>) {
-    await fetch(`/api/proxy/projects/${project.project_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-    onUpdate();
-  }
-  function blurSave(key: string, raw: string, numeric = false) {
-    setEditing(null);
-    const val = raw.trim() || null;
-    save({ [key]: numeric && val !== null ? parseFloat(val) : val });
-  }
-  const inputCls = "text-xs text-zinc-800 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500/30";
-  return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-      <SectionHeader title="Sidestream Info" />
-      <div className="space-y-2.5">
-        {fields.map((f) => {
-          const key = f.key as string;
-          const val = values[key];
-          const isEditing = editing === key;
-          if (f.type === "numeric+unit") {
-            const unitKey = (f as { unitKey: keyof Project }).unitKey as string;
-            const unitVal = values[unitKey];
-            const isEditingUnit = editing === unitKey;
-            return (
-              <div key={key} className="grid grid-cols-[120px_1fr] gap-2 items-start">
-                <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wide pt-0.5">{f.label}</span>
-                <div className="flex items-center gap-1.5">
-                  {isEditing ? (
-                    <input autoFocus type="number" value={val} onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))}
-                      onBlur={() => blurSave(key, val, true)}
-                      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setEditing(null); setValues(prev => ({ ...prev, [key]: project[f.key] != null ? String(project[f.key]) : "" })); } }}
-                      className={inputCls + " w-28"} />
-                  ) : (
-                    <span onClick={() => setEditing(key)} className={`text-xs cursor-text min-w-[2rem] ${val ? "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100" : "text-zinc-300 dark:text-zinc-600 italic hover:text-zinc-400 dark:hover:text-zinc-500"} transition-colors`}>{val || "—"}</span>
-                  )}
-                  {isEditingUnit ? (
-                    <input autoFocus value={unitVal} placeholder="unit (e.g. lb/day)" onChange={e => setValues(prev => ({ ...prev, [unitKey]: e.target.value }))}
-                      onBlur={() => blurSave(unitKey, unitVal)}
-                      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setEditing(null); setValues(prev => ({ ...prev, [unitKey]: project[f.key as keyof Project] != null ? String(project[unitKey as keyof Project] ?? "") : "" })); } }}
-                      className={inputCls + " flex-1"} />
-                  ) : (
-                    <span onClick={() => setEditing(unitKey)} className={`text-xs cursor-text ${unitVal ? "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" : "text-zinc-300 dark:text-zinc-600 italic hover:text-zinc-400 dark:hover:text-zinc-500"} transition-colors`}>
-                      {unitVal || <span className="italic">+ unit</span>}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div key={key} className="grid grid-cols-[120px_1fr] gap-2 items-start">
-              <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wide pt-0.5">{f.label}</span>
-              {isEditing ? (
-                f.type === "textarea" ? (
-                  <AutoTextarea autoFocus rows={2} value={val} onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))} onBlur={() => blurSave(key, val)} className={inputCls + " resize-none w-full"} />
-                ) : (
-                  <input autoFocus value={val} onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))} onBlur={() => blurSave(key, val)}
-                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setEditing(null); setValues(prev => ({ ...prev, [key]: project[f.key] != null ? String(project[f.key]) : "" })); } }}
-                    className={inputCls + " w-full"} />
-                )
-              ) : (
-                <span onClick={() => setEditing(key)} className={`text-xs cursor-text leading-relaxed ${val ? "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100" : "text-zinc-300 dark:text-zinc-600 italic hover:text-zinc-400 dark:hover:text-zinc-500"} transition-colors`}>
-                  {val || "—"}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function RelatedProjectsPanel({ projectId, contactId }: { projectId: string; contactId: string }) {
   const [related, setRelated] = useState<Array<{ project_id: string; name: string; stage: string | null; status: string; expected_revenue: number | null }>>([]);
   useEffect(() => { fetch(`/api/proxy/projects/${projectId}/related`).then(r => r.ok ? r.json() : []).then(setRelated); }, [projectId]);
@@ -1258,7 +1159,6 @@ function ProjectBody({ project, load }: { project: Project; load: () => void }) 
           {project.linked_opportunity_id && <LinkedOpportunitySection opportunityId={project.linked_opportunity_id} />}
           <CompanyInfoSection project={project} onUpdate={load} />
           <ProjectLeadSection project={project} onUpdate={load} />
-          {project.project_type !== "partnership" && <SidestreamInfoSection project={project} onUpdate={load} />}
           <StrategicPlanningSection projectId={project.project_id} onUpdate={load} />
           {project.contact_id && <RelatedProjectsPanel projectId={project.project_id} contactId={project.contact_id} />}
         </div>

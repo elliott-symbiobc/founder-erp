@@ -86,7 +86,7 @@ def get_conn():
 # Fallback system prompt for AI enrichment. Mirrors the "dilutive_enrich" entry in
 # app/core/agent_config.py; used when the registry/DB override is unavailable.
 _DEFAULT_ENRICH_PROMPT = (
-    "You are a venture-capital analyst helping an early-stage biotech/foodtech startup (Open ERP) "
+    "You are a venture-capital analyst helping an early-stage startup "
     "research prospective investors. Given an investor or firm, enrich the record with what you know.\n\n"
     "Return ONLY valid JSON with these fields (null for unknown):\n"
     "{\n"
@@ -111,11 +111,11 @@ _DEFAULT_ENRICH_PROMPT = (
     "hq: city, country of headquarters\n"
     "geo_focus: regions where they invest, e.g. 'US, Europe'\n"
     "investment_stage: e.g. 'Pre-seed', 'Seed', 'Series A', 'Seed–Series B'\n"
-    "focus: thesis / sectors, e.g. 'Synthetic biology, foodtech, climate'\n"
+    "focus: thesis / sectors, e.g. 'Enterprise SaaS, climate, fintech'\n"
     "fund_size: total fund size as string, e.g. '$200M'\n"
     "check_size_min / check_size_max: typical check range, e.g. '$250K' / '$2M'\n"
     "partners: notable partners (comma-separated)\n"
-    "description: 2-3 sentences on the firm and its fit for Open ERP\n"
+    "description: 2-3 sentences on the firm and its fit for the company\n"
     "tags: relevant tags (max 5)\n"
     "enrichment_summary: one sentence describing what was found\n\n"
     "Only include fields you're reasonably confident about. Do not invent URLs — leave links null if unsure."
@@ -2123,19 +2123,19 @@ def enrich_investor(investor_id: str):
 _DEFAULT_RUBRIC = {
     "focus": {
         "label": "Thesis Fit",
-        "description": "How closely does the investor's thesis match Open ERP's space: fermentation-derived ingredients, alt-protein, synthetic biology, food/ag biotech.",
+        "description": "How closely does the investor's thesis match the company's sector and stage.",
         "max": 4,
         "levels": {
-            "0": "No life sciences, food, or ag exposure — e.g. pure fintech, real estate, SaaS, consumer apps",
-            "1": "General deep tech or broad life sciences — invests across many sectors with no food/bio focus",
-            "2": "Food/ag or biotech generally — relevant sectors but no specific fermentation/synbio thesis",
-            "3": "Clear food tech, ag biotech, or synthetic biology focus — invests in companies like Open ERP",
-            "4": "Explicit fermentation, alt-protein, or precision biology thesis — this is their primary focus area",
+            "0": "No exposure to the company's sector at all",
+            "1": "Generalist — invests across many sectors with no focus on the company's",
+            "2": "Adjacent sectors — relevant, but no specific thesis in the company's space",
+            "3": "Clear focus on the company's sector — invests in comparable companies",
+            "4": "Explicit thesis in the company's niche — this is their primary focus area",
         },
     },
     "stage": {
         "label": "Stage Fit",
-        "description": "Does the investor write first checks at pre-seed or seed? Open ERP is raising its first institutional round ($500K–$3M).",
+        "description": "Does the investor write first checks at the company's current round stage?",
         "max": 4,
         "levels": {
             "0": "Series B+ / growth equity only — does not make first checks before Series A",
@@ -2165,20 +2165,20 @@ _DEFAULT_RUBRIC = {
             "0": "Strictly invests in a single non-US region with no exceptions (e.g. Southeast Asia only, MENA only)",
             "1": "Predominantly non-US — will occasionally invest globally but North America is not a focus",
             "2": "Global mandate or North America included — no geographic restriction on US companies",
-            "3": "US-focused investor with active portfolio in biotech, food, or ag sectors",
-            "4": "US-focused, remote-friendly or Midwest presence, well-networked in biotech/food",
+            "3": "Domestic investor with an active portfolio in the company's sector",
+            "4": "Domestic, remote-friendly or locally present, and well-networked in the sector",
         },
     },
     "portfolio": {
         "label": "Portfolio Signal",
-        "description": "Does the existing portfolio show conviction in biotech, food tech, or alt-protein? Signals the investor understands the space and has relevant relationships.",
+        "description": "Does the existing portfolio show conviction in the company's space? Signals the investor understands it and has relevant relationships.",
         "max": 4,
         "levels": {
             "0": "No portfolio companies in bio, food, ag, climate, or adjacent spaces",
             "1": "1–2 loosely adjacent companies (e.g. general health, traditional food brands)",
-            "2": "3+ companies in food, ag, biotech, or climate — shows sector interest",
-            "3": "Active portfolio in food tech, ag biotech, or synthetic biology — multiple relevant bets",
-            "4": "Proven track record in fermentation, alt-protein, or synbio — portfolio exits or marquee bets in the space",
+            "2": "3+ companies in adjacent sectors — shows sector interest",
+            "3": "Active portfolio in the company's sector — multiple relevant bets",
+            "4": "Proven track record in the niche — portfolio exits or marquee bets in the space",
         },
     },
 }
@@ -2190,7 +2190,7 @@ _DEFAULT_CRITERIA = {
     "target_raise_max": 3000000,
     "target_stages": ["Pre-seed", "Seed"],
     "target_geo": ["United States", "North America", "Canada"],
-    "target_sectors": ["Biotech", "Synthetic Biology", "Food Tech", "Alt-protein", "Fermentation", "AgTech", "Food & Beverage"],
+    "target_sectors": [],
     "check_target_min": 500000,
     "check_target_max": 2000000,
 }

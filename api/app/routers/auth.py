@@ -14,23 +14,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 PERMISSION_KEYS = [
     # Core modules
-    "analyses",       # View & create BioSTEAM analyses
     "contacts",       # Contacts, CRM, Advisors, Clients
     "projects",       # Projects & task management
-    # Lab
-    "literature",     # Literature library (view papers)
-    "queue_upload",   # Upload papers to review queue
-    "queue_approve",  # Approve / reject queue items
-    "log_runs",       # Log fermentation runs
-    "strains",        # Strains, genome annotation
-    "enzymes",        # Enzyme database
-    "protocols",      # Protocol bank
-    "notebook",       # Lab notebook (view & write)
-    # Science
-    "model",          # ML model, predictions, SHAP
-    "model_retrain",  # Trigger retraining & AI jobs
-    "compounds",      # Compound discovery
-    "explore",        # AI exploration
     # Finance
     "view_fpa",       # View FP&A dashboard
     "edit_fpa",       # Edit financial model & integrations
@@ -41,8 +26,6 @@ PERMISSION_KEYS = [
     "notes",          # Meeting notes with recording & AI analysis
     # Invoices
     "invoices",       # Create, view & manage invoices
-    # Design
-    "system_design",    # Flowsheets, systems, unit operations, vendor quotes
     # Partner program
     "learn",            # Access the Learning Center (tracks, modules, progress)
     "manage_partners",  # Manage partner orgs, invites & course content
@@ -53,15 +36,7 @@ ROLE_DEFAULTS: dict[str, dict[str, bool]] = {
     "admin": {k: True for k in PERMISSION_KEYS},
     "user": {
         # Core
-        "analyses": True, "contacts": True, "projects": True,
-        # Lab
-        "literature": True, "queue_upload": True, "queue_approve": True,
-        "log_runs": True, "strains": True, "enzymes": True,
-        "protocols": True, "notebook": True,
-        # Science
-        "model": True, "model_retrain": True, "compounds": True, "explore": True,
-        # Design
-        "system_design": True,
+        "contacts": True, "projects": True,
         # Finance — off by default
         "view_fpa": False, "edit_fpa": False,
         # Admin — off by default
@@ -74,16 +49,8 @@ ROLE_DEFAULTS: dict[str, dict[str, bool]] = {
         "learn": True, "manage_partners": False, "view_activity": False,
     },
     "viewer": {
-        # Core — analyses and projects visible to viewers
-        "analyses": True, "contacts": False, "projects": True,
-        # Lab — most off; viewing library, strains, enzymes, protocols is fine
-        "literature": True, "queue_upload": False, "queue_approve": False,
-        "log_runs": False, "strains": True, "enzymes": True,
-        "protocols": True, "notebook": False,
-        # Science — viewing is fine
-        "model": True, "model_retrain": False, "compounds": True, "explore": True,
-        # Design
-        "system_design": True,
+        # Core — projects visible to viewers
+        "contacts": False, "projects": True,
         # Finance & admin — off
         "view_fpa": False, "edit_fpa": False,
         "manage_users": False, "dev_mode": False,

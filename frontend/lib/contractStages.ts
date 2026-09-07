@@ -397,24 +397,6 @@ export const CLOSED_LOST_CATEGORIES = [
 
 export const CLOSED_LOST_OTHER = "Other";
 
-// ── Sidestream ───────────────────────────────────────────────────────────────
-export const VOLUME_UNITS = ["t/yr", "kg/yr", "t/batch", "kg/hr"] as const;
-export const MOISTURE_BASIS = ["Wet", "Dry", "Unknown"] as const;
-export const COMPOSITION_SOURCES = [
-  "Customer lab report", "Third-party lab", "Literature", "Estimated", "None yet",
-] as const;
-
-// 7 numeric fields, % dry basis
-export const COMPOSITION_FIELDS: { key: string; label: string }[] = [
-  { key: "comp_protein",       label: "Protein" },
-  { key: "comp_lipid",         label: "Lipid" },
-  { key: "comp_starch",        label: "Starch" },
-  { key: "comp_cellulose",     label: "Cellulose" },
-  { key: "comp_hemicellulose", label: "Hemicellulose" },
-  { key: "comp_lignin",        label: "Lignin" },
-  { key: "comp_ash",           label: "Ash" },
-];
-
 // ── Plan ─────────────────────────────────────────────────────────────────────
 export const PLAN_ITEM_TYPES: { key: string; label: string }[] = [
   { key: "first_touch",       label: "First Touch" },

@@ -1472,7 +1472,7 @@ def chat(body: ChatRequest, request: Request):
             pass
 
         # ── Block A: static role context (prompt-cached across all requests) ──
-        _block_a_text = """You are an executive assistant for Open ERP, a biotech startup.
+        _block_a_text = """You are an executive assistant.
 You have real-time access to ALL business data across every module and help the founder prioritize and manage their day.
 
 === YOUR ROLE ===

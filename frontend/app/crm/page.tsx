@@ -24,7 +24,6 @@ export type Deal = {
   company_name: string | null;
   primary_contact_name: string | null;
   deal_lead_name: string | null;
-  substrate_type: string | null;
   projected_revenue: number | string | null;
   expected_close_date: string | null;
   end_date: string | null;
@@ -142,7 +141,6 @@ function StageInfoIcon({ stage, header }: { stage: string; header: string }) {
 
 function DealCard({ deal }: { deal: Deal }) {
   const revenue = money(deal.projected_revenue);
-  const sidestreamType = (deal.substrate_type ?? "").trim();
   // Side marker reflects the deal's status, using the same colours as the
   // status pill in the detail view.
   const status = deal.status ?? "new";
@@ -163,11 +161,6 @@ function DealCard({ deal }: { deal: Deal }) {
           <p className="text-xs font-medium text-gray-900 dark:text-white truncate" title={deal.title}>{deal.title}</p>
           {deal.company_name && deal.company_name !== deal.title && (
             <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate" title={deal.company_name}>{deal.company_name}</p>
-          )}
-          {sidestreamType && (
-            <span className="inline-block mt-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800/50 max-w-full truncate align-top" title={`Sidestream type: ${sidestreamType}`}>
-              {sidestreamType}
-            </span>
           )}
           {/* Status + revenue + owner — read-only preview; edits live in the detail view */}
           <div className="flex items-center gap-1.5 mt-1.5">

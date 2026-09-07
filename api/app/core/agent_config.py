@@ -137,23 +137,19 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "Active projects — stage, status, revenue, deadline",
             "FP&A actuals & QBO monthly revenue",
             "Google Calendar — today's events",
-            "Recent ELN notebook entries (last 10 with AI summaries)",
             "Recent meeting notes (last 5 with summaries & action items)",
             "Top client contacts (AI relationship summaries)",
-            "Recent literature papers (last 5 key findings)",
-            "Active strains & top compound opportunities",
             "Funding opportunities (active, by deadline)",
         ],
         "tools": [],
         "default_system_prompt": (
-            "You are an executive assistant for Open ERP, a biotech startup. "
+            "You are an executive assistant. "
             "You have real-time access to ALL business data across every module "
             "and help the founder prioritize and manage their day.\n\n"
             "TODAY: {today}\n\n"
             "=== LIVE BUSINESS CONTEXT ===\n"
             "OPEN TASKS | CONTACT REMINDERS | ACTIVE PROJECTS | FINANCIALS | "
-            "TODAY'S CALENDAR | RECENT ELN ENTRIES | MEETING NOTES | "
-            "KEY CONTACTS | LITERATURE | STRAINS & COMPOUNDS | FUNDING\n\n"
+            "TODAY'S CALENDAR | MEETING NOTES | KEY CONTACTS | FUNDING\n\n"
             "=== YOUR ROLE ===\n"
             "- Sharp, direct executive assistant — not overly formal\n"
             "- Use calendar to understand committed time\n"
@@ -169,7 +165,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "display_name": "Meeting Note Analyzer",
         "description": "Extracts action items, decisions, and follow-ups from meeting transcripts",
         "module": "Notes",
-        "pages": ["/notebook"],
+        "pages": ["/tasks"],
         "file": "worker.py → analyze_note_task",
         "model": "claude-sonnet-4-6",
         "max_tokens": 2048,
@@ -192,36 +188,6 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             '  "action_items": [{"title": "...", "description": "...", "assignee_hint": "..."}],\n'
             '  "decisions": [{"decision": "...", "context": "..."}],\n'
             '  "follow_ups": ["string"]\n'
-            '}'
-        ),
-    },
-    "entry_analysis": {
-        "display_name": "ELN Entry Analyzer",
-        "description": "Analyzes lab notebook entry transcripts for structured data extraction",
-        "module": "Notebook",
-        "pages": ["/notebook"],
-        "file": "worker.py → analyze_entry_task",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 2048,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Entry title",
-            "Raw transcript (up to 12,000 chars)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Analyze this meeting or session transcript and extract structured information.\n\n"
-            "Meeting title: {title}\n"
-            "Transcript:\n{transcript[:12000]}\n\n"
-            "Return ONLY a valid JSON object:\n"
-            '{\n'
-            '  "summary": "2-3 paragraph prose summary",\n'
-            '  "action_items": [{"title": "...", "description": "...", "assignee_hint": "..."}],\n'
-            '  "decisions": [{"title": "...", "rationale": "..."}],\n'
-            '  "follow_ups": [{"item": "...", "deadline": "..."}]\n'
             '}'
         ),
     },
@@ -255,359 +221,6 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "Rules:\n"
             "- type: 'task' (work item) or 'reminder' (follow-up with person)\n"
             "- urgency: 'high' (do today), 'medium' (this week), 'low' (someday)"
-        ),
-    },
-    "lit_search": {
-        "display_name": "Literature Search & Acquisition",
-        "description": "Weekly sweep: searches PubMed, OpenAlex, CORE, Semantic Scholar, Springer concurrently, scores abstracts, fetches full text, stages extractions. No LLM — search pipeline only.",
-        "module": "Literature",
-        "pages": ["/literature"],
-        "file": "agents/literature_agent.py → run_weekly_sweep",
-        "model": "n/a",
-        "max_tokens": 0,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "QUERIES and TARGETED_QUERIES — ~50 hardcoded search strings",
-            "PubMed (NCBI E-utilities)",
-            "OpenAlex (open access metadata)",
-            "CORE (full-text open access)",
-            "Semantic Scholar (S2_API_KEY)",
-            "Springer (SPRINGER_API_KEY)",
-            "Unpaywall (PDF URL resolution)",
-        ],
-        "tools": ["pubmed", "openalex", "core", "semantic_scholar", "springer", "unpaywall"],
-        "default_system_prompt": (
-            "# Custom queries — one per line, replaces the built-in QUERIES+TARGETED_QUERIES list\n"
-            "# Leave blank to use built-in queries\n"
-            "# Example:\n"
-            "# Aspergillus tannase solid state fermentation production\n"
-            "# Aspergillus oryzae SSF wheat bran enzyme titer\n"
-        ),
-    },
-    "lit_assumptions": {
-        "display_name": "Literature Assumptions Extractor",
-        "description": "Searches PubMed, Europe PMC, and OpenAlex then uses Claude to extract titer/yield data for TEA modeling assumptions",
-        "module": "Literature",
-        "pages": ["/literature", "/analyses"],
-        "file": "worker.py → run_literature_assumptions_task",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 500,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "Target compound name",
-            "PubMed abstracts (up to 10, 600 chars each)",
-            "Europe PMC abstracts",
-            "OpenAlex abstracts",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "You are a bioprocess engineer extracting fermentation performance data for TEA modeling.\n\n"
-            "Target compound: {output_name}\n\n"
-            "Literature sources found:\n{context}\n\n"
-            "Extract: titer_g_l, yield_g_g, sub_cost_per_ton, fermentation_mode, organism, "
-            "citations, confidence (high/medium/low), evidence_quotes.\n"
-            "Return ONLY valid JSON."
-        ),
-    },
-    "lit_composition": {
-        "display_name": "Composition from Papers",
-        "description": "Extracts substrate biochemical composition values from platform literature papers",
-        "module": "Literature",
-        "pages": ["/literature", "/analyses"],
-        "file": "agents/composition_agent.py → _extract_composition_from_papers",
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 4000,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "Substrate name",
-            "Platform papers — full text (up to 50k chars) or abstract (up to 4k chars)",
-            "Composition field ontology (label, unit per field)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Extract biochemical composition values for substrate '{substrate_name}' "
-            "from the literature below.\n\n"
-            "Target fields:\n{field_ref}\n\n"
-            "Papers:\n{combined_text}\n\n"
-            "Return ONLY a JSON object mapping field keys to numeric values with units."
-        ),
-    },
-    "queue_extract": {
-        "display_name": "Medium Protocol Generator",
-        "description": "Generates step-by-step medium preparation protocols from extracted medium composition data when a queue item is approved",
-        "module": "Literature",
-        "pages": ["/literature", "/queue"],
-        "file": "routers/queue.py → _generate_medium_protocol",
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 2000,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "Queue item: substrate name, strain name, enzyme class",
-            "Extracted medium composition and component list from paper",
-            "Paper DOI (for citation in protocol steps)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Convert medium preparation information from a scientific paper into a clear, "
-            "step-by-step laboratory protocol.\n\n"
-            "Medium name: {substrate_name}\n"
-            "Raw composition from paper: {medium_comp}\n"
-            "Components: {medium_components}\n"
-            "Organism: {strain_name}\n"
-            "Target enzyme: {enzyme_class}\n\n"
-            "Return JSON with: title, materials (item/quantity_100ml/quantity_1L), equipment, "
-            "steps (step_number/instruction/critical_point), sterilization, storage, "
-            "quality_checks, safety_notes, source_citation."
-        ),
-    },
-    "notebook_format": {
-        "display_name": "Notebook Formatter",
-        "description": "Formats raw meeting notes into clean structured documents",
-        "module": "Notebook",
-        "pages": ["/notebook"],
-        "file": "routers/notebook.py",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 4096,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Entry title",
-            "Entry body (raw notes, up to 8,000 chars)",
-            "Linked calendar event title (if present)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "You are formatting rough meeting notes into a clean, readable document.\n\n"
-            "Meeting: {meeting_name}\n"
-            "Raw notes:\n{body[:8000]}\n\n"
-            "Format these notes into clean, well-structured markdown. Rules:\n"
-            "- Preserve ALL information — do not drop any facts, numbers, or details\n"
-            "- Use ## for main sections, ### for subsections\n"
-            "- Use bullet lists for lists of items\n"
-            "- Bold (**text**) key numbers, names, and decisions\n"
-            "- Fix obvious typos or unclear abbreviations\n"
-            "- Keep the tone professional but concise\n"
-            "- Do NOT add new information or commentary\n"
-            "- Return ONLY the formatted markdown, nothing else"
-        ),
-    },
-    "protocols_parse": {
-        "display_name": "Protocol PDF Parser",
-        "description": "Parses uploaded PDF text to extract and structure SOP protocols",
-        "module": "Protocols",
-        "pages": ["/protocols"],
-        "file": "routers/protocols.py",
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 4096,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "PDF extracted text (up to ~60,000 chars via pypdf)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Extract the laboratory protocol from the PDF text below and return a single JSON object.\n\n"
-            "JSON schema (output ONLY the JSON object, nothing else):\n"
-            '{\n'
-            '  "title": "<concise protocol title>",\n'
-            '  "protocol_type": "<fermentation_method|medium_preparation|downstream_processing|'
-            'genome_edit_sop|analytical_assay|strain_maintenance|substrate_preparation|other>",\n'
-            '  "organism": "<organism name or null>",\n'
-            '  "substrate": "<substrate/medium name or null>",\n'
-            '  "vessel_type": "<e.g. shake_flask, stirred_tank, or null>",\n'
-            '  "scale": "<e.g. lab, pilot, or null>",\n'
-            '  "tags": ["<keyword>"],\n'
-            '  "content_markdown": "<full protocol as Markdown>"\n'
-            '}\n\n'
-            "PDF text:\n---\n{text}\n---"
-        ),
-    },
-    "composition_research": {
-        "display_name": "Substrate Composition Researcher",
-        "description": "Researches biochemical composition of substrates via web search",
-        "module": "Substrates",
-        "pages": ["/analyses"],
-        "file": "agents/composition_agent.py",
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 2500,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Substrate name (user input)",
-            "Partner organization (optional)",
-            "USDA FoodData Central API results",
-            "Literature search results",
-        ],
-        "tools": ["usda_search", "literature_search"],
-        "default_system_prompt": (
-            "Research the biochemical composition of the substrate '{substrate_name}'. "
-            "Use available tools to search USDA and literature databases. "
-            "Return structured composition data: carbohydrates, proteins, lipids, "
-            "moisture, ash, and key fermentable fractions with cited sources."
-        ),
-    },
-    "paper_summary": {
-        "display_name": "Structured Summary",
-        "description": "Generates 8-field structured scientific summary (one_sentence_summary, journal_credibility, authors, methodology, analytical_methods, hypothesis, results, discussion) stored as JSONB",
-        "module": "Literature",
-        "pages": ["/literature"],
-        "file": "agents/paper_summary_agent.py",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 8192,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "Paper title and abstract",
-            "Paper full text (up to 100,000 chars)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "You are a scientific paper analyst for a precision fermentation R&D platform.\n"
-            "Your audience: bioprocess engineers and computational biologists.\n\n"
-            "Given a paper title, abstract, and full text, return a JSON object with EXACTLY these 8 fields.\n"
-            "Extract only what is stated in the provided text. Return ONLY valid JSON — no prose, no code fences.\n\n"
-            "Fields: one_sentence_summary, journal_credibility, authors_institutions (array), "
-            "research_methodology (object: study_type, organism_system, substrate_feedstock, scale_vessel, "
-            "replicates, controls, statistics), analytical_methods (array), hypothesis, "
-            "results (array: group, metric, value, p_value), discussion."
-        ),
-    },
-    "sop_generator": {
-        "display_name": "SOP Generator",
-        "description": "Generates CRISPR-Cas9 Standard Operating Procedures as DOCX files",
-        "module": "Protocols",
-        "pages": ["/protocols"],
-        "file": "agents/sop_generator.py",
-        "model": "claude-opus-4-6",
-        "max_tokens": 16000,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Genome edit parameters (strain, target gene, edit type, gRNA sequence)",
-            "Strain metadata (organism, accession, genome stats)",
-            "Protocol template structure",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Generate a comprehensive CRISPR-Cas9 Standard Operating Procedure (SOP) "
-            "for the following genome editing experiment.\n\n"
-            "Strain: {strain_name}\n"
-            "Target gene: {target_gene}\n"
-            "Edit type: {edit_type}\n"
-            "gRNA sequence: {grna_sequence}\n\n"
-            "Include: objective, materials, safety, step-by-step protocol, "
-            "troubleshooting, expected results, and references. "
-            "Format as a professional lab SOP document."
-        ),
-    },
-    "paper_extraction": {
-        "display_name": "Paper Data Extractor",
-        "description": "Extracts structured fermentation data from scientific papers for DB ingestion",
-        "module": "Literature",
-        "pages": ["/literature", "/queue"],
-        "file": "agents/extraction_agent.py",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 8192,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": True,
-        "context_sources": [
-            "Paper full text",
-            "Paper metadata (title, authors, DOI)",
-            "Staging queue entry (extraction schema and targets)",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Extract all fermentation experimental data from this scientific paper.\n\n"
-            "Paper: {title}\n"
-            "Full text:\n{full_text}\n\n"
-            "For each fermentation run, extract: organism (genus, species, strain), "
-            "substrate (type and concentration), fermentation type (batch/fed-batch/continuous), "
-            "yield (g/g), titer (g/L), productivity (g/L/h), key conditions "
-            "(pH, temperature, dissolved oxygen), and any genetic modifications. "
-            "Return a JSON array of run objects."
-        ),
-    },
-    "regulatory_analysis": {
-        "display_name": "Regulatory Analyzer",
-        "description": "FDA GRAS, eCFR Title 21, EFSA regulatory assessment for compound opportunities",
-        "module": "Compounds",
-        "pages": ["/compounds", "/analyses"],
-        "file": "agents/regulatory_agent.py",
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 4096,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Compound / output name",
-            "CAS number (optional)",
-            "eCFR Title 21 search results",
-            "FDA GRAS database results",
-            "EFSA opinions search results",
-        ],
-        "tools": ["ecfr_search", "fda_gras_search", "efsa_search"],
-        "default_system_prompt": (
-            "Perform a regulatory assessment for the compound '{compound_name}' "
-            "(CAS: {cas_number}).\n\n"
-            "Search results from eCFR Title 21, FDA GRAS, and EFSA:\n{search_results}\n\n"
-            "Return a structured regulatory status report covering: US FDA status "
-            "(GRAS, food additive, prohibited), EU EFSA status, approval pathway "
-            "requirements, key risks, and a summary recommendation for commercialization."
-        ),
-    },
-    "compound_discovery": {
-        "display_name": "Compound Discovery",
-        "description": "Evaluates biosynthetic compound opportunities and market value from strain/substrate data",
-        "module": "Compounds",
-        "pages": ["/compounds", "/analyses"],
-        "file": "agents/compound_discovery_agent.py",
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 4096,
-        "temperature": None,
-        "top_p": None,
-        "top_k": None,
-        "wired": False,
-        "context_sources": [
-            "Strain CAZyme features (GH13, GH15, GH10, GH11, AA9, CE1, etc.)",
-            "Substrate composition (starch, cellulose, lignin, etc.)",
-            "Fermentation type, organism class, substrate metadata",
-            "Market price data for known compounds",
-        ],
-        "tools": [],
-        "default_system_prompt": (
-            "Evaluate biosynthetic compound opportunities for strain '{strain_name}' "
-            "fermenting substrate '{substrate_name}'.\n\n"
-            "CAZyme profile: {cazyme_features}\n"
-            "Substrate composition: {substrate_composition}\n"
-            "Market prices: {market_data}\n\n"
-            "For each potential compound, assess: biochemical feasibility, "
-            "estimated titer range, market size (USD), regulatory pathway, "
-            "and overall opportunity score (0–100). Return JSON array."
         ),
     },
     "contact_summary": {
@@ -654,7 +267,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "context_sources": ["Opportunity title, notes, source link, current stage, tags, amount"],
         "tools": [],
         "default_system_prompt": (
-            "You are a funding opportunity analyst for an early-stage biotech/foodtech startup (Open ERP). "
+            "You are a funding opportunity analyst for an early-stage startup. "
             "Given a funding opportunity, enrich it with relevant details from your knowledge.\n\n"
             "Return ONLY valid JSON with these fields (null for unknown):\n"
             "{\n"
@@ -689,7 +302,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "context_sources": ["Investor name, firm, role, current focus/stage/HQ, links"],
         "tools": [],
         "default_system_prompt": (
-            "You are a venture-capital analyst helping an early-stage biotech/foodtech startup (Open ERP) "
+            "You are a venture-capital analyst helping an early-stage startup "
             "research prospective investors. Given an investor or firm, enrich the record with what you know.\n\n"
             "Return ONLY valid JSON with these fields (null for unknown):\n"
             "{\n"

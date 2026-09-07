@@ -24,42 +24,15 @@ _DOC_MODULES = [
     # Routers
     ("app.routers.auth",       "Auth & Permissions"),
     ("app.routers.users",      "Users"),
-    ("app.routers.substrates", "Substrates"),
-    ("app.routers.strains",    "Strains"),
-    ("app.routers.runs",       "Fermentation Runs"),
-    ("app.routers.queue",      "Literature Queue"),
-    ("app.routers.papers",     "Papers"),
-    ("app.routers.compounds",  "Compounds"),
-    ("app.routers.enzymes",    "Enzymes"),
-    ("app.routers.protocols",  "Protocols"),
-    ("app.routers.model",      "ML Model"),
-    ("app.routers.explore",    "Explore"),
     ("app.routers.fpa",        "FP&A"),
-    ("app.routers.notebook",   "Notebook"),
     ("app.routers.notes",      "Notes"),
     ("app.routers.tasks",      "Tasks"),
     ("app.routers.contacts",   "Contacts"),
     ("app.routers.advisors",   "Advisors"),
     ("app.routers.projects",   "Projects"),
     ("app.routers.calendar",   "Calendar"),
-    ("app.routers.jobs",       "Jobs"),
     ("app.routers.reports",    "Reports"),
     ("app.routers.dev",        "Dev Tools"),
-    # Agents
-    ("app.agents.tea_agent",               "TEA Agent"),
-    ("app.agents.compound_discovery_agent","Compound Discovery"),
-    ("app.agents.regulatory_agent",        "Regulatory Analysis"),
-    ("app.agents.rnd_estimator",           "R&D Estimator"),
-    ("app.agents.edit_prioritizer",        "Edit Prioritizer"),
-    ("app.agents.literature_agent",        "Literature Agent"),
-    ("app.agents.extraction_agent",        "Extraction Agent"),
-    ("app.agents.paper_summary_agent",     "Paper Summary"),
-    ("app.agents.composition_agent",       "Composition Agent"),
-    ("app.agents.fuzzy_matcher",           "Fuzzy Matcher"),
-    # ML
-    ("app.ml.features",        "ML Features"),
-    ("app.ml.model",           "ML Model Core"),
-    ("app.ml.active_learning", "Active Learning"),
     # Core
     ("app.core.tracer",        "Execution Tracer"),
 ]
@@ -197,7 +170,7 @@ def get_api_key_status():
 
 @router.get("/traces/{entity_id}")
 def list_traces(entity_id: str, pipeline: str | None = None, limit: int = 20):
-    """List recent execution traces for a given entity (substrate, strain, etc.)."""
+    """List recent execution traces for a given entity."""
     conn = _get_conn()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

@@ -47,10 +47,6 @@ UPDATABLE = {
     "date_start", "date_deadline", "tags", "notes", "section", "crm_type",
     "assigned_to", "substrate", "revenue_to_date",
     "lead_source", "esg_url", "company_description",
-    "sidestream_type", "sidestream_volume", "sidestream_volume_unit",
-    "sidestream_composition", "sidestream_composition_source",
-    "sidestream_location", "sidestream_current_use",
-    "sidestream_waste_pnl", "sidestream_waste_pnl_unit", "sidestream_desired_output",
 }
 
 
@@ -1336,7 +1332,7 @@ async def calculate_status(project_id: str):
         f'  "{k}": {v}' for k, v in criteria.items()
     )
 
-    prompt = f"""You are a project status classifier for a biotech consulting firm (Open ERP Bioculinary).
+    prompt = f"""You are a project status classifier.
 
 Analyze the project activity below and classify the current status into exactly one of these four values:
 - in_progress

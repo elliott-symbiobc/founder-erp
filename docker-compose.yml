@@ -62,7 +62,7 @@ services:
       DATABASE_URL: postgresql://openerp:${DB_PASSWORD}@postgres:5432/openerp
       REDIS_URL: redis://redis:6379/0
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      SIDESTREAM_KEY_SECRET: ${SIDESTREAM_KEY_SECRET}
+      USER_KEY_SECRET: ${USER_KEY_SECRET}
       SECRET_KEY: ${SECRET_KEY}
       # Shared with the frontend proxy: identity headers are only honoured when
       # accompanied by this, so the API cannot be driven directly.

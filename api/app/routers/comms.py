@@ -2421,12 +2421,10 @@ def delete_manual_message(message_id: str):
 PLACEHOLDER = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
 
 _DRAFT_PROMPT = (
-    "You are writing on behalf of Open ERP, an early-stage biotech/foodtech company raising "
-    "capital. Open ERP converts food-industry sidestreams into high-value compounds using "
-    "engineered fermentation.\n\n"
+    "You are writing on behalf of an early-stage company raising capital.\n\n"
     "Rewrite the template below into a specific, credible email to this investor. Keep it "
     "short — under 150 words. Reference what genuinely fits their thesis; never invent facts "
-    "about them or about Open ERP. If a detail is unknown, leave it out rather than guessing. "
+    "about them or about the company. If a detail is unknown, leave it out rather than guessing. "
     "Do not use exclamation marks or superlatives. Keep any placeholder the template leaves "
     "you unable to fill.\n\n"
     "Return ONLY valid JSON: {\"subject\": string, \"body\": string}"

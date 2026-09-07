@@ -105,11 +105,11 @@ def _require_user(request: Request) -> str:
 def _fernet():
     from cryptography.fernet import Fernet
 
-    secret = os.environ.get("SIDESTREAM_KEY_SECRET")
+    secret = os.environ.get("USER_KEY_SECRET")
     if not secret:
         raise HTTPException(
             status_code=500,
-            detail="SIDESTREAM_KEY_SECRET is not set; refusing to store the Stripe key unencrypted",
+            detail="USER_KEY_SECRET is not set; refusing to store the Stripe key unencrypted",
         )
     digest = hashlib.sha256(secret.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(digest))

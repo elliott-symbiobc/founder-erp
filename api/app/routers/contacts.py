@@ -17,8 +17,6 @@ PATCH  /contacts/reminders/{rid}/resolve — resolve a reminder
 DELETE /contacts/reminders/{rid}        — delete reminder
 POST   /contacts/relationships          — link two contacts
 DELETE /contacts/relationships/{rid}    — remove relationship
-POST   /contacts/{id}/substrate-links   — link to substrate/TEA partner
-DELETE /contacts/substrate-links/{lid}  — unlink substrate
 POST   /contacts/{id}/enrich            — trigger AI web enrichment (async)
 POST   /contacts/{id}/summarize         — trigger AI summary refresh (async)
 GET    /contacts/google/auth            — generate Google OAuth URL
@@ -1768,7 +1766,7 @@ def generate_company_description(company_id: str, request: Request):
             model="claude-sonnet-4-6",
             max_tokens=500,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
-            messages=[{"role": "user", "content": f"""Search for "{company_name}" and write a short description of what they do — like a quick note, not a formal sentence. Be terse and specific. Use abbreviations where natural (e.g. "w/", "incl.", "&"). Skip obvious words like "company", "organization", "provides", "offers". Do not start with the company name. Focus on what's most relevant to a biotech startup evaluating them as a potential partner, client, or vendor. Output only the description, no punctuation at the end."""}],
+            messages=[{"role": "user", "content": f"""Search for "{company_name}" and write a short description of what they do — like a quick note, not a formal sentence. Be terse and specific. Use abbreviations where natural (e.g. "w/", "incl.", "&"). Skip obvious words like "company", "organization", "provides", "offers". Do not start with the company name. Focus on what's most relevant when evaluating them as a potential partner, client, or vendor. Output only the description, no punctuation at the end."""}],
         )
 
         # Extract the text response (last text block after tool use)

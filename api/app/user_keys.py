@@ -57,13 +57,13 @@ class KeyStoreUnavailable(RuntimeError):
 def _fernet():
     from cryptography.fernet import Fernet
 
-    secret = os.environ.get("SIDESTREAM_KEY_SECRET")
+    secret = os.environ.get("USER_KEY_SECRET")
     if not secret:
         # Deriving a key from something else on the box would make the
         # ciphertext decryptable by anyone who could read that something,
         # which is the property encryption is here to remove.
         raise KeyStoreUnavailable(
-            "SIDESTREAM_KEY_SECRET is not set; refusing to store keys "
+            "USER_KEY_SECRET is not set; refusing to store keys "
             "unencrypted or under a derived secret")
     digest = hashlib.sha256(secret.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
