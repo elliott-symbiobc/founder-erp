@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import React, { useEffect, useState, useCallback } from "react";
-import { RD_STAGE_GROUPS, PORTFOLIO_STAGE_GROUPS, findGroup, allStages } from "@/lib/contractStages";
+import { CRM_STAGE_GROUPS, findGroup, allStages } from "@/lib/contractStages";
 import { MilestonesSection } from "@/components/project/MilestonesSection";
 import { ActiveTasksSection, ResourcesSection, StrategicPlanningSection, FundingAgentSection } from "@/components/project/ProjectSections";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ActionItem {
@@ -64,7 +65,6 @@ interface Project {
   stage: string | null;
   status: string;
   crm_type: string | null;
-  probability: number | null;
   expected_revenue: number | null;
   date_start: string | null;
   date_deadline: string | null;
@@ -108,41 +108,34 @@ type DriveInfo = {
   files: DriveFile[];
 };
 
-interface Notebook {
-  notebook_id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CRM_STAGES = ["New", "Qualified", "Initial Testing", "Proposition", "Won", "Inactive", "No Response"];
+const CRM_STAGES = ["Lead", "Prospect", "Qualification", "Initial Assessment", "Contract Sent", "Closed Won", "Closed Lost"];
 
 const STAGE_BADGE: Record<string, string> = {
-  "New":             "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/60",
-  "Qualified":       "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/60",
-  "Initial Testing": "bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/60",
-  "Proposition":     "bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-900/50 dark:text-orange-300 dark:border-orange-700/60",
-  "Won":             "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/50 dark:text-green-300 dark:border-green-700/60",
-  "Inactive":        "bg-gray-100 text-gray-600 border border-gray-300 dark:bg-gray-800/50 dark:text-gray-400 dark:border-gray-700/60",
-  "No Response":     "bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800/60",
+  "Lead":               "bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700/60",
+  "Prospect":           "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/60",
+  "Qualification":      "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/60",
+  "Initial Assessment": "bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/60",
+  "Contract Sent":      "bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-900/50 dark:text-orange-300 dark:border-orange-700/60",
+  "Closed Won":         "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/50 dark:text-green-300 dark:border-green-700/60",
+  "Closed Lost":        "bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800/60",
 };
 
 const STAGE_DOT: Record<string, string> = {
-  "New": "bg-blue-500", "Qualified": "bg-purple-500", "Initial Testing": "bg-amber-500",
-  "Proposition": "bg-orange-500", "Won": "bg-green-500", "Inactive": "bg-gray-400", "No Response": "bg-red-500",
+  "Lead": "bg-slate-400", "Prospect": "bg-blue-500", "Qualification": "bg-purple-500",
+  "Initial Assessment": "bg-amber-500", "Contract Sent": "bg-orange-500",
+  "Closed Won": "bg-green-500", "Closed Lost": "bg-red-500",
 };
 
-const STAGE_STATUS: Record<string, string> = { Won: "won", Inactive: "inactive" };
+const STAGE_STATUS: Record<string, string> = { "Closed Won": "won", "Closed Lost": "lost" };
 
 const ACTIVITY_TYPES = [
   { value: "todo",     label: "To-do",    icon: "☑" },
   { value: "email",    label: "Email",    icon: "✉" },
-  { value: "call",     label: "Call",     icon: "📞" },
-  { value: "meeting",  label: "Meeting",  icon: "📅" },
-  { value: "document", label: "Document", icon: "📄" },
+  { value: "call",     label: "Call",     icon: "☎" },
+  { value: "meeting",  label: "Meeting",  icon: "◷" },
+  { value: "document", label: "Document", icon: "▤" },
 ];
 
 const ACTIVITY_COLORS: Record<string, string> = {
@@ -293,7 +286,7 @@ function AISummaryCard({ projectId, summary, generatedAt, onUpdated }: {
       </div>
       {editing ? (
         <div className="space-y-2">
-          <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={4}
+          <AutoTextarea value={editText} onChange={e => setEditText(e.target.value)} rows={4}
             className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500" />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setEditing(false)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
@@ -332,7 +325,7 @@ function RelatedProjectsCard({ projectId }: { projectId: string }) {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{p.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[p.project_type] ?? ""}`}>{getRelatedTypeLabel(p)}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${TYPE_COLORS[p.project_type] ?? ""}`}>{getRelatedTypeLabel(p)}</span>
                 {p.stage && <span className="text-[10px] text-gray-400">{p.stage}</span>}
                 {p.expected_revenue && p.expected_revenue > 0 && <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">${p.expected_revenue.toLocaleString()}</span>}
               </div>
@@ -407,7 +400,7 @@ function TaskGantt({ actionItems }: { actionItems: ActionItem[] }) {
               <div className="flex-1 relative h-10 px-1">
                 {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-gray-800/60" style={{ left: `${m.left}%` }} />)}
                 {todayPct >= 0 && todayPct <= 100 && <div className="absolute top-0 bottom-0 w-px bg-blue-400/30" style={{ left: `${todayPct}%` }} />}
-                <div className={`absolute top-1/2 -translate-y-1/2 h-5 rounded-full ${barColor} opacity-80`}
+                <div className={`absolute top-1/2 -translate-y-1/2 h-5 rounded ${barColor} opacity-80`}
                   style={{ left: `${barStart}%`, width: `${barWidth}%` }} title={`Due: ${fmt(task.due_date)}`} />
                 <div className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-white dark:border-gray-900 ${isDone ? "bg-green-500" : overdue ? "bg-red-500" : "bg-blue-600"}`}
                   style={{ left: `calc(${deadlinePct}% - 4px)` }} />
@@ -673,11 +666,6 @@ export default function CRMDetailPanel({
   const [tagsInput, setTagsInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
 
-
-  // Notebooks
-  const [notebooks, setNotebooks] = useState<{ notebook_id: string; name: string; description: string | null; created_at: string; updated_at: string }[]>([]);
-  const [notebooksLoading, setNotebooksLoading] = useState(false);
-
   // Drive
   const [driveInfo, setDriveInfo] = useState<DriveInfo | null>(null);
   const [driveLoading, setDriveLoading] = useState(false);
@@ -757,14 +745,8 @@ export default function CRMDetailPanel({
       .then((tags: { name: string; color: string }[]) => { tags.forEach(t => { tagColorRegistry[t.name.toLowerCase()] = t.color; }); });
   }, [load, loadActionItems]);
 
-  // Load notebooks, drive, and portal on mount (no longer tab-gated)
+  // Load drive and portal on mount (no longer tab-gated)
   useEffect(() => {
-    setNotebooksLoading(true);
-    fetch(`/api/proxy/notebook/by-project/${projectId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setNotebooks(Array.isArray(d) ? d : []))
-      .catch(() => setNotebooks([]))
-      .finally(() => setNotebooksLoading(false));
   }, [projectId]);
 
   useEffect(() => {
@@ -962,8 +944,8 @@ export default function CRMDetailPanel({
     );
   }
 
-  const resolvedContractType = contractType ?? (project.crm_type === "portfolio_contract" ? "portfolio_contract" : "rd_contract");
-  const activeStageGroups = resolvedContractType === "portfolio_contract" ? PORTFOLIO_STAGE_GROUPS : RD_STAGE_GROUPS;
+  // R&D and Portfolio contracts share one unified sales pipeline.
+  const activeStageGroups = CRM_STAGE_GROUPS;
   const activeStages = allStages(activeStageGroups);
   const defaultStage = activeStageGroups[0]?.stages[0] ?? "Prospect";
   const stage = project.stage ?? defaultStage;
@@ -1022,7 +1004,7 @@ export default function CRMDetailPanel({
         <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/30 shrink-0">
           <div className="flex flex-wrap items-center gap-3 mb-2.5">
             {/* Status dot + selector */}
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLORS[project.status] ?? "bg-zinc-300"}`} />
               <select
                 value={project.status}
@@ -1036,8 +1018,8 @@ export default function CRMDetailPanel({
                 className="text-xs bg-transparent border-0 outline-none text-zinc-700 dark:text-zinc-200 cursor-pointer"
               >
                 <option value="in_progress">In Progress</option>
-                <option value="waiting_client">Waiting on Client</option>
-                <option value="waiting_sbc">Waiting on SBC</option>
+                <option value="waiting_client">Awaiting Client</option>
+                <option value="waiting_sbc">Awaiting Open ERP</option>
                 <option value="awaiting_vendor">Awaiting Vendor</option>
                 <option value="inactive">Inactive</option>
                 <option value="won">Won</option>
@@ -1109,7 +1091,7 @@ export default function CRMDetailPanel({
           {pendingInactive && (
             <div className="mt-2 space-y-1.5">
               <p className="text-xs text-zinc-500">Why is this being marked inactive?</p>
-              <textarea value={inactiveReason} onChange={e => setInactiveReason(e.target.value)}
+              <AutoTextarea value={inactiveReason} onChange={e => setInactiveReason(e.target.value)}
                 rows={2} autoFocus placeholder="e.g. No budget this year…"
                 className="w-full text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1.5 resize-none text-zinc-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
               <div className="flex gap-2">
@@ -1136,40 +1118,6 @@ export default function CRMDetailPanel({
 
                 {/* Resources */}
                 <ResourcesSection projectId={projectId} />
-
-                {/* Lab Notebooks */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                    <h2 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Lab Notebooks</h2>
-                    <Link href={`/notebook?tab=lab&project=${projectId}`}
-                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors">
-                      + New
-                    </Link>
-                  </div>
-                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {notebooksLoading ? (
-                      <p className="px-4 py-6 text-sm text-zinc-400 text-center">Loading…</p>
-                    ) : notebooks.length === 0 ? (
-                      <div className="px-4 py-6 text-center">
-                        <p className="text-sm text-zinc-400 mb-1">No notebooks linked.</p>
-                        <Link href={`/notebook?tab=lab&project=${projectId}`} className="text-xs text-indigo-600 hover:underline">Create one →</Link>
-                      </div>
-                    ) : notebooks.map(nb => (
-                      <Link key={nb.notebook_id} href={`/notebook?tab=lab&notebook=${nb.notebook_id}`}
-                        className="flex items-start gap-3 px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors group">
-                        <svg className="w-4 h-4 mt-0.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 truncate">{nb.name}</p>
-                          {nb.description && <p className="text-xs text-zinc-400 truncate mt-0.5">{nb.description}</p>}
-                          <p className="text-[10px] text-zinc-400 mt-0.5">Updated {timeAgo(nb.updated_at)}</p>
-                        </div>
-                        <span className="text-xs text-zinc-300 group-hover:text-indigo-400">→</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Google Drive */}
                 <DrivePanel
@@ -1328,12 +1276,6 @@ export default function CRMDetailPanel({
                       <p className="text-sm font-semibold text-green-600 dark:text-green-400">${project.expected_revenue.toLocaleString()}</p>
                     </div>
                   )}
-                  {project.probability != null && (
-                    <div>
-                      <p className="text-[11px] text-zinc-400 uppercase tracking-wider mb-0.5">Probability</p>
-                      <p className="text-sm text-zinc-700 dark:text-zinc-300">{project.probability}%</p>
-                    </div>
-                  )}
 
                   {/* Tags */}
                   <div>
@@ -1391,7 +1333,7 @@ export default function CRMDetailPanel({
                     </div>
                     {notesEditing ? (
                       <div className="space-y-1.5">
-                        <textarea autoFocus value={notesText} onChange={e => setNotesText(e.target.value)} rows={8}
+                        <AutoTextarea autoFocus value={notesText} onChange={e => setNotesText(e.target.value)} rows={8}
                           className="w-full text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 resize-y focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         <div className="flex gap-2 justify-end">
                           <button onClick={() => setNotesEditing(false)} className="text-xs px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800">Cancel</button>

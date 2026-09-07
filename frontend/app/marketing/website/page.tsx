@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Post {
@@ -89,7 +90,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ─── Post Editor ──────────────────────────────────────────────────────────────
 
-const WP_ADMIN = "https://www.collectiveerp.io/wp-admin";
+const WP_ADMIN = "https://example.com/wp-admin";
 
 function toLocalDatetimeValue(iso: string) {
   if (!iso) return "";
@@ -223,7 +224,7 @@ function PostEditor({
             <div className="flex flex-wrap gap-1.5">
               {categories.filter(c => c.id !== 1).map(cat => (
                 <button key={cat.id} type="button" onClick={() => toggleCat(cat.id)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selCats.includes(cat.id) ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400"}`}>
+                  className={`px-2.5 py-1 text-xs rounded border transition-colors ${selCats.includes(cat.id) ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400"}`}>
                   {cat.name}
                 </button>
               ))}
@@ -233,7 +234,7 @@ function PostEditor({
 
         <div>
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
-          <textarea value={content} onChange={e => setContent(e.target.value)}
+          <AutoTextarea value={content} onChange={e => setContent(e.target.value)}
             rows={20}
             placeholder="Write your post content here. You can use HTML or WordPress block markup."
             className="w-full resize-none border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
@@ -340,7 +341,7 @@ function BlockFieldEditor({
           </label>
           <div className="flex gap-2">
             {isMultiline(field, fields[field] ?? "") ? (
-              <textarea
+              <AutoTextarea
                 value={fields[field] ?? ""}
                 onChange={e => setFields(prev => ({ ...prev, [field]: e.target.value }))}
                 rows={3}
@@ -549,7 +550,7 @@ export default function WebsitePage() {
                   { value: "future",  label: "Scheduled" },
                 ] as const).map(f => (
                   <button key={f.value} onClick={() => setPostFilter(f.value)}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${postFilter === f.value ? "bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
+                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${postFilter === f.value ? "bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
                     {f.label}
                   </button>
                 ))}

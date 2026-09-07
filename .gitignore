@@ -1,8 +1,31 @@
 .env
 .env.*
+# The template carries no values, only the names and why each is needed. It has
+# to be tracked, or a rebuilt host has no record of what must be configured.
+!.env.example
 *.pyc
 __pycache__/
 node_modules/
 models/
 genomes/
 reports/
+*.bak
+*.bak-*
+frontend-*-before-*.tar.gz
+backups/
+logs/
+api/app/vendor_sidestream_registers/name_searches.json
+
+# Autosaved notebooks: user work, not source. They are written every few
+# seconds while someone edits, so tracking them would make every keystroke a
+# repository change.
+api/app/vendor_sidestream_registers/runs/
+
+# Fetched reference tables cached beside the registers — large, regenerable
+api/app/vendor_sidestream_registers/ers_sweetener_prices.csv
+api/app/vendor_sidestream_registers/*hs_classification.json
+
+# Trash folders written by the file manager in the Jupyter container. These are
+# deleted files by definition; 228 of them were tracked, including run outputs
+# with financial parameters and price data.
+.Trash-0/

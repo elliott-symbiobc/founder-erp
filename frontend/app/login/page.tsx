@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex justify-center">
-          <img src="/api/logo" alt="Collective ERP" className="h-14 w-auto"
+          <img src="/api/logo" alt="Open ERP Bioculinary" className="h-14 w-auto"
             onError={(e) => { const i = e.currentTarget; if (!i.src.includes("logo.svg")) i.src = "/logo.svg"; }} />
         </div>
 
@@ -57,7 +57,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="you@collectiveerp.io"
+                placeholder="you@example.com"
               />
             </div>
 
@@ -102,6 +102,10 @@ export default function LoginPage() {
           {" · "}
           <Link href="/privacy" className="hover:underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             Privacy Policy
+          </Link>
+          {" · "}
+          <Link href="/sms-consent" className="hover:underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            SMS Consent
           </Link>
         </p>
       </div>

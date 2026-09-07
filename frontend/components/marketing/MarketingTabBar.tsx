@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Pitch Decks was a separate store of the same thing Assets now holds, so it
+// is gone; decks are assets with the investor-deck role. Key Language reads on
+// the Assets page too; its full editor stays at /marketing/key-language for
+// Google Doc sync, categories and history.
 const TABS = [
-  { href: "/marketing/key-language", label: "Key Language" },
-  { href: "/marketing/pitch-decks",  label: "Pitch Decks"  },
-  { href: "/marketing/assets",       label: "Assets"        },
-  { href: "/marketing/website",      label: "Website"       },
+  { href: "/marketing/assets",       label: "Assets"       },
+  { href: "/marketing/campaigns",    label: "Campaigns"    },
+  { href: "/marketing/website",      label: "Website"      },
 ];
 
 export default function MarketingTabBar() {

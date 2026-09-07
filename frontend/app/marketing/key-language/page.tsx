@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface Slot { category: string; terms: string[] }
@@ -35,9 +36,35 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   });
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
+    const detail = err.detail;
+    // A refused sync answers with a structured body explaining which side
+    // changed. Flattening it to a string would throw away the reason and the
+    // diff, leaving only "Sync failed".
+    if (detail && typeof detail === "object") {
+      const e = new Error(detail.message ?? "Request failed") as SyncError;
+      e.code = detail.code;
+      e.status = detail.status;
+      e.diff = detail.diff;
+      throw e;
+    }
+    throw new Error(typeof detail === "string" ? detail : r.statusText);
   }
   return r.json();
+}
+
+/** An error carrying the server's explanation of a refused sync. */
+interface SyncError extends Error {
+  code?: string;
+  status?: string;
+  diff?: { only_in_doc: string[]; only_in_library: string[]; different: string[] };
+}
+
+interface SyncState {
+  status: "no_doc" | "in_sync" | "doc_ahead" | "library_ahead" | "conflict" | "unknown" | "unavailable";
+  needs_pull?: boolean;
+  doc_entries?: number;
+  library_entries?: number;
+  diff?: { only_in_doc: string[]; only_in_library: string[]; different: string[] };
 }
 
 function fmtDate(iso: string) {
@@ -179,7 +206,7 @@ function InlineField({ value, placeholder, onSave, onViewHistory }: {
   if (editing) {
     return (
       <div className="space-y-2">
-        <textarea ref={ref} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={keyDown}
+        <AutoTextarea ref={ref} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={keyDown}
           rows={4} placeholder={placeholder}
           className="w-full resize-none rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
         <div className="flex items-center gap-2">
@@ -336,7 +363,7 @@ function TaglineCard({ entries, category, onSave, onViewHistory, onDelete, onRen
           <div className="px-5 py-4 space-y-3 bg-gray-50 dark:bg-gray-800/40">
             <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Label (e.g. Primary, Short)"
               className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-md px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400" />
-            <textarea value={newContent} onChange={e => setNewContent(e.target.value)} rows={3}
+            <AutoTextarea value={newContent} onChange={e => setNewContent(e.target.value)} rows={3}
               placeholder="Enter tagline text…"
               className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
             <div className="flex gap-2">
@@ -411,6 +438,8 @@ export default function KeyLanguagePage() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [sync, setSync] = useState<SyncState | null>(null);
+  const [blocked, setBlocked] = useState<SyncError | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -422,23 +451,22 @@ export default function KeyLanguagePage() {
     return data.doc as DocInfo | null;
   }, []);
 
+  const refreshSync = useCallback(async () => {
+    try {
+      setSync(await apiFetch("/marketing/key-language/doc/check"));
+    } catch {
+      setSync({ status: "unavailable" });
+    }
+  }, []);
+
+  // Report the state rather than acting on it. This used to pull automatically
+  // whenever the doc looked newer, which meant opening the page could replace
+  // the library with whatever the document happened to contain.
   useEffect(() => {
-    load().then(async (loadedDoc) => {
-      if (!loadedDoc?.key_language_doc_id) return;
-      try {
-        const check = await apiFetch("/marketing/key-language/doc/check");
-        if (check.needs_pull) {
-          setSyncStatus("syncing");
-          await apiFetch("/marketing/key-language/doc/pull", { method: "POST" });
-          await load();
-          setSyncStatus("ok");
-          setTimeout(() => setSyncStatus("idle"), 3000);
-        }
-      } catch {
-        // silent — don't disrupt page load if auto-sync fails
-      }
+    load().then((loadedDoc) => {
+      if (loadedDoc?.key_language_doc_id) refreshSync();
     });
-  }, [load]);
+  }, [load, refreshSync]);
 
   // Build lookup: category → term → entry
   const lookup: Record<string, Record<string, Entry>> = {};
@@ -463,52 +491,65 @@ export default function KeyLanguagePage() {
       setSyncError(null);
       try {
         await apiFetch("/marketing/key-language/doc/push", { method: "POST" });
+        await refreshSync();
         setSyncStatus("ok");
         setTimeout(() => setSyncStatus("idle"), 3000);
       } catch (e: unknown) {
-        setSyncError(e instanceof Error ? e.message : "Sync failed");
-        setSyncStatus("err");
-        setTimeout(() => { setSyncStatus("idle"); setSyncError(null); }, 6000);
+        const err = e as SyncError;
+        if (err?.code) {
+          // The doc has edits of its own. Stop auto-pushing and say so; a
+          // transient "Sync failed" would leave the edit quietly unsaved.
+          setBlocked(err);
+          await refreshSync();
+          setSyncStatus("idle");
+        } else {
+          setSyncError(err?.message ?? "Sync failed");
+          setSyncStatus("err");
+          setTimeout(() => { setSyncStatus("idle"); setSyncError(null); }, 6000);
+        }
       }
     }, 1500);
   }
 
-  async function handleManualPush() {
+  /** Run a sync in one direction, surfacing a refusal instead of burying it. */
+  async function runSync(dir: "push" | "pull", force = false) {
     if (!doc.key_language_doc_id) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
-    setPushing(true);
+    const setBusy = dir === "push" ? setPushing : setPulling;
+    setBusy(true);
     setSyncError(null);
+    setBlocked(null);
     try {
-      await apiFetch("/marketing/key-language/doc/push", { method: "POST" });
+      await apiFetch(
+        `/marketing/key-language/doc/${dir}${force ? "?force=true" : ""}`,
+        { method: "POST" }
+      );
       await load();
+      await refreshSync();
       setSyncStatus("ok");
       setTimeout(() => setSyncStatus("idle"), 3000);
     } catch (e: unknown) {
-      setSyncError(e instanceof Error ? e.message : "Push failed");
-      setSyncStatus("err");
-      setTimeout(() => { setSyncStatus("idle"); setSyncError(null); }, 6000);
+      const err = e as SyncError;
+      if (err?.code) {
+        // The server refused because the other side has unsynced changes.
+        // Keep it on screen with the diff until it is acted on.
+        setBlocked(err);
+        await refreshSync();
+      } else {
+        setSyncError(err?.message ?? `${dir} failed`);
+        setSyncStatus("err");
+        setTimeout(() => { setSyncStatus("idle"); setSyncError(null); }, 6000);
+      }
     } finally {
-      setPushing(false);
+      setBusy(false);
     }
   }
 
+  const handleManualPush = () => runSync("push");
+
   async function handleManualPull() {
-    if (!doc.key_language_doc_id) return;
-    if (!confirm("Pull from Google Doc? This will replace all entries with the document's content.")) return;
-    setPulling(true);
-    setSyncError(null);
-    try {
-      await apiFetch("/marketing/key-language/doc/pull", { method: "POST" });
-      await load();
-      setSyncStatus("ok");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (e: unknown) {
-      setSyncError(e instanceof Error ? e.message : "Pull failed");
-      setSyncStatus("err");
-      setTimeout(() => { setSyncStatus("idle"); setSyncError(null); }, 6000);
-    } finally {
-      setPulling(false);
-    }
+    if (!confirm("Pull from Google Doc? This replaces every entry with the document's content.")) return;
+    runSync("pull");
   }
 
   async function handleSave(category: string, term: string, content: string, existingId?: string) {
@@ -578,7 +619,7 @@ export default function KeyLanguagePage() {
                 {syncStatus === "syncing" && <span className="text-xs text-gray-400">Syncing…</span>}
                 {syncStatus === "ok"      && <span className="text-xs text-green-500">✓ Synced</span>}
                 {syncStatus === "err"     && <span className="text-xs text-red-500">Sync failed</span>}
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">● Connected</span>
+                {sync && <SyncPill state={sync} />}
                 <button
                   onClick={handleManualPush}
                   disabled={pushing || pulling}
@@ -596,6 +637,80 @@ export default function KeyLanguagePage() {
                 <button onClick={handleUnlinkDoc} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Unlink</button>
               </div>
             </div>
+            {blocked && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20 px-3 py-2.5">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                  {blocked.code === "library_has_changes" ? "The library has unsynced edits"
+                    : blocked.code === "pull_would_lose_entries" ? "That pull would delete entries"
+                    : "The Google Doc has unsynced edits"}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                  {blocked.message}
+                </p>
+                <DiffSummary diff={blocked.diff} />
+                <div className="flex items-center gap-3 mt-2">
+                  {blocked.code === "doc_has_changes" ? (
+                    <>
+                      <button
+                        onClick={() => runSync("pull")}
+                        disabled={pulling || pushing}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 font-medium"
+                      >
+                        Take the doc&apos;s version
+                      </button>
+                      <button
+                        onClick={() => { if (confirm("Overwrite the Google Doc with the library? The doc's edits will be lost.")) runSync("push", true); }}
+                        disabled={pulling || pushing}
+                        className="text-xs text-amber-700 dark:text-amber-400 hover:underline disabled:opacity-40"
+                      >
+                        Overwrite the doc anyway
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => runSync("push")}
+                        disabled={pulling || pushing}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 font-medium"
+                      >
+                        Keep the library, update the doc
+                      </button>
+                      <button
+                        onClick={() => { if (confirm("Replace the library with the document? Unsynced entries will be lost.")) runSync("pull", true); }}
+                        disabled={pulling || pushing}
+                        className="text-xs text-amber-700 dark:text-amber-400 hover:underline disabled:opacity-40"
+                      >
+                        Replace the library anyway
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setBlocked(null)} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!blocked && sync && (sync.status === "doc_ahead" || sync.status === "conflict") && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20 px-3 py-2">
+                <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  {sync.status === "conflict"
+                    ? "Both the doc and the library have changed since the last sync. Syncing either way loses something — check the differences before choosing."
+                    : "The Google Doc has been edited since the last sync. Nothing is pulled automatically."}
+                </p>
+                <DiffSummary diff={sync.diff} />
+                {sync.status === "doc_ahead" && (
+                  <button
+                    onClick={() => runSync("pull")}
+                    disabled={pulling || pushing}
+                    className="text-xs px-2.5 py-1 mt-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 font-medium"
+                  >
+                    {pulling ? "Pulling…" : "Bring those changes in"}
+                  </button>
+                )}
+              </div>
+            )}
+
             {syncError && (
               <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-1">{syncError}</p>
             )}
@@ -647,5 +762,57 @@ export default function KeyLanguagePage() {
         <DocLinkModal onClose={() => setShowLinkModal(false)} onLink={handleLinkDoc} />
       )}
     </div>
+  );
+}
+
+
+// ── Sync status ────────────────────────────────────────────────────────────
+
+const SYNC_PILL: Record<string, { label: string; className: string }> = {
+  in_sync:       { label: "● In sync",        className: "text-green-600 dark:text-green-400" },
+  doc_ahead:     { label: "● Doc ahead",      className: "text-amber-600 dark:text-amber-400" },
+  library_ahead: { label: "● Library ahead",  className: "text-blue-600 dark:text-blue-400" },
+  conflict:      { label: "● Conflict",       className: "text-red-600 dark:text-red-400" },
+  unknown:       { label: "● Not compared",   className: "text-gray-400" },
+  unavailable:   { label: "● Unavailable",    className: "text-gray-400" },
+};
+
+function SyncPill({ state }: { state: SyncState }) {
+  const pill = SYNC_PILL[state.status];
+  if (!pill) return null;
+  const counts = state.doc_entries != null && state.library_entries != null
+    ? ` · doc ${state.doc_entries} / library ${state.library_entries}`
+    : "";
+  return (
+    <span className={`text-xs font-medium ${pill.className}`} title={`Google Doc sync${counts}`}>
+      {pill.label}
+    </span>
+  );
+}
+
+/** What actually differs, so a choice is made on evidence rather than a guess. */
+function DiffSummary({ diff }: { diff?: SyncState["diff"] }) {
+  if (!diff) return null;
+  const rows: [string, string[]][] = [
+    ["Only in the doc", diff.only_in_doc],
+    ["Only in the library", diff.only_in_library],
+    ["Different wording", diff.different],
+  ];
+  const shown = rows.filter(([, list]) => list.length > 0);
+  if (shown.length === 0) {
+    return (
+      <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1.5">
+        No entry-level differences — the change is elsewhere in the document.
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-1.5 space-y-0.5">
+      {shown.map(([label, list]) => (
+        <li key={label} className="text-[11px] text-amber-700/90 dark:text-amber-400/90">
+          <span className="font-medium">{label}:</span> {list.join(", ")}
+        </li>
+      ))}
+    </ul>
   );
 }

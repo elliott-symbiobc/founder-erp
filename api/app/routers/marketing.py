@@ -10,9 +10,34 @@ POST   /marketing/key-language/doc/link     — link a Google Doc (by URL or ID)
 DELETE /marketing/key-language/doc/unlink   — unlink Google Doc
 POST   /marketing/key-language/doc/push     — push library entries → Google Doc
 POST   /marketing/key-language/doc/pull     — pull Google Doc → library entries
+GET    /marketing/key-language/doc/check    — compare by content, say which side changed
+
+Sync direction is decided by comparing content against a snapshot of the last
+sync, not by timestamps: push refuses to overwrite unsynced doc edits and pull
+refuses to discard unsynced library edits, each with ?force=true to override.
+
+Assets — the source of truth for outreach material. Files live in an attached
+Drive folder; this module records which file fills which role.
+
+GET    /marketing/assets                    — folder contents, roles, usage
+GET    /marketing/assets/folder             — the attached Drive folder
+PATCH  /marketing/assets/folder             — attach or clear it
+PUT    /marketing/assets/{file_id}/description
+GET    /marketing/assets/{file_id}/download — stream a file out of Drive
+GET    /marketing/roles                     — roles and what fills them
+POST   /marketing/roles                     — add a role
+PUT    /marketing/roles/{role}              — point a role at a file, or clear it
+DELETE /marketing/roles/{role}              — remove a role nothing consumes
+
+Other modules call resolve_role_file(role) rather than referencing a file id,
+so replacing a deck updates every consumer at once.
 """
 
+import base64
+import hashlib
 import logging
+import urllib.parse
+import unicodedata
 import os
 import re
 from datetime import datetime, timezone, timedelta
@@ -21,7 +46,8 @@ from typing import Optional
 import httpx
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -55,8 +81,72 @@ def _serialize(obj):
     return obj
 
 
+def _parse_uuid_array(val) -> list:
+    """Convert PostgreSQL UUID[] string like '{uuid1,uuid2}' to a Python list of strings."""
+    if val is None:
+        return []
+    if isinstance(val, (list, tuple)):
+        return [str(x) for x in val]
+    if isinstance(val, str):
+        val = val.strip()
+        if val in ("", "{}"):
+            return []
+        inner = val.lstrip("{").rstrip("}")
+        return [x.strip().strip('"') for x in inner.split(",") if x.strip()]
+    return []
+
+
 def _row_dict(row) -> dict:
     return {k: _serialize(v) for k, v in dict(row).items()}
+
+
+def _campaign_row(row) -> dict:
+    """Like _row_dict but ensures list_ids is always a proper list."""
+    d = _row_dict(row)
+    d["list_ids"] = _parse_uuid_array(d.get("list_ids"))
+    return d
+
+
+def _campaign_post_row(row) -> dict:
+    d = _row_dict(row)
+    if "list_ids" not in d or d["list_ids"] is None:
+        d["list_ids"] = []
+    elif isinstance(d["list_ids"], str):
+        d["list_ids"] = [x for x in d["list_ids"].strip("{}").split(",") if x]
+    return d
+
+
+def _inline_images(html: str) -> str:
+    """Replace img src URLs that point to /brand-assets/.../public with base64 data URIs."""
+    def _replace(m: re.Match) -> str:
+        url = m.group(1)
+        # Only inline brand-asset public URLs served by the API
+        if "/brand-assets/" not in url or "/public" not in url:
+            return m.group(0)
+        # Extract file_id from URL pattern .../brand-assets/{id}/public
+        id_match = re.search(r"/brand-assets/([^/]+)/public", url)
+        if not id_match:
+            return m.group(0)
+        file_id = id_match.group(1)
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT stored_name, mime_type FROM marketing_brand_files WHERE id=%s", [file_id])
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        if not row:
+            return m.group(0)
+        path = os.path.join(BRAND_UPLOAD_DIR, row["stored_name"])
+        if not os.path.exists(path):
+            return m.group(0)
+        try:
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+            return f'src="data:{row["mime_type"]};base64,{data}"'
+        except Exception:
+            return m.group(0)
+    return re.sub(r'src="([^"]+)"', _replace, html)
 
 
 # ── Google token helpers (mirrors drive.py) ───────────────────────────────────
@@ -140,7 +230,7 @@ def _parse_doc_id(url_or_id: str) -> str:
 #
 # The Google Doc uses this human-readable plain-text format:
 #
-#   # Collective ERP Key Language Library
+#   # Open ERP Key Language Library
 #
 #   ---
 #
@@ -157,11 +247,158 @@ def _parse_doc_id(url_or_id: str) -> str:
 #   ## Uncategorized
 #   ...
 
+def _normalise(text: str) -> str:
+    """Compare wording, not whitespace.
+
+    Google Docs normalises line endings and can leave trailing spaces, so a
+    byte comparison reports differences nobody made.
+    """
+    lines = [ln.rstrip() for ln in (text or "").replace("\u000b", "\n").splitlines()]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    out, blank = [], False
+    for ln in lines:
+        if not ln:
+            if blank:
+                continue
+            blank = True
+        else:
+            blank = False
+        out.append(ln)
+    return "\n".join(out)
+
+
+def _fingerprint(text: str) -> str:
+    return hashlib.sha256(_normalise(text).encode("utf-8")).hexdigest()
+
+
+def _read_doc_text(token: str, doc_id: str) -> str:
+    """Flatten a Google Doc to plain text."""
+    r = httpx.get(f"{DOCS_API_BASE}/{doc_id}", headers=_auth(token), timeout=20)
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=502, detail=f"Could not read Google Doc: {r.text[:200]}"
+        )
+    parts = []
+    for element in r.json().get("body", {}).get("content", []):
+        for run in element.get("paragraph", {}).get("elements", []):
+            parts.append(run.get("textRun", {}).get("content", ""))
+    return "".join(parts)
+
+
+def _diff_entries(doc_entries: list[dict], lib_entries: list[dict]) -> dict:
+    """Which entries differ, keyed by category and term."""
+    key = lambda e: ((e.get("category") or "").strip(), (e.get("term") or "").strip())
+    doc_map = {key(e): (e.get("content") or "").strip() for e in doc_entries}
+    lib_map = {key(e): (e.get("content") or "").strip() for e in lib_entries}
+
+    fmt = lambda k: f"{k[0]} / {k[1]}" if k[0] else k[1]
+    return {
+        "only_in_doc":     sorted(fmt(k) for k in doc_map.keys() - lib_map.keys()),
+        "only_in_library": sorted(fmt(k) for k in lib_map.keys() - doc_map.keys()),
+        "different":       sorted(fmt(k) for k in doc_map.keys() & lib_map.keys()
+                                  if doc_map[k] != lib_map[k]),
+    }
+
+
+def _sync_state(uid: str) -> dict:
+    """Compare the doc and the library by content, and attribute any difference.
+
+    status is one of:
+      no_doc         nothing linked
+      in_sync        both sides hold the same wording
+      doc_ahead      only the doc changed since the last sync — safe to pull
+      library_ahead  only the library changed — safe to push
+      conflict       both changed; whichever way you sync, something is lost
+      unknown        never synced with fingerprints, so neither side can be trusted
+    """
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT key_language_doc_id, key_language_synced_at,
+                      key_language_doc_hash, key_language_lib_hash
+               FROM marketing_settings WHERE id=1"""
+        )
+        row = cur.fetchone()
+        if not row or not row["key_language_doc_id"]:
+            return {"status": "no_doc", "needs_pull": False}
+        cur.execute(
+            "SELECT term, content, category, notes FROM key_language "
+            "ORDER BY category, sort_order, term"
+        )
+        lib_entries = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    doc_id = row["key_language_doc_id"]
+    token = _get_token(uid)
+    doc_text = _read_doc_text(token, doc_id)
+    lib_text = _entries_to_text(lib_entries)
+
+    doc_fp, lib_fp = _fingerprint(doc_text), _fingerprint(lib_text)
+    doc_entries = _text_to_entries(doc_text)
+
+    base = {
+        "doc_entries":     len(doc_entries),
+        "library_entries": len(lib_entries),
+        # The entry diff is for display. It must not decide status: the parser
+        # only sees text inside [Term] blocks, so a line typed anywhere else in
+        # the document is invisible to it and a real edit would read as
+        # identical. Status comes from the full text instead.
+        "diff":            _diff_entries(doc_entries, lib_entries),
+        "synced_at":       _serialize(row["key_language_synced_at"]),
+    }
+
+    if _normalise(doc_text) == _normalise(lib_text):
+        return {**base, "status": "in_sync", "needs_pull": False}
+
+    stored_doc, stored_lib = row["key_language_doc_hash"], row["key_language_lib_hash"]
+    if not stored_doc or not stored_lib:
+        return {**base, "status": "unknown", "needs_pull": False}
+
+    doc_changed = doc_fp != stored_doc
+    lib_changed = lib_fp != stored_lib
+
+    if doc_changed and lib_changed:
+        status = "conflict"
+    elif doc_changed:
+        status = "doc_ahead"
+    elif lib_changed:
+        status = "library_ahead"
+    else:
+        # Neither matches the other but both match the snapshot — only reachable
+        # if the serialiser changed shape. Treat as needing a human.
+        status = "conflict"
+
+    return {**base, "status": status, "needs_pull": status == "doc_ahead"}
+
+
+def _record_sync(doc_text: str, lib_text: str) -> None:
+    """Snapshot both sides so the next comparison can attribute a change."""
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE marketing_settings
+               SET key_language_synced_at = NOW(),
+                   key_language_doc_hash  = %s,
+                   key_language_lib_hash  = %s
+               WHERE id=1""",
+            [_fingerprint(doc_text), _fingerprint(lib_text)],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _entries_to_text(entries: list[dict]) -> str:
     """
     Produce plain text for a Google Doc. Format:
 
-        KEY LANGUAGE LIBRARY — Collective ERP
+        KEY LANGUAGE LIBRARY — Open ERP
 
         ════════════════════════════════
         TAGLINE
@@ -187,7 +424,7 @@ def _entries_to_text(entries: list[dict]) -> str:
         by_cat[cat].append(e)
 
     divider = "═" * 40
-    lines = ["KEY LANGUAGE LIBRARY — Collective ERP", ""]
+    lines = ["KEY LANGUAGE LIBRARY — Open ERP", ""]
     for cat, items in by_cat.items():
         lines += [divider, cat.upper(), divider, ""]
         for item in items:
@@ -541,8 +778,25 @@ def unlink_doc(request: Request):
 # ── Push: DB → Google Doc ─────────────────────────────────────────────────────
 
 @router.post("/key-language/doc/push")
-def push_to_doc(request: Request):
+def push_to_doc(request: Request, force: bool = Query(False)):
+    """Write the library into the doc.
+
+    Refuses when the doc has its own unsynced edits, which a push would
+    overwrite. force=true proceeds anyway, for when the doc is known to be junk.
+    """
     uid = _require_user(request)
+
+    state = _sync_state(uid)
+    if not force and state.get("status") in ("doc_ahead", "conflict", "unknown"):
+        raise HTTPException(status_code=409, detail={
+            "code": "doc_has_changes",
+            "status": state["status"],
+            "message": (
+                "The Google Doc has been edited since the last sync. Pushing would "
+                "overwrite those edits."
+            ),
+            "diff": state.get("diff"),
+        })
 
     conn = _conn()
     try:
@@ -602,14 +856,9 @@ def push_to_doc(request: Request):
     if r2.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Google Docs write failed: {r2.text[:300]}")
 
-    # Update synced_at
-    conn2 = _conn()
-    try:
-        cur2 = conn2.cursor()
-        cur2.execute("UPDATE marketing_settings SET key_language_synced_at=NOW() WHERE id=1")
-        conn2.commit()
-    finally:
-        conn2.close()
+    # Snapshot both sides as they now stand: the doc holds exactly what was
+    # written, so the next check can tell which side moves next.
+    _record_sync(new_text, new_text)
 
     return {"ok": True, "pushed": len(entries)}
 
@@ -618,55 +867,38 @@ def push_to_doc(request: Request):
 
 @router.get("/key-language/doc/check")
 def check_doc_sync(request: Request):
-    """Return whether the linked Google Doc has been modified since last sync."""
+    """Compare the doc and the library by content, and say which side changed."""
     uid = _require_user(request)
-    conn = _conn()
     try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT key_language_doc_id, key_language_synced_at FROM marketing_settings WHERE id=1"
-        )
-        row = cur.fetchone()
-    finally:
-        conn.close()
-
-    if not row or not row["key_language_doc_id"]:
-        return {"needs_pull": False}
-
-    doc_id = row["key_language_doc_id"]
-    synced_at = row["key_language_synced_at"]
-
-    try:
-        token = _get_token(uid)
+        return _sync_state(uid)
     except HTTPException:
-        return {"needs_pull": False}
-
-    r = httpx.get(
-        f"{DRIVE_FILES_URL}/{doc_id}",
-        headers=_auth(token),
-        params={"fields": "id,modifiedTime", "supportsAllDrives": "true"},
-        timeout=10,
-    )
-    if r.status_code != 200:
-        return {"needs_pull": False}
-
-    doc_modified_at = r.json().get("modifiedTime")
-    if not doc_modified_at:
-        return {"needs_pull": False}
-
-    if synced_at is None:
-        return {"needs_pull": True, "doc_modified_at": doc_modified_at}
-
-    doc_dt = datetime.fromisoformat(doc_modified_at.replace("Z", "+00:00"))
-    needs_pull = doc_dt > synced_at
-    return {"needs_pull": needs_pull, "doc_modified_at": doc_modified_at}
+        # A check must never block the page it sits on.
+        return {"status": "unavailable", "needs_pull": False}
 
 
 # ── Pull: Google Doc → DB ─────────────────────────────────────────────────────
 
 @router.post("/key-language/doc/pull")
-def pull_from_doc(request: Request):
+def pull_from_doc(request: Request, force: bool = Query(False)):
+    """Replace the library with the doc's contents.
+
+    Refuses when the library has its own unsynced edits, which a pull would
+    discard, and when the doc holds fewer entries than the library — the shape
+    of an accidentally emptied document.
+    """
     uid = _require_user(request)
+
+    state = _sync_state(uid)
+    if not force and state.get("status") in ("library_ahead", "conflict", "unknown"):
+        raise HTTPException(status_code=409, detail={
+            "code": "library_has_changes",
+            "status": state["status"],
+            "message": (
+                "The library has been edited since the last sync. Pulling would "
+                "discard those edits."
+            ),
+            "diff": state.get("diff"),
+        })
 
     conn = _conn()
     try:
@@ -695,6 +927,19 @@ def pull_from_doc(request: Request):
     if not entries:
         raise HTTPException(status_code=422, detail="No valid entries found in the document. Check the formatting.")
 
+    # A pull that drops entries is usually a half-cleared document rather than a
+    # deliberate deletion, and the library is the copy people actually use.
+    existing = state.get("library_entries") or 0
+    if not force and existing and len(entries) < existing:
+        raise HTTPException(status_code=409, detail={
+            "code": "pull_would_lose_entries",
+            "message": (
+                f"The document has {len(entries)} entries but the library has "
+                f"{existing}. Pulling would delete the difference."
+            ),
+            "diff": state.get("diff"),
+        })
+
     # Replace all existing entries with parsed ones
     conn2 = _conn()
     try:
@@ -706,10 +951,13 @@ def pull_from_doc(request: Request):
                    VALUES (%s, %s, %s, %s, %s)""",
                 [e["term"], e["content"], e["category"], e["notes"], i],
             )
-        cur2.execute("UPDATE marketing_settings SET key_language_synced_at=NOW() WHERE id=1")
         conn2.commit()
     finally:
         conn2.close()
+
+    # Snapshot both sides. The library now serialises to the same wording the
+    # doc holds, so the next check starts from a known-equal baseline.
+    _record_sync(r.text, _entries_to_text(entries))
 
     return {"ok": True, "imported": len(entries)}
 
@@ -749,356 +997,6 @@ def _parse_drive_file_id(url_or_id: str) -> str:
 class ResolveFileBody(BaseModel):
     url: str
 
-
-@router.post("/pitch-decks/file/resolve")
-def resolve_drive_file(body: ResolveFileBody, request: Request):
-    """Resolve a Drive URL → file name and web link."""
-    uid = _require_user(request)
-    file_id = _parse_drive_file_id(body.url)
-    token = _get_token(uid)
-    r = httpx.get(
-        f"{DRIVE_FILES_URL}/{file_id}",
-        headers=_auth(token),
-        params={"fields": "id,name,mimeType,webViewLink", "supportsAllDrives": "true"},
-        timeout=10,
-    )
-    if r.status_code != 200:
-        raise HTTPException(status_code=400, detail="Could not access this file. Check that it's shared with your Google account.")
-    meta = r.json()
-    return {
-        "file_id":      meta["id"],
-        "name":         meta.get("name", "Untitled"),
-        "mime_type":    meta.get("mimeType"),
-        "web_view_link": meta.get("webViewLink"),
-    }
-
-
-class PitchDeckBody(BaseModel):
-    title: str
-    description: str = ""
-    pdf_url:   Optional[str] = None
-    pdf_name:  Optional[str] = None
-    pptx_url:  Optional[str] = None
-    pptx_name: Optional[str] = None
-
-
-class PitchDeckFileBody(BaseModel):
-    slot: str   # "pdf" or "pptx"
-    url:  str
-    name: str
-
-
-@router.get("/pitch-decks")
-def list_pitch_decks(request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, title, description, pdf_url, pdf_name, pptx_url, pptx_name, created_at, updated_at "
-            "FROM pitch_decks ORDER BY created_at ASC"
-        )
-        rows = [_row_dict(r) for r in cur.fetchall()]
-    finally:
-        conn.close()
-    return {"decks": rows, "deck_types": DECK_TYPES}
-
-
-@router.post("/pitch-decks")
-def create_pitch_deck(body: PitchDeckBody, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """INSERT INTO pitch_decks (title, description, pdf_url, pdf_name, pptx_url, pptx_name)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
-            [body.title, body.description, body.pdf_url, body.pdf_name, body.pptx_url, body.pptx_name],
-        )
-        row = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.patch("/pitch-decks/{deck_id}")
-def update_pitch_deck(deck_id: str, body: PitchDeckBody, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """UPDATE pitch_decks
-               SET title=%s, description=%s, pdf_url=%s, pdf_name=%s,
-                   pptx_url=%s, pptx_name=%s, updated_at=NOW()
-               WHERE id=%s RETURNING *""",
-            [body.title, body.description, body.pdf_url, body.pdf_name,
-             body.pptx_url, body.pptx_name, deck_id],
-        )
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.patch("/pitch-decks/{deck_id}/file")
-def attach_file(deck_id: str, body: PitchDeckFileBody, request: Request):
-    """Attach or replace a single file slot (pdf or pptx)."""
-    _require_user(request)
-    if body.slot not in ("pdf", "pptx"):
-        raise HTTPException(status_code=400, detail="slot must be 'pdf' or 'pptx'")
-    url_col  = f"{body.slot}_url"
-    name_col = f"{body.slot}_name"
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            f"UPDATE pitch_decks SET {url_col}=%s, {name_col}=%s, updated_at=NOW() WHERE id=%s RETURNING *",
-            [body.url, body.name, deck_id],
-        )
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.delete("/pitch-decks/{deck_id}/file/{slot}")
-def detach_file(deck_id: str, slot: str, request: Request):
-    """Remove a file attachment from a slot."""
-    _require_user(request)
-    if slot not in ("pdf", "pptx"):
-        raise HTTPException(status_code=400, detail="slot must be 'pdf' or 'pptx'")
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            f"UPDATE pitch_decks SET {slot}_url=NULL, {slot}_name=NULL, updated_at=NOW() WHERE id=%s RETURNING *",
-            [deck_id],
-        )
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.delete("/pitch-decks/{deck_id}")
-def delete_pitch_deck(deck_id: str, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM pitch_decks WHERE id=%s", [deck_id])
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True}
-
-
-# ── Assets ────────────────────────────────────────────────────────────────────
-
-ASSET_TYPES = ["logo", "image", "document", "video", "link", "other"]
-
-
-class AssetBody(BaseModel):
-    title: str
-    url: str = ""
-    asset_type: str = "other"
-    description: str = ""
-
-
-@router.get("/assets")
-def list_assets(request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, title, url, asset_type, description, created_at, updated_at "
-            "FROM marketing_assets ORDER BY asset_type, title"
-        )
-        rows = [_row_dict(r) for r in cur.fetchall()]
-    finally:
-        conn.close()
-    return rows
-
-
-@router.post("/assets")
-def create_asset(body: AssetBody, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """INSERT INTO marketing_assets (title, url, asset_type, description)
-               VALUES (%s, %s, %s, %s) RETURNING *""",
-            [body.title, body.url, body.asset_type, body.description],
-        )
-        row = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.patch("/assets/{asset_id}")
-def update_asset(asset_id: str, body: AssetBody, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """UPDATE marketing_assets
-               SET title=%s, url=%s, asset_type=%s, description=%s, updated_at=NOW()
-               WHERE id=%s RETURNING *""",
-            [body.title, body.url, body.asset_type, body.description, asset_id],
-        )
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return _row_dict(row)
-
-
-@router.delete("/assets/{asset_id}")
-def delete_asset(asset_id: str, request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM marketing_assets WHERE id=%s", [asset_id])
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404)
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# WordPress Website Integration
-# ─────────────────────────────────────────────────────────────────────────────
-
-WP_BASE_URL    = os.environ.get("WP_BASE_URL", "http://wordpress-production")
-WP_APP_USER    = os.environ.get("WP_APP_USER", "admin")
-WP_APP_PASSWORD = os.environ.get("WP_APP_PASSWORD", "")
-
-_WP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SymbioPlatform/1.0)"}
-
-WP_KNOWN_PAGES = [
-    {"id": 44,  "slug": "home",           "label": "Home"},
-    {"id": 133, "slug": "news",           "label": "News"},
-    {"id": 124, "slug": "team",           "label": "Team"},
-    {"id": 110, "slug": "privacy-policy", "label": "Privacy Policy"},
-    {"id": 259, "slug": "impact",         "label": "Impact"},
-    {"id": 273, "slug": "appreciations",  "label": "Appreciations"},
-    {"id": 313, "slug": "contact",        "label": "Contact"},
-    {"id": 314, "slug": "technology",     "label": "Technology"},
-]
-
-ACF_BLOCK_FIELDS = {
-    "page-header":      ["heading", "subheading"],
-    "hero":             ["heading", "subheading", "cta_text", "cta_url"],
-    "value-props":      ["title", "items"],
-    "kpi-strip":        ["kpis"],
-    "cta-dark":         ["heading", "subheading", "cta_text", "cta_url"],
-    "technology":       ["heading", "body", "image_caption"],
-    "process":          ["heading", "steps"],
-    "applications-grid":["heading", "items"],
-    "testimonials":     ["heading", "items"],
-}
-
-
-def _wp_auth() -> tuple[str, str]:
-    return (WP_APP_USER, WP_APP_PASSWORD)
-
-
-def _wp_get(path: str, params: dict | None = None):
-    url = f"{WP_BASE_URL}/wp-json/wp/v2{path}"
-    r = httpx.get(url, auth=_wp_auth(), params=params or {}, headers=_WP_HEADERS, timeout=15)
-    if not r.is_success:
-        raise HTTPException(status_code=r.status_code, detail=r.text[:300])
-    return r.json()
-
-
-def _wp_post(path: str, body: dict):
-    url = f"{WP_BASE_URL}/wp-json/wp/v2{path}"
-    r = httpx.post(url, auth=_wp_auth(), json=body, headers=_WP_HEADERS, timeout=15)
-    if not r.is_success:
-        raise HTTPException(status_code=r.status_code, detail=r.text[:300])
-    return r.json()
-
-
-def _wp_patch(path: str, body: dict):
-    url = f"{WP_BASE_URL}/wp-json/wp/v2{path}"
-    r = httpx.patch(url, auth=_wp_auth(), json=body, headers=_WP_HEADERS, timeout=15)
-    if not r.is_success:
-        raise HTTPException(status_code=r.status_code, detail=r.text[:300])
-    return r.json()
-
-
-def _wp_delete(path: str):
-    url = f"{WP_BASE_URL}/wp-json/wp/v2{path}"
-    r = httpx.delete(url, auth=_wp_auth(), headers=_WP_HEADERS, timeout=15)
-    if not r.is_success:
-        raise HTTPException(status_code=r.status_code, detail=r.text[:300])
-    return r.json()
-
-
-def _wp_post_summary(p: dict) -> dict:
-    return {
-        "id": p["id"],
-        "slug": p.get("slug", ""),
-        "title": p.get("title", {}).get("rendered", ""),
-        "status": p.get("status", ""),
-        "date": p.get("date", ""),
-        "modified": p.get("modified", ""),
-        "link": p.get("link", ""),
-        "excerpt": p.get("excerpt", {}).get("rendered", ""),
-        "featured_media": p.get("featured_media", 0),
-        "categories": p.get("categories", []),
-        "tags": p.get("tags", []),
-    }
-
-
-def _extract_acf_blocks(raw_content: str) -> list[dict]:
-    """Parse wp:acf/block-name comments and extract block data."""
-    import json as _json
-    blocks = []
-    pattern = re.compile(
-        r'<!-- wp:acf/([a-z0-9_-]+)\s+(\{.*?\})\s*/-->',
-        re.DOTALL
-    )
-    for m in pattern.finditer(raw_content):
-        block_name = m.group(1)
-        try:
-            data = _json.loads(m.group(2))
-        except Exception:
-            data = {}
-        acf = data.get("data", {})
-        blocks.append({
-            "block": block_name,
-            "raw_data": data,
-            "acf": acf,
-            "fields": ACF_BLOCK_FIELDS.get(block_name, list(acf.keys())),
-        })
-    return blocks
-
-
-# ── Posts ────────────────────────────────────────────────────────────────────
 
 @router.get("/website/posts")
 def list_posts(request: Request, page: int = 1, per_page: int = 20, status: str = "any"):
@@ -1401,6 +1299,1575 @@ def download_brand_asset(file_id: str, request: Request):
     )
 
 
+@router.get("/brand-assets/{file_id}/public")
+def public_brand_asset(file_id: str):
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT stored_name, mime_type FROM marketing_brand_files WHERE id=%s",
+            [file_id],
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404)
+    if not (row["mime_type"] or "").startswith("image/"):
+        raise HTTPException(status_code=404)
+
+    path = os.path.join(BRAND_UPLOAD_DIR, row["stored_name"])
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(
+        path=path,
+        media_type=row["mime_type"] or "image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.head("/brand-assets/{file_id}/public")
+def public_brand_asset_head(file_id: str):
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT stored_name, mime_type FROM marketing_brand_files WHERE id=%s",
+            [file_id],
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404)
+    if not (row["mime_type"] or "").startswith("image/"):
+        raise HTTPException(status_code=404)
+
+    path = os.path.join(BRAND_UPLOAD_DIR, row["stored_name"])
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return Response(
+        status_code=200,
+        headers={
+            "Content-Type": row["mime_type"] or "image/png",
+            "Content-Length": str(os.path.getsize(path)),
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
+
+
+# ── Campaign Templates ────────────────────────────────────────────────────────
+
+class TemplateCreate(BaseModel):
+    name: str
+    type: str = "email"
+    subject: str = ""
+    body: str = ""
+    body_html: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    reply_to: Optional[str] = None
+    business_name: Optional[str] = None
+    business_address: Optional[str] = None
+    unsubscribe_enabled: bool = True
+
+
+class TemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    body_html: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    reply_to: Optional[str] = None
+    business_name: Optional[str] = None
+    business_address: Optional[str] = None
+    unsubscribe_enabled: Optional[bool] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Brand Settings
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BrandSettingsUpdate(BaseModel):
+    font_family: str | None = None
+    font_size: int | None = None
+    heading_size: int | None = None
+    text_color: str | None = None
+    heading_color: str | None = None
+    button_color: str | None = None
+    button_text_color: str | None = None
+    brand_colors: list | None = None
+    logo_url: str | None = None
+    business_name: str | None = None
+    business_address: str | None = None
+
+
+@router.get("/brand-settings")
+def get_brand_settings(request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM campaign_brand_settings WHERE user_id = %s::uuid", [user_id])
+        row = cur.fetchone()
+        if not row:
+            return {
+                "font_family": "Inter, Arial, sans-serif",
+                "font_size": 15,
+                "heading_size": 28,
+                "text_color": "#374151",
+                "heading_color": "#111827",
+                "button_color": "#2563eb",
+                "button_text_color": "#ffffff",
+                "brand_colors": [],
+                "logo_url": None,
+                "business_name": None,
+                "business_address": None,
+            }
+        result = dict(row)
+        result.pop("user_id", None)
+        result.pop("logo_asset_id", None)
+        if result.get("updated_at"):
+            result["updated_at"] = result["updated_at"].isoformat()
+        if isinstance(result.get("brand_colors"), str):
+            import json
+            result["brand_colors"] = json.loads(result["brand_colors"])
+        return result
+    finally:
+        conn.close()
+
+
+@router.patch("/brand-settings")
+def update_brand_settings(body: BrandSettingsUpdate, request: Request):
+    user_id = _require_user(request)
+    import json as _json
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            """INSERT INTO campaign_brand_settings
+                 (user_id, font_family, font_size, heading_size, text_color, heading_color,
+                  button_color, button_text_color, brand_colors, logo_url, business_name, business_address, updated_at)
+               VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, NOW())
+               ON CONFLICT (user_id) DO UPDATE SET
+                 font_family      = COALESCE(EXCLUDED.font_family,      campaign_brand_settings.font_family),
+                 font_size        = COALESCE(EXCLUDED.font_size,        campaign_brand_settings.font_size),
+                 heading_size     = COALESCE(EXCLUDED.heading_size,     campaign_brand_settings.heading_size),
+                 text_color       = COALESCE(EXCLUDED.text_color,       campaign_brand_settings.text_color),
+                 heading_color    = COALESCE(EXCLUDED.heading_color,    campaign_brand_settings.heading_color),
+                 button_color     = COALESCE(EXCLUDED.button_color,     campaign_brand_settings.button_color),
+                 button_text_color= COALESCE(EXCLUDED.button_text_color,campaign_brand_settings.button_text_color),
+                 brand_colors     = COALESCE(EXCLUDED.brand_colors,     campaign_brand_settings.brand_colors),
+                 logo_url         = EXCLUDED.logo_url,
+                 business_name    = EXCLUDED.business_name,
+                 business_address = EXCLUDED.business_address,
+                 updated_at       = NOW()
+               RETURNING *""",
+            [user_id,
+             body.font_family or "Inter, Arial, sans-serif",
+             body.font_size or 15,
+             body.heading_size or 28,
+             body.text_color or "#374151",
+             body.heading_color or "#111827",
+             body.button_color or "#2563eb",
+             body.button_text_color or "#ffffff",
+             _json.dumps(body.brand_colors or []),
+             body.logo_url,
+             body.business_name,
+             body.business_address],
+        )
+        conn.commit()
+        result = dict(cur.fetchone())
+        result.pop("user_id", None)
+        result.pop("logo_asset_id", None)
+        if result.get("updated_at"):
+            result["updated_at"] = result["updated_at"].isoformat()
+        if isinstance(result.get("brand_colors"), str):
+            result["brand_colors"] = _json.loads(result["brand_colors"])
+        return result
+    finally:
+        conn.close()
+
+
+@router.get("/campaign-templates")
+def list_templates(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM campaign_templates ORDER BY updated_at DESC")
+        return [_row_dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.post("/campaign-templates", status_code=201)
+def create_template(body: TemplateCreate, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO campaign_templates
+                 (user_id, name, type, subject, body, body_html, sender_name, sender_email,
+                  reply_to, business_name, business_address, unsubscribe_enabled)
+               VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+            [user_id, body.name, body.type, body.subject, body.body, body.body_html,
+             body.sender_name, body.sender_email, body.reply_to, body.business_name,
+             body.business_address, body.unsubscribe_enabled],
+        )
+        row = _row_dict(cur.fetchone())
+        conn.commit()
+        return row
+    finally:
+        conn.close()
+
+
+@router.patch("/campaign-templates/{template_id}")
+def update_template(template_id: str, body: TemplateUpdate, request: Request):
+    user_id = _require_user(request)
+    updates = {k: v for k, v in body.dict(exclude_unset=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        sets = ", ".join(f"{k} = %s" for k in updates)
+        vals = list(updates.values()) + [template_id]
+        cur.execute(
+            f"UPDATE campaign_templates SET {sets}, updated_at = NOW() "
+            f"WHERE template_id = %s::uuid RETURNING *",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        conn.commit()
+        return _row_dict(row)
+    finally:
+        conn.close()
+
+
+@router.delete("/campaign-templates/{template_id}")
+def delete_template(template_id: str, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM campaign_templates WHERE template_id = %s::uuid",
+            [template_id],
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+# ── Email Campaigns ────────────────────────────────────────────────────────────
+
+GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+
+
+class CampaignCreate(BaseModel):
+    title: str
+    type: str = "email"
+    template_id: Optional[str] = None
+    list_id: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    reply_to: Optional[str] = None
+    business_name: Optional[str] = None
+    business_address: Optional[str] = None
+    unsubscribe_enabled: bool = True
+    subject: str = ""
+    body: str = ""
+    body_html: Optional[str] = None
+    recipient_list: list[str] = []
+    list_ids: list[str] = []
+
+
+class CampaignUpdate(BaseModel):
+    title: Optional[str] = None
+    type: Optional[str] = None
+    template_id: Optional[str] = None
+    list_id: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    reply_to: Optional[str] = None
+    business_name: Optional[str] = None
+    business_address: Optional[str] = None
+    unsubscribe_enabled: Optional[bool] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    body_html: Optional[str] = None
+    recipient_list: Optional[list[str]] = None
+    list_ids: Optional[list[str]] = None
+
+
+class ScheduleRequest(BaseModel):
+    scheduled_at: str  # ISO 8601 datetime string
+
+
+class CampaignPostCreate(BaseModel):
+    title: str = ""
+    template_id: Optional[str] = None
+    subject: str = ""
+    body: str = ""
+    body_html: Optional[str] = None
+    scheduled_at: Optional[str] = None
+    list_ids: list[str] = []
+
+
+class CampaignPostUpdate(BaseModel):
+    title: Optional[str] = None
+    template_id: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    body_html: Optional[str] = None
+    scheduled_at: Optional[str] = None
+    status: Optional[str] = None
+    list_ids: Optional[list[str]] = None
+
+
+@router.get("/campaigns/{campaign_id}/list-schedule")
+def get_campaign_list_schedule(campaign_id: str, request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT cls.list_id::text, cls.frequency, l.name, l.description,
+                 (SELECT COUNT(*) FROM campaign_list_contacts lc WHERE lc.list_id = cls.list_id)
+                 + (SELECT COUNT(*) FROM campaign_list_emails le WHERE le.list_id = cls.list_id) AS contact_count
+               FROM campaign_list_schedule cls
+               JOIN campaign_lists l ON l.list_id = cls.list_id
+               WHERE cls.campaign_id = %s::uuid
+               ORDER BY l.name""",
+            [campaign_id],
+        )
+        return [_row_dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.put("/campaigns/{campaign_id}/list-schedule")
+def set_campaign_list_schedule(campaign_id: str, body: dict, request: Request):
+    """Replace campaign list schedule. body = {schedules: [{list_id, frequency}]}"""
+    user_id = _require_user(request)
+    schedules = body.get("schedules", [])
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM email_campaigns WHERE campaign_id=%s::uuid", [campaign_id])
+        if not cur.fetchone():
+            raise HTTPException(status_code=404)
+        cur.execute("DELETE FROM campaign_list_schedule WHERE campaign_id = %s::uuid", [campaign_id])
+        for s in schedules:
+            cur.execute(
+                "INSERT INTO campaign_list_schedule (campaign_id, list_id, frequency) VALUES (%s::uuid, %s::uuid, %s) ON CONFLICT DO NOTHING",
+                [campaign_id, s["list_id"], s.get("frequency", "every")],
+            )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/campaigns")
+def list_campaigns(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM email_campaigns ORDER BY created_at DESC")
+        return [_campaign_row(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.post("/campaigns", status_code=201)
+def create_campaign(body: CampaignCreate, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO email_campaigns
+                (user_id, title, type, template_id, list_id, sender_name, sender_email,
+                 reply_to, business_name, business_address, unsubscribe_enabled,
+                 subject, body, body_html, recipient_list, list_ids)
+            VALUES (%s::uuid, %s, %s, %s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid[])
+            RETURNING *
+            """,
+            [user_id, body.title, body.type, body.template_id, body.list_id,
+             body.sender_name, body.sender_email, body.reply_to, body.business_name,
+             body.business_address, body.unsubscribe_enabled, body.subject, body.body,
+             body.body_html, body.recipient_list, body.list_ids or []],
+        )
+        row = _campaign_row(cur.fetchone())
+        conn.commit()
+        return row
+    finally:
+        conn.close()
+
+
+@router.patch("/campaigns/{campaign_id}")
+def update_campaign(campaign_id: str, body: CampaignUpdate, request: Request):
+    user_id = _require_user(request)
+    updates = {k: v for k, v in body.dict(exclude_unset=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        set_parts = []
+        set_vals = []
+        for k, v in updates.items():
+            if k == "list_ids":
+                set_parts.append("list_ids = %s::uuid[]")
+            elif k in ("template_id", "list_id"):
+                set_parts.append(f"{k} = %s::uuid")
+            else:
+                set_parts.append(f"{k} = %s")
+            set_vals.append(v)
+        sets = ", ".join(set_parts)
+        vals = set_vals + [campaign_id]
+        cur.execute(
+            f"UPDATE email_campaigns SET {sets}, updated_at = NOW() "
+            f"WHERE campaign_id = %s::uuid RETURNING *",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        conn.commit()
+        return _campaign_row(row)
+    finally:
+        conn.close()
+
+
+@router.delete("/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: str, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM email_campaigns WHERE campaign_id = %s::uuid",
+            [campaign_id],
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+def _parse_optional_dt(value: Optional[str]):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_at datetime")
+
+
+def _resolve_campaign_recipients(campaign: dict) -> list[dict]:
+    recipients: list[dict] = []
+    for email in (campaign.get("recipient_list") or []):
+        if "@" in email:
+            recipients.append({"email": email, "contact_id": None})
+
+    # Post-level list_ids take priority; fall back to campaign schedule, then single list_id
+    list_ids = campaign.get("list_ids") or []
+    if not list_ids and campaign.get("list_id"):
+        list_ids = [str(campaign["list_id"])]
+    if list_ids:
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            for lid in list_ids:
+                cur.execute(
+                    """SELECT COALESCE(lc.selected_email, c.email) AS email, c.contact_id::text
+                       FROM campaign_list_contacts lc
+                       JOIN contacts c ON c.contact_id = lc.contact_id
+                       WHERE lc.list_id = %s::uuid AND NOT c.archived
+                         AND (lc.selected_email IS NOT NULL
+                              OR (c.email IS NOT NULL AND c.email != ''))""",
+                    [lid],
+                )
+                for r in cur.fetchall():
+                    recipients.append({"email": r["email"], "contact_id": str(r["contact_id"])})
+                cur.execute(
+                    "SELECT email FROM campaign_list_emails WHERE list_id = %s::uuid",
+                    [lid],
+                )
+                for r in cur.fetchall():
+                    recipients.append({"email": r["email"], "contact_id": None})
+        finally:
+            conn.close()
+
+    seen: set[str] = set()
+    deduped = []
+    for r in recipients:
+        key = r["email"].lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+    user_id = campaign.get("user_id")
+    if user_id and deduped:
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT lower(email) AS email FROM campaign_unsubscribes WHERE user_id=%s::uuid",
+                [str(user_id)],
+            )
+            suppressed = {r["email"] for r in cur.fetchall()}
+        finally:
+            conn.close()
+        deduped = [r for r in deduped if r["email"].lower() not in suppressed]
+    return deduped
+
+
+def _tracking_base(request: Optional[Request], campaign_id: str) -> str:
+    if request is not None:
+        proto = request.headers.get("x-forwarded-proto", "https")
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
+        return f"{proto}://{host}/api/marketing/track/open/{campaign_id}"
+    base = (os.environ.get("NEXTAUTH_URL") or "https://erp.example.com").rstrip("/")
+    return f"{base}/api/marketing/track/open/{campaign_id}"
+
+
+def _public_base(request: Optional[Request]) -> str:
+    if request is not None:
+        proto = request.headers.get("x-forwarded-proto", "https")
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
+        return f"{proto}://{host}"
+    return (os.environ.get("NEXTAUTH_URL") or "https://erp.example.com").rstrip("/")
+
+
+def _unsubscribe_url(request: Optional[Request], send_id: str) -> str:
+    return f"{_public_base(request)}/api/marketing/unsubscribe/{send_id}"
+
+
+def _append_compliance_footer(html: str, plain: str, campaign: dict, unsubscribe_url: str) -> tuple[str, str]:
+    business = (campaign.get("business_name") or "").strip()
+    address = (campaign.get("business_address") or "").strip()
+    footer_plain = (
+        f"\n\n--\n{business}\n{address}\n"
+        f"Unsubscribe: {unsubscribe_url}"
+    )
+    footer_html = f"""
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;line-height:1.5;font-family:Arial,sans-serif">
+  <div>{escape_html(business)}</div>
+  <div>{escape_html(address).replace(chr(10), "<br>")}</div>
+  <div style="margin-top:8px"><a href="{escape_html(unsubscribe_url)}" style="color:#2563eb">Unsubscribe</a></div>
+</div>
+"""
+    if "</body>" in html.lower():
+        html = re.sub(r"</body>", footer_html + "</body>", html, flags=re.IGNORECASE)
+    else:
+        html += footer_html
+    return html, plain + footer_plain
+
+
+def escape_html(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _send_post_now(post_id: str, request: Optional[Request] = None) -> dict:
+    """Send one scheduled campaign post via Gmail and update post/campaign stats."""
+    import base64 as _b64
+    import uuid as _uuid
+    from email.mime.multipart import MIMEMultipart as _MIMEMulti
+    from email.mime.text import MIMEText as _MIMEText
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT p.*, c.user_id, c.recipient_list,
+                      p.list_ids AS post_list_ids, c.list_ids AS campaign_list_ids,
+                      c.list_id, c.campaign_id,
+                      COALESCE(t.sender_name, c.sender_name) AS sender_name,
+                      COALESCE(t.sender_email, c.sender_email) AS sender_email,
+                      COALESCE(t.reply_to, c.reply_to) AS reply_to,
+                      COALESCE(t.business_name, c.business_name) AS business_name,
+                      COALESCE(t.business_address, c.business_address) AS business_address,
+                      TRUE AS unsubscribe_enabled
+               FROM campaign_posts p
+               JOIN email_campaigns c ON c.campaign_id = p.campaign_id
+               LEFT JOIN campaign_templates t ON t.template_id = COALESCE(p.template_id, c.template_id)
+               WHERE p.post_id = %s::uuid""",
+            [post_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        post = _campaign_post_row(row)
+        # Use post-level list_ids if set, otherwise fall back to campaign-level
+        post_lists = _parse_uuid_array(post.get("post_list_ids"))
+        camp_lists = _parse_uuid_array(post.get("campaign_list_ids"))
+        post["list_ids"] = post_lists if post_lists else camp_lists
+    finally:
+        conn.close()
+
+    if not post.get("subject"):
+        raise HTTPException(status_code=400, detail="Subject is required")
+    if post.get("unsubscribe_enabled") and not (post.get("business_name") and post.get("business_address")):
+        raise HTTPException(status_code=400, detail="Business name and postal address are required for marketing sends")
+
+    user_id = str(post["user_id"])
+    campaign_id = str(post["campaign_id"])
+    token = _get_token(user_id)
+    recipients = _resolve_campaign_recipients(post)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="No recipients found")
+
+    track_base = _tracking_base(request, campaign_id)
+    sent = 0
+    failed: list[str] = []
+
+    for recipient in recipients:
+        send_id = str(_uuid.uuid4())
+        email = recipient["email"]
+        contact_id = recipient.get("contact_id")
+
+        msg = _MIMEMulti("alternative")
+        msg["To"] = email
+        msg["Subject"] = post["subject"]
+        if post.get("sender_name") and post.get("sender_email"):
+            msg["From"] = f"{post['sender_name']} <{post['sender_email']}>"
+        elif post.get("sender_email"):
+            msg["From"] = post["sender_email"]
+        if post.get("reply_to"):
+            msg["Reply-To"] = post["reply_to"]
+
+        plain = post.get("body") or ""
+        html = post.get("body_html")
+        if not html:
+            esc = plain.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+            html = f"<p>{esc}</p>"
+        html = _inline_images(html)
+        if post.get("unsubscribe_enabled"):
+            unsub_url = _unsubscribe_url(request, send_id)
+            msg["List-Unsubscribe"] = f"<{unsub_url}>"
+            msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+            html, plain = _append_compliance_footer(html, plain, post, unsub_url)
+        msg.attach(_MIMEText(plain, "plain", "utf-8"))
+        pixel = (
+            f'<img src="{track_base}/{send_id}.gif" '
+            f'width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">'
+        )
+        msg.attach(_MIMEText(html + pixel, "html", "utf-8"))
+
+        raw = _b64.urlsafe_b64encode(msg.as_bytes()).decode()
+        r = httpx.post(
+            GMAIL_SEND_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"raw": raw},
+            timeout=20,
+        )
+        if r.status_code in (200, 201):
+            sent += 1
+            gmail_id = r.json().get("id")
+            conn = _conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """INSERT INTO campaign_sends
+                           (send_id, campaign_id, post_id, recipient_email, contact_id, gmail_message_id)
+                       VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, %s)""",
+                    [send_id, campaign_id, post_id, email, contact_id, gmail_id],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        else:
+            failed.append(email)
+
+    final_status = "sent" if sent > 0 else "failed"
+    error_msg = f"Failed for: {', '.join(failed)}" if failed else None
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE campaign_posts
+               SET status=%s, sent_at=NOW(), sent_count=%s, error_message=%s, updated_at=NOW()
+               WHERE post_id=%s::uuid""",
+            [final_status, sent, error_msg, post_id],
+        )
+        cur.execute(
+            """UPDATE email_campaigns
+               SET status = CASE
+                       WHEN EXISTS (SELECT 1 FROM campaign_posts WHERE campaign_id=%s::uuid AND status='scheduled') THEN 'scheduled'
+                       WHEN EXISTS (SELECT 1 FROM campaign_posts WHERE campaign_id=%s::uuid AND status='failed') THEN 'failed'
+                       WHEN EXISTS (SELECT 1 FROM campaign_posts WHERE campaign_id=%s::uuid AND status='sent') THEN 'sent'
+                       ELSE status
+                   END,
+                   sent_at = COALESCE(sent_at, NOW()),
+                   sent_count = COALESCE((SELECT SUM(sent_count) FROM campaign_posts WHERE campaign_id=%s::uuid), 0),
+                   open_count = COALESCE((SELECT SUM(open_count) FROM campaign_posts WHERE campaign_id=%s::uuid), 0),
+                   updated_at = NOW()
+               WHERE campaign_id=%s::uuid""",
+            [campaign_id, campaign_id, campaign_id, campaign_id, campaign_id, campaign_id],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"sent": sent, "failed": len(failed), "status": final_status}
+
+
+@router.get("/campaigns/{campaign_id}/posts")
+def list_campaign_posts(campaign_id: str, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT p.*
+               FROM campaign_posts p
+               JOIN email_campaigns c ON c.campaign_id = p.campaign_id
+               WHERE p.campaign_id = %s::uuid
+               ORDER BY COALESCE(p.scheduled_at, p.created_at), p.created_at""",
+            [campaign_id],
+        )
+        return [_campaign_post_row(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.post("/campaigns/{campaign_id}/posts", status_code=201)
+def create_campaign_post(campaign_id: str, body: CampaignPostCreate, request: Request):
+    user_id = _require_user(request)
+    scheduled_at = _parse_optional_dt(body.scheduled_at)
+    status = "scheduled" if scheduled_at else "draft"
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM email_campaigns WHERE campaign_id=%s::uuid",
+            [campaign_id],
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404)
+        import json as _json
+        list_ids_arr = "{" + ",".join(body.list_ids) + "}" if body.list_ids else "{}"
+        cur.execute(
+            """INSERT INTO campaign_posts
+                   (campaign_id, template_id, title, subject, body, body_html, status, scheduled_at, list_ids)
+               VALUES (%s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s, %s::uuid[])
+               RETURNING *""",
+            [campaign_id, body.template_id, body.title, body.subject, body.body, body.body_html, status, scheduled_at, list_ids_arr],
+        )
+        row = _campaign_post_row(cur.fetchone())
+        if scheduled_at:
+            cur.execute("UPDATE email_campaigns SET status='scheduled', updated_at=NOW() WHERE campaign_id=%s::uuid", [campaign_id])
+        conn.commit()
+        return row
+    finally:
+        conn.close()
+
+
+@router.patch("/campaigns/{campaign_id}/posts/{post_id}")
+def update_campaign_post(campaign_id: str, post_id: str, body: CampaignPostUpdate, request: Request):
+    user_id = _require_user(request)
+    updates = {k: v for k, v in body.dict(exclude_unset=True).items()}
+    if "scheduled_at" in updates:
+        updates["scheduled_at"] = _parse_optional_dt(updates["scheduled_at"])
+        if "status" not in updates:
+            updates["status"] = "scheduled" if updates["scheduled_at"] else "draft"
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        set_parts = []
+        vals = []
+        for k, v in updates.items():
+            if k == "template_id":
+                set_parts.append("template_id = %s::uuid")
+            elif k == "list_ids":
+                set_parts.append("list_ids = %s::uuid[]")
+                v = "{" + ",".join(v or []) + "}"
+            else:
+                set_parts.append(f"{k} = %s")
+            vals.append(v)
+        vals += [post_id, campaign_id]
+        cur.execute(
+            f"""UPDATE campaign_posts p
+                SET {', '.join(set_parts)}, updated_at=NOW()
+                WHERE p.post_id=%s::uuid AND p.campaign_id=%s::uuid
+                RETURNING p.*""",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        conn.commit()
+        return _campaign_post_row(row)
+    finally:
+        conn.close()
+
+
+@router.delete("/campaigns/{campaign_id}/posts/{post_id}")
+def delete_campaign_post(campaign_id: str, post_id: str, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM campaign_posts WHERE post_id=%s::uuid AND campaign_id=%s::uuid",
+            [post_id, campaign_id],
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.post("/campaigns/{campaign_id}/posts/{post_id}/send")
+def send_campaign_post(campaign_id: str, post_id: str, request: Request):
+    _require_user(request)
+    return _send_post_now(post_id, request)
+
+
+@router.post("/campaigns/{campaign_id}/posts/{post_id}/schedule")
+def schedule_campaign_post(campaign_id: str, post_id: str, body: ScheduleRequest, request: Request):
+    return update_campaign_post(
+        campaign_id,
+        post_id,
+        CampaignPostUpdate(scheduled_at=body.scheduled_at, status="scheduled"),
+        request,
+    )
+
+
+@router.post("/campaigns/{campaign_id}/posts/{post_id}/send-test")
+def send_test_campaign_post(campaign_id: str, post_id: str, request: Request):
+    """Send a post test email to the authenticated user's own Gmail address."""
+    import base64 as _b64
+    from email.mime.multipart import MIMEMultipart as _MIMEMulti
+    from email.mime.text import MIMEText as _MIMEText
+
+    user_id = _require_user(request)
+    token = _get_token(user_id)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM campaign_posts WHERE post_id=%s::uuid AND campaign_id=%s::uuid",
+            [post_id, campaign_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        post = _row_dict(row)
+        cur.execute("SELECT google_email FROM google_oauth_tokens WHERE user_id = %s", [user_id])
+        tok_row = cur.fetchone()
+        if not tok_row:
+            raise HTTPException(status_code=400, detail="No Gmail account connected")
+        user_email = tok_row["google_email"]
+    finally:
+        conn.close()
+
+    msg = _MIMEMulti("alternative")
+    msg["To"] = user_email
+    msg["Subject"] = f"[TEST] {post['subject']}"
+    plain = (post.get("body") or "") + "\n\n-- Test send --"
+    msg.attach(_MIMEText(plain, "plain", "utf-8"))
+    html = _inline_images(post.get("body_html") or f"<p>{plain}</p>")
+    msg.attach(_MIMEText(html + '<p style="color:#aaa;font-size:11px;margin-top:24px">-- Test send --</p>', "html", "utf-8"))
+
+    raw = _b64.urlsafe_b64encode(msg.as_bytes()).decode()
+    r = httpx.post(
+        GMAIL_SEND_URL,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"raw": raw},
+        timeout=20,
+    )
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Gmail send failed")
+    return {"sent_to": user_email}
+
+
+def _unsubscribe_send(send_id: str, reason: str = "unsubscribe") -> dict:
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT s.recipient_email, s.contact_id, s.campaign_id, s.post_id,
+                      c.user_id, c.list_id
+               FROM campaign_sends s
+               JOIN email_campaigns c ON c.campaign_id = s.campaign_id
+               WHERE s.send_id=%s::uuid""",
+            [send_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        cur.execute(
+            """INSERT INTO campaign_unsubscribes
+                   (user_id, email, contact_id, list_id, campaign_id, post_id, reason)
+               VALUES (%s::uuid, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (user_id, lower(email))
+               DO UPDATE SET unsubscribed_at=NOW(),
+                             contact_id=COALESCE(EXCLUDED.contact_id, campaign_unsubscribes.contact_id),
+                             list_id=COALESCE(EXCLUDED.list_id, campaign_unsubscribes.list_id),
+                             campaign_id=EXCLUDED.campaign_id,
+                             post_id=EXCLUDED.post_id,
+                             reason=EXCLUDED.reason
+               RETURNING email""",
+            [
+                row["user_id"], row["recipient_email"], row["contact_id"], row["list_id"],
+                row["campaign_id"], row["post_id"], reason,
+            ],
+        )
+        email = cur.fetchone()["email"]
+        conn.commit()
+        return {"ok": True, "email": email}
+    finally:
+        conn.close()
+
+
+@router.get("/unsubscribe/{send_id}")
+def unsubscribe_page(send_id: str):
+    result = _unsubscribe_send(send_id)
+    html = f"""<!doctype html><html><body style="font-family:Arial,sans-serif;padding:40px;color:#111827">
+<h1 style="font-size:22px">You are unsubscribed</h1>
+<p>{escape_html(result["email"])} will no longer receive marketing emails from this sender.</p>
+</body></html>"""
+    return Response(content=html, media_type="text/html")
+
+
+@router.post("/unsubscribe/{send_id}")
+def unsubscribe_one_click(send_id: str):
+    return _unsubscribe_send(send_id, "one-click")
+
+
+@router.post("/campaigns/{campaign_id}/schedule")
+def schedule_campaign(campaign_id: str, body: ScheduleRequest, request: Request):
+    user_id = _require_user(request)
+    try:
+        scheduled_dt = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_at datetime")
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE email_campaigns SET status='scheduled', scheduled_at=%s, updated_at=NOW() "
+            "WHERE campaign_id=%s::uuid RETURNING *",
+            [scheduled_dt, campaign_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        conn.commit()
+        return _row_dict(row)
+    finally:
+        conn.close()
+
+
+@router.post("/campaigns/{campaign_id}/send")
+def send_campaign(campaign_id: str, request: Request):
+    """Send a campaign immediately via Gmail to all recipients (HTML + open tracking)."""
+    import base64 as _b64
+    import uuid as _uuid
+    from email.mime.multipart import MIMEMultipart as _MIMEMulti
+    from email.mime.text import MIMEText as _MIMEText
+
+    user_id = _require_user(request)
+    token = _get_token(user_id)
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM email_campaigns WHERE campaign_id = %s::uuid",
+            [campaign_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        campaign = _row_dict(row)
+    finally:
+        conn.close()
+
+    if not campaign["subject"]:
+        raise HTTPException(status_code=400, detail="Subject is required")
+
+    # Resolve recipients from raw list + contact lists
+    recipients: list[dict] = []
+    for email in (campaign["recipient_list"] or []):
+        if "@" in email:
+            recipients.append({"email": email, "contact_id": None})
+
+    list_ids = campaign.get("list_ids") or []
+    if list_ids:
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            for lid in list_ids:
+                cur.execute(
+                    """SELECT COALESCE(lc.selected_email, c.email) AS email, c.contact_id
+                       FROM campaign_list_contacts lc
+                       JOIN contacts c ON c.contact_id = lc.contact_id
+                       WHERE lc.list_id = %s::uuid AND NOT c.archived
+                         AND (lc.selected_email IS NOT NULL
+                              OR (c.email IS NOT NULL AND c.email != ''))""",
+                    [lid],
+                )
+                for r in cur.fetchall():
+                    recipients.append({"email": r["email"], "contact_id": str(r["contact_id"])})
+        finally:
+            conn.close()
+
+    # Deduplicate by email
+    seen: set[str] = set()
+    deduped = []
+    for r in recipients:
+        key = r["email"].lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+    recipients = deduped
+
+    if not recipients:
+        raise HTTPException(status_code=400, detail="No recipients found")
+
+    # Build tracking base URL from forwarded headers
+    proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
+    track_base = f"{proto}://{host}/api/marketing/track/open/{campaign_id}"
+
+    sent = 0
+    failed: list[str] = []
+
+    for recipient in recipients:
+        send_id = str(_uuid.uuid4())
+        email = recipient["email"]
+        contact_id = recipient.get("contact_id")
+
+        msg = _MIMEMulti("alternative")
+        msg["To"] = email
+        msg["Subject"] = campaign["subject"]
+
+        plain = campaign.get("body") or ""
+        msg.attach(_MIMEText(plain, "plain", "utf-8"))
+
+        if campaign.get("body_html"):
+            html = _inline_images(campaign["body_html"])
+        else:
+            esc = plain.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+            html = f"<p>{esc}</p>"
+
+        pixel = (
+            f'<img src="{track_base}/{send_id}.gif" '
+            f'width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">'
+        )
+        msg.attach(_MIMEText(html + pixel, "html", "utf-8"))
+
+        raw = _b64.urlsafe_b64encode(msg.as_bytes()).decode()
+        r = httpx.post(
+            GMAIL_SEND_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"raw": raw},
+            timeout=20,
+        )
+        if r.status_code in (200, 201):
+            sent += 1
+            gmail_id = r.json().get("id")
+            conn = _conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """INSERT INTO campaign_sends
+                           (send_id, campaign_id, recipient_email, contact_id, gmail_message_id)
+                       VALUES (%s::uuid, %s::uuid, %s, %s, %s)""",
+                    [send_id, campaign_id, email, contact_id, gmail_id],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        else:
+            failed.append(email)
+
+    final_status = "sent" if sent > 0 else "failed"
+    error_msg = f"Failed for: {', '.join(failed)}" if failed else None
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE email_campaigns SET status=%s, sent_at=NOW(), sent_count=%s, "
+            "error_message=%s, updated_at=NOW() WHERE campaign_id=%s::uuid",
+            [final_status, sent, error_msg, campaign_id],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"sent": sent, "failed": len(failed), "status": final_status}
+
+
+@router.post("/campaigns/{campaign_id}/send-test")
+def send_test_campaign(campaign_id: str, request: Request):
+    """Send a test email to the authenticated user's own Gmail address."""
+    import base64 as _b64
+    from email.mime.multipart import MIMEMultipart as _MIMEMulti
+    from email.mime.text import MIMEText as _MIMEText
+
+    user_id = _require_user(request)
+    token = _get_token(user_id)
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM email_campaigns WHERE campaign_id = %s::uuid",
+            [campaign_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        campaign = _row_dict(row)
+        cur.execute("SELECT google_email FROM google_oauth_tokens WHERE user_id = %s", [user_id])
+        tok_row = cur.fetchone()
+        if not tok_row:
+            raise HTTPException(status_code=400, detail="No Gmail account connected")
+        user_email = tok_row["google_email"]
+    finally:
+        conn.close()
+
+    msg = _MIMEMulti("alternative")
+    msg["To"] = user_email
+    msg["Subject"] = f"[TEST] {campaign['subject']}"
+
+    plain = (campaign.get("body") or "") + "\n\n— Test send —"
+    msg.attach(_MIMEText(plain, "plain", "utf-8"))
+
+    if campaign.get("body_html"):
+        html = _inline_images(campaign["body_html"]) + '<p style="color:#aaa;font-size:11px;margin-top:24px">— Test send —</p>'
+    else:
+        esc = plain.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+        html = f"<p>{esc}</p>"
+    msg.attach(_MIMEText(html, "html", "utf-8"))
+
+    raw = _b64.urlsafe_b64encode(msg.as_bytes()).decode()
+    r = httpx.post(
+        GMAIL_SEND_URL,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"raw": raw},
+        timeout=20,
+    )
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Gmail send failed")
+
+    return {"sent_to": user_email}
+
+
+@router.get("/campaigns/{campaign_id}/stats")
+def get_campaign_stats(campaign_id: str, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM email_campaigns WHERE campaign_id = %s::uuid",
+            [campaign_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        campaign = _row_dict(row)
+
+        cur.execute(
+            """SELECT s.send_id, s.recipient_email, s.contact_id, s.sent_at,
+                      s.open_count, s.first_opened_at, c.name AS contact_name
+               FROM campaign_sends s
+               LEFT JOIN contacts c ON c.contact_id = s.contact_id
+               WHERE s.campaign_id = %s::uuid
+               ORDER BY s.sent_at""",
+            [campaign_id],
+        )
+        sends = [_row_dict(r) for r in cur.fetchall()]
+        open_rate = round(campaign["open_count"] / campaign["sent_count"] * 100, 1) if campaign["sent_count"] else 0
+        return {"campaign": campaign, "sends": sends, "open_rate": open_rate}
+    finally:
+        conn.close()
+
+
+# ── Open Tracking ──────────────────────────────────────────────────────────────
+
+_TRACKING_PIXEL = bytes([
+    0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,0x80,0x00,0x00,
+    0xff,0xff,0xff,0x00,0x00,0x00,0x21,0xf9,0x04,0x00,0x00,0x00,0x00,0x00,
+    0x2c,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x02,0x02,0x44,0x01,0x00,0x3b,
+])
+
+
+@router.get("/track/open/{campaign_id}/{send_id}.gif", include_in_schema=False)
+def track_open(campaign_id: str, send_id: str):
+    """Record email open and return 1×1 transparent GIF."""
+    try:
+        conn = _conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO campaign_events (send_id, event_type) VALUES (%s::uuid, 'open')",
+                [send_id],
+            )
+            cur.execute(
+                """UPDATE campaign_sends
+                   SET open_count = open_count + 1,
+                       first_opened_at = COALESCE(first_opened_at, NOW())
+                   WHERE send_id = %s::uuid""",
+                [send_id],
+            )
+            cur.execute(
+                """UPDATE campaign_posts
+                   SET open_count = (
+                       SELECT COUNT(*) FROM campaign_sends
+                       WHERE post_id = campaign_posts.post_id AND open_count > 0
+                   )
+                   WHERE post_id = (SELECT post_id FROM campaign_sends WHERE send_id = %s::uuid)""",
+                [send_id],
+            )
+            cur.execute(
+                """UPDATE email_campaigns
+                   SET open_count = (
+                       SELECT COUNT(*) FROM campaign_sends
+                       WHERE campaign_id = %s::uuid AND open_count > 0
+                   )
+                   WHERE campaign_id = %s::uuid""",
+                [campaign_id, campaign_id],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return Response(
+        content=_TRACKING_PIXEL,
+        media_type="image/gif",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
+# ── Campaign Lists ─────────────────────────────────────────────────────────────
+
+class ListCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class ListUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+@router.get("/campaign-lists")
+def list_campaign_lists(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT l.*,
+                 (COUNT(DISTINCT lc.contact_id) + COUNT(DISTINCT le.id))::int AS contact_count
+               FROM campaign_lists l
+               LEFT JOIN campaign_list_contacts lc USING (list_id)
+               LEFT JOIN campaign_list_emails le USING (list_id)
+               GROUP BY l.list_id
+               ORDER BY l.created_at DESC"""
+        )
+        return [_row_dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.post("/campaign-lists", status_code=201)
+def create_campaign_list(body: ListCreate, request: Request):
+    user_id = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO campaign_lists (user_id, name, description) VALUES (%s::uuid, %s, %s) RETURNING *",
+            [user_id, body.name, body.description],
+        )
+        row = _row_dict(cur.fetchone())
+        conn.commit()
+        row["contact_count"] = 0
+        return row
+    finally:
+        conn.close()
+
+
+@router.patch("/campaign-lists/{list_id}")
+def update_campaign_list(list_id: str, body: ListUpdate, request: Request):
+    user_id = _require_user(request)
+    updates = {k: v for k, v in body.dict(exclude_unset=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        sets = ", ".join(f"{k} = %s" for k in updates)
+        vals = list(updates.values()) + [list_id]
+        cur.execute(
+            f"UPDATE campaign_lists SET {sets}, updated_at = NOW() "
+            f"WHERE list_id = %s::uuid RETURNING *",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404)
+        conn.commit()
+        return _row_dict(row)
+    finally:
+        conn.close()
+
+
+@router.delete("/campaign-lists/{list_id}")
+def delete_campaign_list(list_id: str, request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM campaign_lists WHERE list_id = %s::uuid",
+            [list_id],
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/campaign-lists/{list_id}/contacts")
+def get_list_contacts(list_id: str, request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        # Contacts linked by contact record
+        cur.execute(
+            """SELECT c.contact_id::text, c.name, c.email, c.organization, c.title, c.tags,
+                      lc.added_at, lc.selected_email
+               FROM campaign_list_contacts lc
+               JOIN contacts c ON c.contact_id = lc.contact_id
+               WHERE lc.list_id = %s::uuid AND NOT c.archived
+               ORDER BY c.name""",
+            [list_id],
+        )
+        results = []
+        for row in cur.fetchall():
+            d = _row_dict(row)
+            d["send_email"] = d.get("selected_email") or d.get("email")
+            results.append(d)
+        # Raw email entries (no contact record)
+        cur.execute(
+            "SELECT id::text AS contact_id, email, added_at FROM campaign_list_emails WHERE list_id = %s::uuid ORDER BY added_at",
+            [list_id],
+        )
+        for row in cur.fetchall():
+            d = _row_dict(row)
+            d["name"] = d["email"]
+            d["organization"] = None
+            d["title"] = None
+            d["tags"] = []
+            d["send_email"] = d["email"]
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
+
+@router.post("/campaign-lists/{list_id}/import-csv")
+async def import_csv_to_list(list_id: str, request: Request, file: UploadFile = File(...)):
+    """Parse a CSV file and bulk-add all valid email addresses to the list."""
+    _require_user(request)
+    import csv, io
+    content = await file.read()
+    text = content.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+
+    # Find the email column (case-insensitive)
+    rows = list(reader)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV is empty")
+    headers = list(rows[0].keys())
+    email_col = next((h for h in headers if h.strip().lower() == "email"), None)
+    if not email_col:
+        raise HTTPException(status_code=400, detail=f"No 'Email' column found. Columns: {headers[:8]}")
+
+    emails = []
+    for row in rows:
+        raw = (row.get(email_col) or "").strip().lower()
+        if raw and "@" in raw and "." in raw.split("@")[-1]:
+            emails.append(raw)
+
+    if not emails:
+        raise HTTPException(status_code=400, detail="No valid email addresses found in CSV")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        added = 0
+        for email in emails:
+            # Try to match an existing contact first
+            cur.execute(
+                "SELECT contact_id::text FROM contacts WHERE LOWER(email) = %s AND NOT archived LIMIT 1",
+                [email],
+            )
+            contact = cur.fetchone()
+            if contact:
+                cur.execute(
+                    """INSERT INTO campaign_list_contacts (list_id, contact_id)
+                       VALUES (%s::uuid, %s::uuid) ON CONFLICT DO NOTHING""",
+                    [list_id, contact["contact_id"]],
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO campaign_list_emails (list_id, email) VALUES (%s::uuid, %s) ON CONFLICT DO NOTHING",
+                    [list_id, email],
+                )
+            added += cur.rowcount
+        conn.commit()
+        return {"added": added, "total": len(emails), "skipped": len(emails) - added}
+    finally:
+        conn.close()
+
+
+@router.post("/campaign-lists/{list_id}/contacts")
+def add_contacts_to_list(list_id: str, body: dict, request: Request):
+    """Accept {contacts: [{contact_id, email}]} or legacy {contact_ids: [...]}."""
+    _require_user(request)
+    # Normalise inputs — contact_id may be None for raw email entries
+    entries: list[tuple[Optional[str], Optional[str]]] = []
+    for c in body.get("contacts", []):
+        entries.append((c.get("contact_id"), c.get("email")))
+    for cid in body.get("contact_ids", []):
+        entries.append((cid, None))
+    tag: Optional[str] = body.get("tag")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        if tag:
+            cur.execute(
+                "SELECT contact_id FROM contacts WHERE %s = ANY(tags) AND NOT archived",
+                [tag],
+            )
+            for r in cur.fetchall():
+                entries.append((str(r["contact_id"]), None))
+        added = 0
+        for cid, email in entries:
+            if cid:
+                # Contact record exists — insert into campaign_list_contacts
+                cur.execute(
+                    """INSERT INTO campaign_list_contacts (list_id, contact_id, selected_email)
+                       VALUES (%s::uuid, %s::uuid, %s)
+                       ON CONFLICT (list_id, contact_id) DO UPDATE
+                       SET selected_email = COALESCE(EXCLUDED.selected_email, campaign_list_contacts.selected_email)""",
+                    [list_id, cid, email],
+                )
+            elif email and "@" in email:
+                # Raw email with no contact record
+                cur.execute(
+                    "INSERT INTO campaign_list_emails (list_id, email) VALUES (%s::uuid, %s) ON CONFLICT DO NOTHING",
+                    [list_id, email.strip().lower()],
+                )
+            added += cur.rowcount
+        conn.commit()
+        return {"added": added}
+    finally:
+        conn.close()
+
+
+@router.delete("/campaign-lists/{list_id}/contacts/{contact_id}")
+def remove_contact_from_list(list_id: str, contact_id: str, request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        # Try contact record first, then raw email entry
+        cur.execute(
+            "DELETE FROM campaign_list_contacts WHERE list_id = %s::uuid AND contact_id = %s::uuid",
+            [list_id, contact_id],
+        )
+        if cur.rowcount == 0:
+            cur.execute(
+                "DELETE FROM campaign_list_emails WHERE list_id = %s::uuid AND id = %s::uuid",
+                [list_id, contact_id],
+            )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/campaign-contacts-search")
+def search_contacts_for_campaigns(
+    request: Request,
+    q: str = Query(""),
+    tags: str = Query(""),
+):
+    """Search contacts for adding to campaign lists. Returns all emails per contact."""
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        conditions = [
+            "NOT c.archived",
+            "c.email IS NOT NULL AND c.email != ''",
+        ]
+        params: list = []
+        if q:
+            like = f"%{q.lower()}%"
+            conditions.append(
+                "(LOWER(c.name) LIKE %s OR LOWER(COALESCE(c.email,'')) LIKE %s "
+                "OR LOWER(COALESCE(c.organization,'')) LIKE %s)"
+            )
+            params += [like, like, like]
+        if tags:
+            for tag in [t.strip() for t in tags.split(",") if t.strip()]:
+                conditions.append("%s = ANY(c.tags)")
+                params.append(tag)
+        where = " AND ".join(conditions)
+        cur.execute(
+            f"SELECT c.contact_id, c.name, c.email, c.organization, c.title, c.tags "
+            f"FROM contacts c WHERE {where} ORDER BY c.name LIMIT 100",
+            params,
+        )
+        rows = cur.fetchall()
+        results = []
+        for row in rows:
+            d = _row_dict(row)
+            d["emails"] = [{"email": d["email"], "label": "work", "is_primary": True}]
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
+
+# ── Brand Assets ───────────────────────────────────────────────────────────────
+
 @router.delete("/brand-assets/{file_id}")
 def delete_brand_asset(file_id: str, request: Request):
     _require_user(request)
@@ -1425,3 +2892,437 @@ def delete_brand_asset(file_id: str, request: Request):
         pass
 
     return {"ok": True}
+
+
+# ── Assets: a Drive folder as the source of truth ────────────────────────────
+#
+# The module holds no files. An attached Drive folder is listed live, and the
+# database records only what Drive cannot: which file fills which role, and any
+# description written for it. Other modules ask for a role and are handed
+# whatever file currently fills it.
+
+ASSET_MIMES = {
+    "application/pdf":  "PDF",
+    "image/png":        "PNG",
+    "image/jpeg":       "JPG",
+    "image/svg+xml":    "SVG",
+    "image/webp":       "WEBP",
+    "image/gif":        "GIF",
+}
+
+FOLDER_MIME = "application/vnd.google-apps.folder"
+
+
+def _marketing_folder(cur) -> dict:
+    cur.execute(
+        "SELECT assets_folder_id, assets_folder_name FROM marketing_settings LIMIT 1"
+    )
+    row = cur.fetchone()
+    return dict(row) if row else {"assets_folder_id": None, "assets_folder_name": None}
+
+
+def _drive_list(token: str, folder_id: str) -> list[dict]:
+    """Files directly inside a folder, newest first."""
+    r = httpx.get(
+        DRIVE_FILES_URL,
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "q": f"'{folder_id}' in parents and trashed = false",
+            "fields": "files(id,name,mimeType,size,modifiedTime,webViewLink)",
+            "orderBy": "modifiedTime desc",
+            "pageSize": 200,
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        },
+        timeout=20,
+    )
+    if r.status_code != 200:
+        logger.warning("Marketing Drive list failed: %s", r.text[:200])
+        raise HTTPException(status_code=502, detail="Could not read the Drive folder")
+    return r.json().get("files", [])
+
+
+class AssetsFolderBody(BaseModel):
+    folder_url: Optional[str] = None
+
+
+def _folder_id_from(value: str) -> str:
+    """Accept a Drive URL or a bare id."""
+    value = (value or "").strip()
+    m = re.search(r"/folders/([A-Za-z0-9_-]+)", value)
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([A-Za-z0-9_-]+)", value)
+    if m:
+        return m.group(1)
+    return value
+
+
+@router.get("/assets/folder")
+def get_assets_folder(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        return _marketing_folder(cur)
+    finally:
+        conn.close()
+
+
+@router.patch("/assets/folder")
+def set_assets_folder(body: AssetsFolderBody, request: Request):
+    """Attach (or clear) the Drive folder the assets come from."""
+    uid = _require_user(request)
+    folder_id = _folder_id_from(body.folder_url or "") or None
+
+    name = None
+    if folder_id:
+        token = _get_token(uid)
+        r = httpx.get(
+            f"{DRIVE_FILES_URL}/{folder_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,name,mimeType", "supportsAllDrives": "true"},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not open that folder. Check the link and that your Google account has access.",
+            )
+        meta = r.json()
+        if meta.get("mimeType") != FOLDER_MIME:
+            raise HTTPException(status_code=400, detail="That link is a file, not a folder")
+        name = meta.get("name")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE marketing_settings
+               SET assets_folder_id = %s, assets_folder_name = %s, assets_synced_at = NOW()""",
+            [folder_id, name],
+        )
+        if cur.rowcount == 0:
+            cur.execute(
+                """INSERT INTO marketing_settings (assets_folder_id, assets_folder_name, assets_synced_at)
+                   VALUES (%s, %s, NOW())""",
+                [folder_id, name],
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"assets_folder_id": folder_id, "assets_folder_name": name}
+
+
+@router.get("/assets")
+def list_assets(request: Request):
+    """Everything in the folder, with its role, description and where it is used."""
+    uid = _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        folder = _marketing_folder(cur)
+        cur.execute(
+            "SELECT role, label, description, position, file_id, file_name, mime_type, updated_at "
+            "FROM marketing_asset_roles ORDER BY position, role"
+        )
+        roles = [dict(r) for r in cur.fetchall()]
+        cur.execute("SELECT file_id, description FROM marketing_asset_meta")
+        meta = {r["file_id"]: r["description"] for r in cur.fetchall()}
+        usage = _role_usage(cur)
+    finally:
+        conn.close()
+
+    for r in roles:
+        r["updated_at"] = _serialize(r.get("updated_at"))
+        r["used_by"] = usage.get(r["role"], [])
+
+    if not folder.get("assets_folder_id"):
+        return {"folder": folder, "assets": [], "roles": roles, "needs_folder": True}
+
+    token = _get_token(uid)
+    files = _drive_list(token, folder["assets_folder_id"])
+    by_file: dict[str, list[str]] = {}
+    for r in roles:
+        if r["file_id"]:
+            by_file.setdefault(r["file_id"], []).append(r["role"])
+
+    assets = []
+    for f in files:
+        if f.get("mimeType") == FOLDER_MIME:
+            continue
+        if f.get("mimeType") not in ASSET_MIMES:
+            continue                      # decks are PDF; the rest are images
+        assets.append({
+            "file_id":       f["id"],
+            "name":          f.get("name"),
+            "mime_type":     f.get("mimeType"),
+            "kind":          ASSET_MIMES.get(f.get("mimeType"), "File"),
+            "size_bytes":    int(f["size"]) if f.get("size") else None,
+            "modified_time": f.get("modifiedTime"),
+            "web_view_link": f.get("webViewLink"),
+            "description":   meta.get(f["id"]),
+            "roles":         by_file.get(f["id"], []),
+        })
+
+    return {"folder": folder, "assets": assets, "roles": roles, "needs_folder": False}
+
+
+def _role_usage(cur) -> dict[str, list[dict]]:
+    """Which templates and data rooms consume each role."""
+    usage: dict[str, list[dict]] = {}
+
+    # Email templates whose attachment specs name a role.
+    try:
+        cur.execute(
+            """SELECT name, attachments FROM email_templates
+               WHERE attachments::text LIKE %s""",
+            ['%"role"%'],
+        )
+        for row in cur.fetchall():
+            for spec in (row["attachments"] or []):
+                role = spec.get("role") if isinstance(spec, dict) else None
+                if role:
+                    usage.setdefault(role, []).append(
+                        {"kind": "Email template", "name": row["name"]}
+                    )
+    except Exception as exc:
+        logger.warning("Template usage lookup failed: %s", exc)
+
+    # Data-room tiles set to mirror roles. A tile may mirror several, and older
+    # tiles carry a single `role` key — the LIKE has to admit both spellings,
+    # since '%"role"%' does not match '"roles"'.
+    try:
+        cur.execute(
+            """SELECT b.payload, COALESCE(p.name, pp.name) AS room
+               FROM portal_room_blocks b
+               JOIN project_portals pp ON pp.portal_id = b.portal_id
+               LEFT JOIN projects p ON p.project_id = pp.project_id
+               WHERE b.block_type = 'docs'
+                 AND (b.payload ? 'role' OR b.payload ? 'roles')""",
+        )
+        for row in cur.fetchall():
+            payload = row["payload"] or {}
+            roles = payload.get("roles")
+            if not isinstance(roles, list):
+                single = payload.get("role")
+                roles = [single] if single else []
+            for role in roles:
+                if role:
+                    usage.setdefault(role, []).append(
+                        {"kind": "Data room", "name": row["room"] or "Data room"}
+                    )
+    except Exception as exc:
+        logger.warning("Portal usage lookup failed: %s", exc)
+
+    return usage
+
+
+class AssetDescBody(BaseModel):
+    description: Optional[str] = None
+
+
+@router.put("/assets/{file_id}/description")
+def set_asset_description(file_id: str, body: AssetDescBody, request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO marketing_asset_meta (file_id, description)
+               VALUES (%s, %s)
+               ON CONFLICT (file_id) DO UPDATE
+                 SET description = EXCLUDED.description, updated_at = NOW()""",
+            [file_id, (body.description or "").strip() or None],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+class RoleCreateBody(BaseModel):
+    label: str
+    description: Optional[str] = None
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", (text or "").lower())).strip("-")
+
+
+@router.post("/roles", status_code=201)
+def create_role(body: RoleCreateBody, request: Request):
+    """Add a role. The key is derived from the label and is what consumers use."""
+    _require_user(request)
+    label = (body.label or "").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Give the role a name")
+    role = _slug(label)
+    if not role:
+        raise HTTPException(status_code=400, detail="That name has no usable characters")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(position), -1) + 1 AS next FROM marketing_asset_roles")
+        position = cur.fetchone()["next"]
+        cur.execute(
+            """INSERT INTO marketing_asset_roles (role, label, description, position)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (role) DO NOTHING
+               RETURNING role, label, description, position""",
+            [role, label, (body.description or "").strip() or None, position],
+        )
+        row = cur.fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=409, detail=f"A role named '{role}' already exists")
+    return dict(row)
+
+
+@router.delete("/roles/{role}")
+def delete_role(role: str, request: Request):
+    """Remove a role, unless something still asks for it."""
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        used = _role_usage(cur).get(role, [])
+        if used:
+            where = ", ".join(f"{u['name']} ({u['kind'].lower()})" for u in used)
+            raise HTTPException(
+                status_code=409,
+                detail=f"Still used by {where}. Point those elsewhere first.",
+            )
+        cur.execute("DELETE FROM marketing_asset_roles WHERE role = %s", [role])
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Unknown role")
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+class RoleAssignBody(BaseModel):
+    file_id: Optional[str] = None       # null clears the role
+
+
+@router.put("/roles/{role}")
+def assign_role(role: str, body: RoleAssignBody, request: Request):
+    """Point a role at a file, or clear it."""
+    uid = _require_user(request)
+    name = mime = None
+
+    if body.file_id:
+        token = _get_token(uid)
+        r = httpx.get(
+            f"{DRIVE_FILES_URL}/{body.file_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,name,mimeType", "supportsAllDrives": "true"},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            raise HTTPException(status_code=404, detail="That file is not readable")
+        meta = r.json()
+        name, mime = meta.get("name"), meta.get("mimeType")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE marketing_asset_roles
+               SET file_id = %s, file_name = %s, mime_type = %s,
+                   updated_at = NOW(), updated_by = %s
+               WHERE role = %s
+               RETURNING role, label, file_id, file_name, mime_type, updated_at""",
+            [body.file_id, name, mime, uid, role],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Unknown role")
+        conn.commit()
+    finally:
+        conn.close()
+    out = dict(row)
+    out["updated_at"] = _serialize(out["updated_at"])
+    return out
+
+
+@router.get("/roles")
+def list_roles(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT role, label, description, position, file_id, file_name, mime_type, updated_at "
+            "FROM marketing_asset_roles ORDER BY position, role"
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        usage = _role_usage(cur)
+    finally:
+        conn.close()
+    for r in rows:
+        r["updated_at"] = _serialize(r.get("updated_at"))
+        r["used_by"] = usage.get(r["role"], [])
+    return rows
+
+
+def resolve_role_file(role: str) -> dict | None:
+    """The file currently filling a role. Used by other modules; no request context."""
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT file_id, file_name, mime_type FROM marketing_asset_roles WHERE role = %s",
+            [role],
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or not row["file_id"]:
+        return None
+    return dict(row)
+
+
+@router.get("/assets/{file_id}/download")
+def download_asset(file_id: str, request: Request):
+    """Stream an asset out of Drive so it can be downloaded or previewed."""
+    uid = _require_user(request)
+    token = _get_token(uid)
+
+    meta = httpx.get(
+        f"{DRIVE_FILES_URL}/{file_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"fields": "name,mimeType", "supportsAllDrives": "true"},
+        timeout=15,
+    )
+    if meta.status_code != 200:
+        raise HTTPException(status_code=404, detail="File not found")
+    name = meta.json().get("name", "asset")
+    mime = meta.json().get("mimeType", "application/octet-stream")
+
+    r = httpx.get(
+        f"{DRIVE_FILES_URL}/{file_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"alt": "media", "supportsAllDrives": "true"},
+        timeout=120,
+    )
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not download from Drive")
+
+    return Response(
+        content=r.content,
+        media_type=mime,
+        # Non-ASCII names must not be put in a latin-1 header raw; see RFC 6266.
+        headers={
+            "Content-Disposition":
+                "attachment; filename=\"%s\"; filename*=UTF-8''%s" % (
+                    (unicodedata.normalize("NFKD", name).encode("ascii", "ignore")
+                     .decode("ascii").replace('"', "").strip() or "download"),
+                    urllib.parse.quote(name, safe=""),
+                ),
+        },
+    )

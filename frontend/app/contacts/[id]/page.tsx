@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Avatar } from "@/components/Avatar";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Company Picker ─────────────────────────────────────────────────────────
 
 function CompanyPicker({ contactId, currentCompanyId, currentCompanyName, currentOrg, onChanged }: {
@@ -83,7 +85,7 @@ function CompanyPicker({ contactId, currentCompanyId, currentCompanyName, curren
       {currentCompanyId && currentCompanyName ? (
         <Link href={`/contacts/companies/${currentCompanyId}`}
           className="flex items-center gap-2.5 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-3 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-200 dark:hover:border-blue-800 transition-colors group/comp">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-gray-700 dark:bg-gray-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {currentCompanyName.slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
@@ -132,7 +134,7 @@ function CompanyPicker({ contactId, currentCompanyId, currentCompanyName, curren
                     ? "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-medium"
                     : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 }`}>
-                <div className="w-5 h-5 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                <div className="w-5 h-5 rounded-md bg-gray-700 dark:bg-gray-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
                   {c.name.slice(0, 2).toUpperCase()}
                 </div>
                 {c.name}
@@ -262,10 +264,6 @@ function fmtYear(iso: string): string {
   return new Date(iso).getFullYear().toString();
 }
 
-function initials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
-}
-
 // ── Interaction helpers ────────────────────────────────────────────────────
 
 const INTERACTION_CONFIG: Record<string, { bg: string; icon: JSX.Element; label: string }> = {
@@ -353,7 +351,7 @@ function EditableField({ label, value, onSave, multiline = false }: {
       <div>
         <label className="block text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">{label}</label>
         {multiline ? (
-          <textarea
+          <AutoTextarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={4}
@@ -385,7 +383,7 @@ function EditableField({ label, value, onSave, multiline = false }: {
   return (
     <div className="group cursor-pointer" onClick={() => { setDraft(value ?? ""); setEditing(true); }}>
       <label className="block text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-0.5 cursor-pointer">{label}</label>
-      <p className={`text-sm rounded px-1 -mx-1 py-0.5 transition-colors group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800 ${value ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-300 dark:text-zinc-600 italic"}`}>
+      <p className={`text-sm rounded px-1 -mx-1 py-0.5 transition-colors break-words [overflow-wrap:anywhere] group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800 ${value ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-300 dark:text-zinc-600 italic"}`}>
         {value || "—"}
         <span className="ml-1 opacity-0 group-hover:opacity-40 text-[10px]">✎</span>
       </p>
@@ -446,14 +444,14 @@ function InlineTagEditor({ tags, onSave }: { tags: string[]; onSave: (tags: stri
       <label className="block text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">Tags</label>
       <div className="flex flex-wrap gap-1 relative" ref={popoverRef}>
         {current.map(tag => (
-          <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 font-medium">
+          <span key={tag} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 font-medium">
             {tag}
             <button onClick={() => removeTag(tag)} className="opacity-40 hover:opacity-100 leading-none ml-0.5">×</button>
           </span>
         ))}
         <button
           onClick={() => setOpen(v => !v)}
-          className="text-xs px-2 py-0.5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+          className="text-xs px-2 py-0.5 rounded border border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
         >
           + tag
         </button>
@@ -547,7 +545,7 @@ function AddInteractionModal({ contactId, onClose, onAdded }: { contactId: strin
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Notes / Content</label>
-            <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4}
+            <AutoTextarea value={content} onChange={(e) => setContent(e.target.value)} rows={4}
               className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-3 py-1.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -613,7 +611,7 @@ function AddReminderModal({ contactId, onClose, onAdded }: { contactId: string; 
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Notes</label>
-            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3}
+            <AutoTextarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3}
               className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-3 py-1.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -713,7 +711,7 @@ function EmailDetailModal({ contactId, interactionId, onClose }: {
               </div>
               {(detail.metadata?.is_group_email as boolean) && (
                 <div className="mt-1">
-                  <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 font-medium">
+                  <span className="inline-block text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 font-medium">
                     Group email · {detail.metadata.recipient_count as number} recipients
                   </span>
                 </div>
@@ -819,7 +817,7 @@ function SendEmailModal({ contactId, contactEmail, contactName, onClose, onSent 
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Body</label>
-            <textarea required value={body} onChange={(e) => setBody(e.target.value)} rows={8}
+            <AutoTextarea required value={body} onChange={(e) => setBody(e.target.value)} rows={8}
               className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-3 py-1.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -954,7 +952,7 @@ function CreateEventModal({ contactId, contactName, onClose, onCreated }: {
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Description / Agenda</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+            <AutoTextarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
               className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-3 py-1.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -1030,7 +1028,7 @@ function SummaryCard({ contact, onUpdated, onSummarize, summarizing }: {
 
       {editing ? (
         <div className="space-y-2">
-          <textarea
+          <AutoTextarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             className="w-full text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 leading-relaxed resize-y min-h-[120px] focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1261,7 +1259,10 @@ export default function ContactDetailPage() {
     setActionMsg("Enrichment queued — AI will update this contact shortly.");
     await fetch(`/api/proxy/contacts/${id}/enrich`, { method: "POST" });
     setEnriching(false);
-    setTimeout(() => setActionMsg(null), 5000);
+    // Enrichment runs on the worker (~10s). Poll a few times so the panel
+    // picks up the result without a manual reload.
+    [6000, 12000, 20000].forEach((ms) => setTimeout(fetchContact, ms));
+    setTimeout(() => setActionMsg(null), 20000);
   }
 
   async function summarize() {
@@ -1327,18 +1328,12 @@ export default function ContactDetailPage() {
         <div className="col-span-12 lg:col-span-3 space-y-4">
 
           {/* Avatar + name + actions */}
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 space-y-4">
-            <div className="flex flex-col items-center text-center gap-3">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 space-y-4 min-w-0">
+            <div className="flex flex-col items-center text-center gap-3 min-w-0">
               {/* Avatar */}
               <label className="relative cursor-pointer group" title="Click to change photo">
-                {contact.avatar_url ? (
-                  <img src={contact.avatar_url} alt={contact.name} className="w-20 h-20 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold ring-2 ring-zinc-100 dark:ring-zinc-800">
-                    {initials(contact.name)}
-                  </div>
-                )}
-                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Avatar url={contact.avatar_url} name={contact.name} size={20} />
+                <div className="absolute inset-0 rounded bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1367,12 +1362,12 @@ export default function ContactDetailPage() {
                 }} />
               </label>
 
-              <div>
-                <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{contact.name}</h1>
-                {contact.title && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{contact.title}</p>}
-                {contact.tagline && <p className="text-xs text-zinc-400 dark:text-zinc-500 italic mt-0.5">{contact.tagline}</p>}
+              <div className="w-full min-w-0">
+                <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words [overflow-wrap:anywhere]">{contact.name}</h1>
+                {contact.title && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-words [overflow-wrap:anywhere]">{contact.title}</p>}
+                {contact.tagline && <p className="text-xs text-zinc-400 dark:text-zinc-500 italic mt-0.5 break-words [overflow-wrap:anywhere]">{contact.tagline}</p>}
                 {contact.organization && !contact.company_id && (
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500">{contact.organization}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 break-words [overflow-wrap:anywhere]">{contact.organization}</p>
                 )}
               </div>
 
@@ -1420,6 +1415,9 @@ export default function ContactDetailPage() {
             {/* Fields */}
             <div className="space-y-3 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <EditableField label="Name" value={contact.name} onSave={(v) => patch("name", v)} />
+              {!contact.company_id && (
+                <EditableField label="Organization" value={contact.organization} onSave={(v) => patch("organization", v)} />
+              )}
               <EditableField label="Email" value={contact.email} onSave={(v) => patch("email", v)} />
               <EditableField label="Phone" value={contact.phone} onSave={(v) => patch("phone", v)} />
               <EditableField label="Title" value={contact.title} onSave={(v) => patch("title", v)} />
@@ -1481,7 +1479,7 @@ export default function ContactDetailPage() {
                     </p>
                     <p className="text-[11px] text-zinc-400 dark:text-zinc-500 capitalize">{p.project_type?.replace(/_/g, " ")}</p>
                   </div>
-                  <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 capitalize flex-shrink-0">{p.stage}</span>
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 capitalize flex-shrink-0">{p.stage}</span>
                 </Link>
               ))}
             </div>
@@ -1514,13 +1512,15 @@ export default function ContactDetailPage() {
                   {(enrichmentData as any).relevance_to_biotech && (
                     <p className="text-xs text-blue-600 dark:text-blue-400 italic leading-relaxed">{(enrichmentData as any).relevance_to_biotech}</p>
                   )}
-                  {(enrichmentData as any).s2_paper_count > 0 && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {(enrichmentData as any).s2_paper_count} publications · {(enrichmentData as any).s2_citation_count} citations
-                    </p>
+                  {(enrichmentData as any).verified_facts?.person_location && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{(enrichmentData as any).verified_facts.person_location}</p>
                   )}
                   {contact.last_enriched_at && (
-                    <p className="text-[11px] text-zinc-300 dark:text-zinc-600 pt-1">Updated {fmtDate(contact.last_enriched_at)}</p>
+                    <p className="text-[11px] text-zinc-300 dark:text-zinc-600 pt-1">
+                      Updated {fmtDate(contact.last_enriched_at)}
+                      {(enrichmentData as any).enrichment_sources?.length > 0 &&
+                        ` · ${(enrichmentData as any).enrichment_sources.join(", ")}`}
+                    </p>
                   )}
                 </div>
               )}

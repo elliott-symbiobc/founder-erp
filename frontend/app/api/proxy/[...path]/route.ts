@@ -18,6 +18,9 @@ async function forward(req: NextRequest, params: { path: string[] }) {
     ? { "Content-Type": contentType }
     : { "Content-Type": "application/json" };
 
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (internalSecret) forwardHeaders["X-Internal-Secret"] = internalSecret;
+
   if (session?.user) {
     const u = session.user as { id?: string; email?: string; name?: string; role?: string };
     if (u.email) forwardHeaders["X-User-Email"] = u.email;
@@ -28,6 +31,26 @@ async function forward(req: NextRequest, params: { path: string[] }) {
   // Forward portal session token for password-protected portals
   const portalSession = req.headers.get("X-Portal-Session");
   if (portalSession) forwardHeaders["X-Portal-Session"] = portalSession;
+
+  // "View as" preview. The cookie only names a target; the API decides whether
+  // this caller may impersonate it, that the target really is a partner, and
+  // that the request is a read. Nothing is trusted on this side, so a user
+  // setting the cookie by hand gains nothing.
+  const viewAs = req.cookies.get("openerp_view_as")?.value;
+  if (viewAs) forwardHeaders["X-View-As"] = viewAs;
+
+  // Carry the visitor's address through. Without this the API only ever sees
+  // this container, so portal rate limiting would treat every visitor as one
+  // host and the access log would record a container IP for every download.
+  const rangeHeader = req.headers.get("Range");
+  if (rangeHeader) forwardHeaders["Range"] = rangeHeader;
+
+  const clientIp = req.headers.get("X-Client-IP");
+  const forwardedFor = req.headers.get("X-Forwarded-For");
+  const realIp = req.headers.get("X-Real-IP");
+  if (clientIp) forwardHeaders["X-Client-IP"] = clientIp;
+  if (forwardedFor) forwardHeaders["X-Forwarded-For"] = forwardedFor;
+  if (realIp) forwardHeaders["X-Real-IP"] = realIp;
 
   const init: RequestInit = {
     method: req.method,
@@ -73,16 +96,24 @@ async function forward(req: NextRequest, params: { path: string[] }) {
   }
 
   const isBinary = respContentType.includes("octet-stream") ||
+    respContentType.startsWith("image/") ||
     respContentType.includes("wordprocessingml") ||
     respContentType.includes("spreadsheetml") ||
     respContentType.includes("excel") ||
     respContentType.includes("pdf");
 
   if (isBinary) {
-    const buf = await upstream.arrayBuffer();
+    // Pipe the body through rather than buffering it. A 30 MB deck was being
+    // held in memory here in full before a single byte reached the browser,
+    // on top of the API doing the same — two complete copies of the file for
+    // a request that can simply stream.
     const headers: Record<string, string> = { "Content-Type": respContentType };
     if (disposition) headers["Content-Disposition"] = disposition;
-    return new NextResponse(buf, { status: upstream.status, headers });
+    for (const h of ["Content-Length", "Content-Range", "Accept-Ranges"]) {
+      const v = upstream.headers.get(h);
+      if (v) headers[h] = v;
+    }
+    return new NextResponse(upstream.body, { status: upstream.status, headers });
   }
 
   if (upstream.status === 204 || upstream.status === 205) {
@@ -96,6 +127,9 @@ async function forward(req: NextRequest, params: { path: string[] }) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  return forward(req, await params);
+}
+export async function HEAD(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   return forward(req, await params);
 }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {

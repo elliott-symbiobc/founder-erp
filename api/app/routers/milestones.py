@@ -92,6 +92,24 @@ def list_milestones(project_id: str):
     conn = _conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Self-healing reconciliation: catch milestones whose tasks are all
+            # done but whose status wasn't rolled up (e.g. bulk imports/backfills/
+            # direct DB edits that bypass the update_task() cascade in tasks.py).
+            cur.execute(
+                """
+                UPDATE project_milestones m
+                SET status = 'complete', completed_at = COALESCE(completed_at, NOW()), updated_at = NOW()
+                WHERE m.project_id = %s
+                  AND m.status != 'complete'
+                  AND EXISTS (SELECT 1 FROM tasks t WHERE t.milestone_id = m.milestone_id)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM tasks t WHERE t.milestone_id = m.milestone_id AND t.status != 'done'
+                  )
+                """,
+                (project_id,),
+            )
+            conn.commit()
+
             # Milestones with assignee list and blocking status
             cur.execute("""
                 SELECT
@@ -487,6 +505,11 @@ def apply_template(project_id: str, body: dict, request: Request):
 
     include_tasks = bool(body.get("include_tasks", True))
     user = get_current_user(request)
+    # Template tasks are assigned to whoever applies the template, so an
+    # anonymous caller would mint tasks belonging to nobody -- which is how
+    # creator-less, assignee-less rows got into the table in the first place.
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     conn = _conn()
     try:
@@ -552,18 +575,21 @@ def apply_template(project_id: str, body: dict, request: Request):
                 if include_tasks:
                     for tt in tasks_by_milestone.get(str(tm["id"]), []):
                         import uuid as _uuid
-                        raw_uid = user["user_id"] if user else None
                         try:
-                            task_uid = str(_uuid.UUID(str(raw_uid))) if raw_uid else None
-                        except (ValueError, AttributeError):
-                            task_uid = None
+                            task_uid = str(_uuid.UUID(str(user["user_id"])))
+                        except (ValueError, AttributeError, KeyError, TypeError):
+                            # Swallowing this used to mean inserting NULL and
+                            # producing a task nobody owns. Tasks require both an
+                            # owner and an assignee, so fail the request instead.
+                            raise HTTPException(status_code=400, detail="Invalid user session")
                         cur.execute("""
                             INSERT INTO tasks
-                                (user_id, title, description, activity_type,
+                                (user_id, assigned_to, title, description, activity_type,
                                  project_id, milestone_id, sort_order,
                                  estimated_minutes, status, kanban_status, locked)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'open','todo',true)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'open','todo',true)
                         """, (
+                            task_uid,
                             task_uid,
                             tt["title"],
                             tt.get("description"),

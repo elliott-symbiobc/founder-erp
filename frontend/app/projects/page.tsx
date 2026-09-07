@@ -1,11 +1,26 @@
 "use client";
 
 import React from "react";
+import { STAGE_SEQUENCES } from "@/lib/projectKinds";
 import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectCard, Project, STATUS_DOT, STATUS_LABEL, STATUS_CARD, TYPE_BADGE, TYPE_LABELS, Avatar, fmtCurrency, daysUntil, daysSince } from "@/components/project/ProjectCard";
+import { ProjectDetailView } from "@/components/project/ProjectDetailView";
+
+import { AutoTextarea } from "@/components/AutoTextarea";
+// Returns a function that builds a URL that opens the project in the slide-over panel.
+function useProjectHref() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") ?? DEFAULT_TAB;
+  return (projectId: string) => {
+    const params = new URLSearchParams();
+    params.set("tab", tab);
+    params.set("panel", projectId);
+    return `/projects?${params.toString()}`;
+  };
+}
 
 const CHEVRON = "bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%239ca3af%22%20stroke-width%3D%222%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.4rem_center] bg-[length:1rem]";
 const SEL = `text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30 pr-8 ${CHEVRON}`;
@@ -46,14 +61,6 @@ interface TemplateDetail extends TemplateSummary {
 
 // ── Stage sequences per project type ─────────────────────────────────────────
 
-const STAGE_SEQUENCES: Record<string, string[]> = {
-  portfolio:        ["Prospect","Qualification","Prelim. TEA and Quote","Engineering","Manufacturing","Active","Inactive"],
-  crm_opportunity:  ["Prospect","Qualification","Prelim. Report & TEA","Initial Sample Analysis & POC Proposal","Lab-Scale POC","Pilot System","Commercial Deployment","Active","Inactive"],
-  partnership:      ["Exploring","Negotiating","Agreement","Active","Complete"],
-  grant:            ["Identified","In Prep","Submitted","Under Review","Won","Lost"],
-  internal:         ["Backlog","Planning","Active","Validation","Complete"],
-  marketing:        ["Ideation","Planning","In Progress","Review","Live","Complete"],
-};
 
 // Groups of stages shown under a shared parent label in the pipeline view
 const STAGE_GROUPS: Record<string, { label: string; stages: string[]; color: string }[]> = {
@@ -114,7 +121,6 @@ function getProjectPartnershipType(p: Project, types: string[]): string | null {
 }
 
 const TYPE_TABS = [
-  { key: "all",             label: "All Projects" },
   { key: "crm_opportunity", label: "R&D Contracts" },
   { key: "portfolio",       label: "Portfolio Contracts" },
   { key: "partnership",     label: "Partnerships" },
@@ -124,7 +130,8 @@ const TYPE_TABS = [
 ] as const;
 
 type TabKey = (typeof TYPE_TABS)[number]["key"];
-type ViewMode = "command" | "pipeline" | "table" | "timeline";
+const DEFAULT_TAB: TabKey = "crm_opportunity";
+type ViewMode = "pipeline" | "table" | "timeline";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -160,124 +167,19 @@ function EditableText({ value, onSave, className }: { value: string; onSave: (v:
 }
 
 
-// ── Pipeline Summary Section ──────────────────────────────────────────────────
-
-function PipelineSummarySection({ title, stages, projects }: {
-  title: string; stages: string[]; projects: Project[];
-}) {
-  const router = useRouter();
-
-  const byStage = useMemo(() => {
-    const map: Record<string, Project[]> = {};
-    for (const s of stages) map[s] = [];
-    for (const p of projects) {
-      const s = p.stage ?? stages[0];
-      if (map[s] !== undefined) map[s].push(p);
-    }
-    return map;
-  }, [projects, stages]);
-
-  const totalValue = projects.reduce((s, p) => s + (p.expected_revenue ?? 0), 0);
-  const populatedStages = stages.filter(s => (byStage[s] ?? []).length > 0);
-
-  return (
-    <section>
-      {/* Section header */}
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{title}</h2>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          {projects.length} project{projects.length !== 1 ? "s" : ""}
-        </span>
-        {totalValue > 0 && (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">· {fmtCurrency(totalValue)}</span>
-        )}
-      </div>
-
-      {projects.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500 italic">No projects yet.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <div className="inline-flex border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden min-w-0 bg-white dark:bg-zinc-900">
-            {populatedStages.map((stage, i) => {
-              const sp = byStage[stage] ?? [];
-              return (
-                <React.Fragment key={stage}>
-                  {i > 0 && <div className="w-px bg-zinc-100 dark:bg-zinc-800 flex-shrink-0" />}
-                  <div className="flex flex-col px-4 py-3 min-w-[160px]">
-                    {/* Stage header */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 leading-tight">{stage}</span>
-                      <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded-full px-1.5 py-0.5 leading-none">
-                        {sp.length}
-                      </span>
-                    </div>
-                    {/* Project rows */}
-                    <div className="space-y-2">
-                      {sp.map(p => (
-                        <button
-                          key={p.project_id}
-                          onClick={() => router.push(`/projects/${p.project_id}`)}
-                          className="flex items-center gap-2 w-full text-left group/row"
-                        >
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[p.status] ?? "bg-zinc-300"}`} />
-                          <span className="text-xs text-zinc-600 dark:text-zinc-300 truncate group-hover/row:text-blue-600 dark:group-hover/row:text-blue-400 transition-colors leading-tight">
-                            {p.contact_org ?? p.contact_name ?? p.name}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ── Command Center View ───────────────────────────────────────────────────────
-
-function CommandCenter({ projects, onDelete, onUpdate, showType }: {
-  projects: Project[]; onDelete: (id: string) => void; onUpdate: () => void; showType?: boolean;
-}) {
-  const rdProjects = projects.filter(p => p.project_type === "crm_opportunity");
-  const portfolioProjects = projects.filter(p => p.project_type === "portfolio");
-  const rdStages = (STAGE_SEQUENCES["crm_opportunity"] ?? []).filter(s => s !== "Inactive");
-  const portfolioStages = (STAGE_SEQUENCES["portfolio"] ?? []).filter(s => s !== "Inactive");
-
-  return (
-    <div className="space-y-8">
-      {/* Legend */}
-      <div className="flex items-center gap-4 flex-wrap">
-        {(["in_progress", "waiting_client", "waiting_sbc", "awaiting_vendor"] as const).map(k => (
-          <div key={k} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[k]}`} />
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">{STATUS_LABEL[k]}</span>
-          </div>
-        ))}
-      </div>
-
-      <PipelineSummarySection title="R&D Contracts" stages={rdStages} projects={rdProjects} />
-      <PipelineSummarySection title="Portfolio Contracts" stages={portfolioStages} projects={portfolioProjects} />
-    </div>
-  );
-}
-
 // ── Pipeline View ─────────────────────────────────────────────────────────────
 
 function PipelineView({ projects: initialProjects, tabKey, onDelete, onUpdate, showType }: {
   projects: Project[]; tabKey: TabKey; onDelete: (id: string) => void; onUpdate: () => void; showType?: boolean;
 }) {
-  const stages = tabKey !== "all" ? (STAGE_SEQUENCES[tabKey] ?? []) : [];
+  const stages = STAGE_SEQUENCES[tabKey] ?? [];
   const [localProjects, setLocalProjects] = useState<Project[]>(initialProjects);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
+  const projectHref = useProjectHref();
   useEffect(() => { setLocalProjects(initialProjects); }, [initialProjects]);
 
-  if (tabKey === "all") return <div className="text-sm text-zinc-400 dark:text-zinc-500 italic p-4">Select a specific project type tab to use Pipeline view.</div>;
 
   function onDragStart(e: React.DragEvent, projectId: string) {
     setDragId(projectId);
@@ -325,9 +227,9 @@ function PipelineView({ projects: initialProjects, tabKey, onDelete, onUpdate, s
       >
         {withSpacer && <div className="h-[26px]" />}
         <div className="flex items-center justify-between mb-2 h-8">
-          <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide leading-tight line-clamp-2">{stage}</span>
+          <span className="text-xs font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wider leading-tight line-clamp-2">{stage}</span>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">{sp.length}</span>
+            <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">{sp.length}</span>
             {sv > 0 && <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{fmtCurrency(sv)}</span>}
           </div>
         </div>
@@ -338,7 +240,7 @@ function PipelineView({ projects: initialProjects, tabKey, onDelete, onUpdate, s
               onDragEnd={() => { setDragId(null); setDragOver(null); }}
               className={`transition-opacity ${dragId === p.project_id ? "opacity-40" : "opacity-100"}`}
             >
-              <ProjectCard p={p} compact onDelete={onDelete} onUpdate={onUpdate} showType={showType} />
+              <ProjectCard p={p} compact onDelete={onDelete} onUpdate={onUpdate} showType={showType} href={projectHref(p.project_id)} />
             </div>
           ))}
           {sp.length === 0 && !isOver && <div className="text-[11px] text-zinc-300 dark:text-zinc-600 italic px-1 pt-1">—</div>}
@@ -385,6 +287,7 @@ function PipelineView({ projects: initialProjects, tabKey, onDelete, onUpdate, s
 type SortKey = "name" | "stage" | "status" | "expected_revenue" | "date_deadline" | "last_email_at" | "task_count";
 
 function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]; onDelete: (id: string) => void; onStatusChange: (id: string, status: string) => void }) {
+  const projectHref = useProjectHref();
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "date_deadline", dir: "asc" });
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
@@ -425,7 +328,7 @@ function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]
             return (
               <tr key={p.project_id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
                 <td className="py-2.5 px-3">
-                  <Link href={`/projects/${p.project_id}`} className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400">
+                  <Link href={projectHref(p.project_id)} className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400">
                     <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[p.status] ?? "bg-gray-300"}`} />
                     <div className="min-w-0">
                       <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate max-w-[200px]">{p.contact_org ?? p.contact_name ?? p.name}</p>
@@ -434,7 +337,7 @@ function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]
                   </Link>
                 </td>
                 <td className="py-2.5 px-3"><span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${TYPE_BADGE[p.project_type] ?? "bg-gray-100 text-gray-500"}`}>{TYPE_LABELS[p.project_type] ?? p.project_type}</span></td>
-                <td className="py-2.5 px-3">{p.stage ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STAGE_COLORS[p.stage] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{p.stage}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
+                <td className="py-2.5 px-3">{p.stage ? <span className={`text-[11px] px-2 py-0.5 rounded font-medium ${STAGE_COLORS[p.stage] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{p.stage}</span> : <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
                 <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
                   <select
                     value={p.status}
@@ -474,6 +377,7 @@ function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]
 // ── Timeline View (Gantt) ─────────────────────────────────────────────────────
 
 function TimelineView({ projects }: { projects: Project[] }) {
+  const projectHref = useProjectHref();
   const withDates = projects.filter(p => p.date_start || p.date_deadline);
   if (withDates.length === 0) return <div className="py-10 text-center text-sm text-zinc-400 dark:text-zinc-500 italic">No projects with dates to display.</div>;
   const allDates = withDates.flatMap(p => [p.date_start, p.date_deadline].filter(Boolean) as string[]);
@@ -484,7 +388,7 @@ function TimelineView({ projects }: { projects: Project[] }) {
     const target = d ? new Date(d) : fallback;
     return Math.max(0, Math.min(100, ((target.getTime() - minDate.getTime()) / (totalDays * 86_400_000)) * 100));
   }
-  const STATUS_BAR: Record<string, string> = { in_progress: "bg-green-500", waiting_client: "bg-amber-400", waiting_sbc: "bg-blue-500", awaiting_vendor: "bg-orange-400" };
+  const STATUS_BAR: Record<string, string> = { in_progress: "bg-green-500", waiting_client: "bg-amber-400", waiting_sbc: "bg-[#C31010]", awaiting_vendor: "bg-orange-400" };
   const months: { label: string; pct: number }[] = [];
   const cursor = new Date(minDate); cursor.setDate(1);
   while (cursor <= maxDate) {
@@ -498,12 +402,12 @@ function TimelineView({ projects }: { projects: Project[] }) {
         const start = pct(p.date_start, minDate); const end = pct(p.date_deadline, maxDate);
         return (
           <div key={p.project_id} className="flex items-center gap-2">
-            <Link href={`/projects/${p.project_id}`} className="w-44 flex-shrink-0 text-xs text-zinc-700 dark:text-zinc-300 truncate hover:text-blue-600 dark:hover:text-blue-400 text-right pr-2">{p.name}</Link>
+            <Link href={projectHref(p.project_id)} className="w-44 flex-shrink-0 text-xs text-zinc-700 dark:text-zinc-300 truncate hover:text-blue-600 dark:hover:text-blue-400 text-right pr-2">{p.name}</Link>
             <div className="flex-1 relative h-5 bg-zinc-100 dark:bg-zinc-800 rounded">
               <div className={`absolute h-full rounded ${STATUS_BAR[p.status] ?? "bg-blue-400"} opacity-80`} style={{ left: `${start}%`, width: `${Math.max(end - start, 2)}%` }} />
               <div className="absolute top-0 bottom-0 w-px bg-red-400 opacity-60" style={{ left: `${pct(new Date().toISOString().slice(0, 10), new Date())}%` }} />
             </div>
-            {p.stage && <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STAGE_COLORS[p.stage] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{p.stage}</span>}
+            {p.stage && <span className={`text-[11px] px-2 py-0.5 rounded font-medium ${STAGE_COLORS[p.stage] ?? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{p.stage}</span>}
           </div>
         );
       })}</div>
@@ -513,18 +417,42 @@ function TimelineView({ projects }: { projects: Project[] }) {
 
 // ── Partnership Card ──────────────────────────────────────────────────────────
 
-function PartnershipCard({ project, types, onSetType, onAddType, onClick }: {
+function PartnershipCard({ project, types, onSetType, onAddType, onClick, onDelete }: {
   project: Project;
   types: string[];
   onSetType: (id: string, type: string | null) => void;
   onAddType: (type: string) => void;
   onClick: () => void;
+  onDelete?: (id: string) => void;
 }) {
   const currentType = getProjectPartnershipType(project, types);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [addingType, setAddingType] = useState(false);
   const [newTypeDraft, setNewTypeDraft] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
   const [localStatus, setLocalStatus] = useState(project.status);
+  const [tasks, setTasks] = useState<Array<{ task_id: string; title: string; assigned_to_name: string | null; due_date: string | null; locked: boolean; status: string }>>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
+  const loadedForCount = useRef<number>(-1);
+
+  useEffect(() => {
+    if (loadedForCount.current === project.task_count && tasksLoaded) return;
+    fetch(`/api/proxy/tasks?project_id=${project.project_id}&all_users=true`)
+      .then(r => r.ok ? r.json() : [])
+      .then((all: Array<{ task_id: string; title: string; assigned_to_name: string | null; due_date: string | null; locked: boolean; status: string }>) => {
+        setTasks(all.filter(t => t.status === "open" && !t.locked));
+        loadedForCount.current = project.task_count;
+        setTasksLoaded(true);
+      });
+  }, [project.project_id, project.task_count]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleTask(taskId: string) {
+    await fetch(`/api/proxy/tasks/${taskId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done" }),
+    });
+    setTasks(prev => prev.filter(t => t.task_id !== taskId));
+  }
 
   async function patchStatus(value: string) {
     await fetch(`/api/proxy/projects/${project.project_id}`, {
@@ -541,7 +469,7 @@ function PartnershipCard({ project, types, onSetType, onAddType, onClick }: {
       className="relative group/pcard rounded-lg border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 shadow-sm hover:shadow transition-all cursor-pointer p-3"
       onClick={onClick}
     >
-      <div className={`absolute left-0 top-3 bottom-3 w-0.5 rounded-full ${STATUS_DOT[project.status] ?? "bg-zinc-300"}`} />
+      <div className={`absolute left-0 top-3 bottom-3 w-0.5 rounded ${STATUS_DOT[project.status] ?? "bg-zinc-300"}`} />
       <div className="pl-3">
         <div className="mb-1.5" onClick={e => e.stopPropagation()}>
           <div className="relative inline-block">
@@ -626,7 +554,51 @@ function PartnershipCard({ project, types, onSetType, onAddType, onClick }: {
             </div>
           )}
         </div>
+        {(() => { const dl = daysUntil(project.date_deadline); return dl !== null ? (
+          <div className={`text-[10px] mt-1.5 font-medium ${dl < 0 ? "text-red-500" : dl < 7 ? "text-amber-500" : "text-zinc-400 dark:text-zinc-500"}`}>
+            {dl < 0 ? `${Math.abs(dl)}d overdue` : `${dl}d left`}
+          </div>
+        ) : null; })()}
+        {tasksLoaded && tasks.length > 0 && (
+          <div className="border-t border-black/5 dark:border-white/5 mt-2 pt-2 space-y-1" onClick={e => e.stopPropagation()}>
+            {tasks.map(t => {
+              const dl = daysUntil(t.due_date);
+              return (
+                <div key={t.task_id} className="flex items-center gap-1.5">
+                  <button onClick={() => toggleTask(t.task_id)}
+                    className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-600 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 flex-shrink-0 transition-colors" />
+                  <span className="flex-1 text-[11px] text-zinc-600 dark:text-zinc-300 truncate min-w-0">{t.title}</span>
+                  {t.due_date && dl !== null && (
+                    <span className={`text-[10px] flex-shrink-0 font-medium ${dl < 0 ? "text-red-500" : dl < 3 ? "text-amber-500" : "text-zinc-400 dark:text-zinc-500"}`}>
+                      {dl < 0 ? `${Math.abs(dl)}d late` : dl === 0 ? "today" : `${dl}d`}
+                    </span>
+                  )}
+                  {t.assigned_to_name && <span className="text-[10px] text-zinc-400 flex-shrink-0">{t.assigned_to_name.split(" ")[0]}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {onDelete && (
+        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
+          {confirmDel ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-red-600 dark:text-red-400">Delete?</span>
+              <button onClick={() => { onDelete(project.project_id); setConfirmDel(false); }} className="text-[10px] px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded font-medium">Yes</button>
+              <button onClick={() => setConfirmDel(false)} className="text-[10px] px-1.5 py-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">No</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDel(true)}
+              className="opacity-0 group-hover/pcard:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400"
+              title="Delete">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -682,6 +654,7 @@ function PartnershipPipelineView({ projects: initialProjects, onDelete, onUpdate
   onUpdate: () => void;
 }) {
   const router = useRouter();
+  const projectHref = useProjectHref();
   const [stages, setStages] = useState<string[]>(DEFAULT_PARTNERSHIP_STAGES);
   const [partnershipTypes, setPartnershipTypes] = useState<string[]>(DEFAULT_PARTNERSHIP_TYPES);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set(["Inactive"]));
@@ -823,7 +796,7 @@ function PartnershipPipelineView({ projects: initialProjects, onDelete, onUpdate
                   <EditableText
                     value={stage}
                     onSave={newName => handleRenameStage(stage, newName)}
-                    className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide"
+                    className="text-xs font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wider"
                   />
                   <span className="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">{sp.length}</span>
                 </div>
@@ -849,7 +822,8 @@ function PartnershipPipelineView({ projects: initialProjects, onDelete, onUpdate
                       types={partnershipTypes}
                       onSetType={handleSetType}
                       onAddType={handleAddType}
-                      onClick={() => router.push(`/projects/${p.project_id}`)}
+                      onClick={() => router.push(projectHref(p.project_id))}
+                      onDelete={onDelete}
                     />
                   </div>
                 ))}
@@ -1133,7 +1107,7 @@ function FlowChart({ template, onChanged }: { template: TemplateDetail; onChange
   );
 }
 
-function TemplatesView({ tabKey }: { tabKey: Exclude<TabKey, "all"> }) {
+function TemplatesView({ tabKey }: { tabKey: TabKey }) {
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [selected, setSelected] = useState<TemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1370,11 +1344,148 @@ function TemplatesView({ tabKey }: { tabKey: Exclude<TabKey, "all"> }) {
   );
 }
 
+// ── Status Settings View ──────────────────────────────────────────────────────
+
+const STATUS_OPTIONS = [
+  { key: "in_progress",    label: "In Progress",      dot: "bg-green-500" },
+  { key: "waiting_client", label: "Awaiting Client", dot: "bg-amber-400" },
+  { key: "waiting_sbc",    label: "Awaiting Us",    dot: "bg-[#C31010]" },
+  { key: "awaiting_vendor",label: "Awaiting Vendor",   dot: "bg-orange-400" },
+];
+
+function StatusSettingsView() {
+  const [criteria, setCriteria] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/proxy/projects/status-settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setCriteria(data.criteria); setLoading(false); });
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    await fetch("/api/proxy/projects/status-settings", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ criteria }),
+    });
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  if (loading) return <div className="py-12 text-center text-sm text-zinc-400">Loading settings…</div>;
+
+  return (
+    <div className="max-w-2xl space-y-6 pt-2">
+      <div>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">AI Status Criteria</h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Define what each status means. The AI reads recent emails and open tasks, then picks the best match.
+        </p>
+      </div>
+      <div className="space-y-4">
+        {STATUS_OPTIONS.map(({ key, label, dot }) => (
+          <div key={key} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{label}</span>
+            </div>
+            <AutoTextarea
+              rows={3}
+              value={criteria[key] ?? ""}
+              onChange={e => setCriteria(prev => ({ ...prev, [key]: e.target.value }))}
+              placeholder={`Describe when a project should be marked as "${label}"…`}
+              className="w-full text-sm px-3 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none placeholder-zinc-400"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors">
+          {saving ? "Saving…" : "Save Criteria"}
+        </button>
+        {saved && <span className="text-sm text-green-600 dark:text-green-400">Saved</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Project Drawer ────────────────────────────────────────────────────────────
+
+function ProjectDrawer({ projectId, onClose, onUpdate }: { projectId: string; onClose: () => void; onUpdate: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  const [width, setWidth] = useState(768);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startW = useRef(0);
+
+  useEffect(() => { setTimeout(() => setMounted(true), 10); }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function onMouseDown(e: React.MouseEvent) {
+    dragging.current = true;
+    startX.current = e.clientX;
+    startW.current = width;
+    e.preventDefault();
+
+    function onMove(ev: MouseEvent) {
+      if (!dragging.current) return;
+      const delta = startX.current - ev.clientX;
+      const next = Math.min(Math.max(startW.current + delta, 360), window.innerWidth - 80);
+      setWidth(next);
+    }
+    function onUp() {
+      dragging.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 backdrop-blur-[1px]" onClick={onClose} />
+      <div
+        style={{ width }}
+        className={`fixed top-0 right-0 bottom-0 z-50 bg-white dark:bg-zinc-950 shadow-2xl flex flex-col transition-transform duration-300 ${mounted ? "translate-x-0" : "translate-x-full"}`}
+      >
+        {/* Drag handle */}
+        <div
+          onMouseDown={onMouseDown}
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize group z-10 hover:bg-blue-400/30 active:bg-blue-400/50 transition-colors"
+          title="Drag to resize"
+        />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+            title="Close (Esc)">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <ProjectDetailView id={projectId} onClose={onClose} onUpdate={onUpdate} />
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Create Project Modal ──────────────────────────────────────────────────────
 
 function CreateModal({ onClose, onCreated, defaultType }: { onClose: () => void; onCreated: (id: string) => void; defaultType: string }) {
   const [name, setName] = useState("");
-  const [type, setType] = useState(defaultType === "all" ? "crm_opportunity" : defaultType);
+  const [type, setType] = useState(defaultType);
   const [stage, setStage] = useState("");
   const [loading, setLoading] = useState(false);
   const stages = STAGE_SEQUENCES[type] ?? [];
@@ -1385,7 +1496,7 @@ function CreateModal({ onClose, onCreated, defaultType }: { onClose: () => void;
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const r = await fetch("/api/projects", {
+      const r = await fetch("/api/proxy/projects", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), project_type: type, stage, status: "in_progress" }),
       });
@@ -1435,26 +1546,32 @@ function CreateModal({ onClose, onCreated, defaultType }: { onClose: () => void;
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const CONTRACT_TABS: TabKey[] = ["crm_opportunity", "portfolio", "partnership"];
 
-function defaultViewMode(tab: TabKey): ViewMode {
-  if (tab === "all") return "command";
-  if (CONTRACT_TABS.includes(tab)) return "pipeline";
-  return "table";
+function defaultViewMode(_tab: TabKey): ViewMode {
+  return "pipeline";
 }
 
 function ProjectsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = (searchParams.get("tab") ?? "all") as TabKey;
+  const activeTab = (searchParams.get("tab") ?? DEFAULT_TAB) as TabKey;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [subTab, setSubTab] = useState<"projects" | "templates">("projects");
+  const [subTab, setSubTab] = useState<"projects" | "templates" | "settings">("projects");
   const [viewMode, setViewMode] = useState<ViewMode>(() => defaultViewMode(activeTab));
   const [showCreate, setShowCreate] = useState(false);
   const prevTabRef = useRef<TabKey>(activeTab);
+  const panelId = searchParams.get("panel");
+
+  function closePanel() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("panel");
+    const qs = params.toString();
+    router.replace(`/projects${qs ? "?" + qs : ""}`);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1462,7 +1579,7 @@ function ProjectsContent() {
     if (search) params.set("search", search);
     if (statusFilter) params.set("status", statusFilter);
     try {
-      const r = await fetch(`/api/projects?${params}`);
+      const r = await fetch(`/api/proxy/projects?${params}`);
       if (r.ok) setProjects(await r.json());
     } finally { setLoading(false); }
   }, [search, statusFilter]);
@@ -1489,11 +1606,11 @@ function ProjectsContent() {
     }
   }, [searchParams, router]);
 
-  const tabProjects = useMemo(() => activeTab === "all" ? projects : projects.filter(p => p.project_type === activeTab), [projects, activeTab]);
+  const tabProjects = useMemo(() => projects.filter(p => p.project_type === activeTab), [projects, activeTab]);
 
   const handleDelete = useCallback(async (id: string) => {
     setProjects(prev => prev.filter(p => p.project_id !== id));
-    await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    await fetch(`/api/proxy/projects/${id}`, { method: "DELETE" });
   }, []);
 
   const handleStatusChange = useCallback(async (id: string, status: string) => {
@@ -1505,50 +1622,75 @@ function ProjectsContent() {
   }, []);
 
   const viewOptions: { key: ViewMode; label: string }[] = [
-    ...(CONTRACT_TABS.includes(activeTab) ? [] : [{ key: "command" as ViewMode, label: "Overview" }]),
-    ...(activeTab === "all" ? [] : [{ key: "pipeline" as ViewMode, label: "Pipeline" }]),
+    { key: "pipeline", label: "Pipeline" },
     { key: "timeline", label: "Gantt" },
     { key: "table", label: "Table" },
   ];
 
-  // Guard against stale viewMode during the render before useEffect fires
-  const safeViewMode: ViewMode = (() => {
-    if (viewMode === "pipeline" && !CONTRACT_TABS.includes(activeTab)) return "command";
-    if (viewMode === "command" && CONTRACT_TABS.includes(activeTab)) return "pipeline";
-    return viewMode;
-  })();
+  const safeViewMode: ViewMode = viewMode;
+
+  const isContractsGroup = activeTab === "crm_opportunity" || activeTab === "portfolio";
+  const isPartnershipGroup = activeTab === "partnership";
 
   return (
     <div className="px-4 sm:px-6 pt-3 pb-6 max-w-[1400px] mx-auto space-y-3">
-      {/* Subtab row */}
-      {activeTab !== "all" && (
-        <div className="flex items-center gap-5 border-b border-zinc-100 dark:border-zinc-800/60 pb-0">
-          {(["projects", "templates"] as const).map(st => (
-            <button key={st} onClick={() => setSubTab(st)}
-              className={`pb-2 text-sm font-medium border-b-2 transition-colors -mb-px ${subTab === st ? "border-zinc-700 dark:border-zinc-300 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
-              {st === "projects" ? "Projects" : "Templates & Automation"}
-            </button>
-          ))}
+      {/* Group subtab row (Contracts or Partnerships) */}
+      {(isContractsGroup || isPartnershipGroup) && (
+        <div className="flex items-center gap-1 border-b border-zinc-100 dark:border-zinc-800/60 pb-0">
+          {isContractsGroup && (
+            <>
+              <Link href="/projects?tab=crm_opportunity"
+                className={`px-3 pb-2 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === "crm_opportunity" ? "border-zinc-700 dark:border-zinc-300 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
+                R&D Contracts
+              </Link>
+              <Link href="/projects?tab=portfolio"
+                className={`px-3 pb-2 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === "portfolio" ? "border-zinc-700 dark:border-zinc-300 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
+                Portfolio Contracts
+              </Link>
+            </>
+          )}
+          {isPartnershipGroup && (
+            <>
+              <Link href="/projects?tab=partnership"
+                className={`px-3 pb-2 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === "partnership" ? "border-zinc-700 dark:border-zinc-300 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
+                Partnerships
+              </Link>
+              <Link href="/projects/advisors"
+                className="px-3 pb-2 text-sm font-medium border-b-2 border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors -mb-px">
+                Advisors
+              </Link>
+            </>
+          )}
         </div>
       )}
+
+      {/* Templates/Settings subtab row */}
+      <div className="flex items-center gap-5 border-b border-zinc-100 dark:border-zinc-800/60 pb-0">
+        {(["projects", "templates", "settings"] as const).map(st => (
+          <button key={st} onClick={() => setSubTab(st)}
+            className={`pb-2 text-sm font-medium border-b-2 transition-colors -mb-px ${subTab === st ? "border-zinc-700 dark:border-zinc-300 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}>
+            {st === "projects" ? "Projects" : st === "templates" ? "Templates & Automation" : "Settings"}
+          </button>
+        ))}
+      </div>
 
       {/* Toolbar */}
       {subTab === "projects" && (
         <div className="flex flex-wrap items-center gap-2">
-          {viewMode !== "pipeline" && activeTab !== "all" && (
+          {viewMode !== "pipeline" && (
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects…"
               className="flex-1 min-w-[180px] max-w-[280px] px-3 py-1.5 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 placeholder-zinc-400 transition-shadow" />
           )}
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={SEL}>
             <option value="">All statuses</option>
             <option value="in_progress">In Progress</option>
-            <option value="waiting_client">Waiting on Client</option>
-            <option value="waiting_sbc">Waiting on SBC</option>
+            <option value="waiting_client">Awaiting Client</option>
+            <option value="waiting_sbc">Awaiting Open ERP</option>
             <option value="awaiting_vendor">Awaiting Vendor</option>
           </select>
           <div className="ml-auto flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
             {viewOptions.map(v => (
-              <button key={v.key} onClick={() => setViewMode(v.key)} disabled={v.key === "pipeline" && activeTab === "all"}
+              <button key={v.key} onClick={() => setViewMode(v.key)}
                 className={`px-3 py-1 text-xs rounded-md transition-colors ${viewMode === v.key ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm font-medium" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-30"}`}>
                 {v.label}
               </button>
@@ -1558,13 +1700,14 @@ function ProjectsContent() {
       )}
 
       {/* Content */}
-      {subTab === "templates" && activeTab !== "all" ? (
-        <TemplatesView tabKey={activeTab as Exclude<TabKey, "all">} />
+      {subTab === "settings" ? (
+        <StatusSettingsView />
+      ) : subTab === "templates" ? (
+        <TemplatesView tabKey={activeTab} />
       ) : loading ? (
         <div className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">Loading projects…</div>
       ) : (
         <>
-          {safeViewMode === "command" && <CommandCenter projects={tabProjects} onDelete={handleDelete} onUpdate={load} showType={activeTab === "all"} />}
           {safeViewMode === "pipeline" && activeTab === "partnership" && (
             <PartnershipPipelineView projects={tabProjects} onDelete={handleDelete} onUpdate={load} />
           )}
@@ -1579,6 +1722,8 @@ function ProjectsContent() {
       {showCreate && (
         <CreateModal onClose={() => setShowCreate(false)} onCreated={id => { setShowCreate(false); router.push(`/projects/${id}`); }} defaultType={activeTab} />
       )}
+
+      {panelId && <ProjectDrawer projectId={panelId} onClose={closePanel} onUpdate={load} />}
     </div>
   );
 }

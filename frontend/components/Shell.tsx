@@ -1,26 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { usePartnerModules } from "@/lib/usePartnerModules";
+import { Avatar } from "@/components/Avatar";
+import { usePathname, useSearchParams } from "next/navigation";
 import React, { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { DevModeProvider, useDevMode } from "@/components/DevModeContext";
-import NotebookPanel from "@/components/notebook/NotebookPanel";
 import LogoImage from "@/components/LogoImage";
-import ModuleTour, { ModuleTourInfoButton } from "@/components/ModuleTour";
-import TasksWidget from "@/components/TasksWidget";
 import TimeTrackingPanel from "@/components/TimeTrackingPanel";
 import RolesPanel from "@/components/RolesPanel";
 import TeamPanel from "@/components/TeamPanel";
+import AssignmentToasts from "@/components/tasks/AssignmentToasts";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Icons ──────────────────────────────────────────────────────────────────
-
-const DashboardIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" />
-  </svg>
-);
 
 const AnalysesIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -28,21 +23,15 @@ const AnalysesIcon = (
   </svg>
 );
 
-const QueueIcon = (
+const LiteratureIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
   </svg>
 );
 
 const StrainsIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M4.871 4A17.926 17.926 0 003 12c0 2.874.673 5.59 1.871 8m14.13 0a17.926 17.926 0 001.87-8c0-2.874-.673-5.59-1.87-8M9 9h1.246a1 1 0 01.961.725l1.586 5.55a1 1 0 00.961.725H15m1-7h-.08a2 2 0 00-1.519.698L9.6 15.302A2 2 0 018.08 16H8" />
-  </svg>
-);
-
-const ModelIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
   </svg>
 );
 
@@ -149,12 +138,6 @@ const SystemDesignIcon = (
   </svg>
 );
 
-const SystemsIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
-  </svg>
-);
-
 const InventoryIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -179,38 +162,78 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
-  sub?: { href: string; label: string }[];
+  sub?: { href: string; label: string; permission?: string }[];
   permission?: string; // permission key required to show this item (null = always visible)
   activePaths?: string[]; // additional paths that count as active for this item
 }
 
+const LearnIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+  </svg>
+);
+
+const PartnersIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+  </svg>
+);
+
+const ActivityIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+  </svg>
+);
+
 const PRIMARY: NavItem[] = [
-  { href: "/tasks",     label: "Tasks",     icon: TasksIcon },
-  { href: "/calendar",  label: "Calendar",  icon: CalendarIcon  },
-  { href: "/reports",   label: "Reports",   icon: ReportsIcon   },
-  { href: "/notebook",  label: "Notebook",  icon: NotebookIcon,  permission: "notebook" },
+  { href: "/tasks",     label: "Tasks",     icon: TasksIcon,     activePaths: ["/tasks", "/reports"], permission: "projects" },
+  { href: "/calendar",  label: "Calendar",  icon: CalendarIcon,  permission: "calendar" },
 ];
 
+// The Learning Center is visible to staff too — they need to review what the
+// partner cohorts are being shown.
+const LEARN: NavItem[] = [
+  { href: "/learn", label: "Learning", icon: LearnIcon, permission: "learn" },
+];
+
+// External partners get their own sidebar rather than the staff tree with rows
+// filtered out: most staff nav items carry no permission key, so filtering
+// alone would leak Tasks, Calendar, CRM and Portals to every partner.
+//
+// Built from the API's module list so this sidebar, the grant checkboxes in
+// Users, and the API's own guard cannot drift apart — a cohort can never be
+// granted a module the partner has no way to reach, and the labels here are
+// the same module names an admin ticked.
+const PARTNER_NAV_ICONS: Record<string, React.ReactNode> = {
+  learn:        LearnIcon,
+  protocols:    ProtocolIcon,
+  strains:      InventoryIcon,
+  log_runs:     RunsIcon,
+  notebook:     NotebookIcon,
+  literature:   LiteratureIcon,
+  queue_upload: LiteratureIcon,
+  analyses:     AnalysesIcon,
+  model:        AnalysesIcon,
+  compounds:    AnalysesIcon,
+  system_design: SystemDesignIcon,
+  projects:     ProjectsIcon,
+};
+
+
+
 const SALES: NavItem[] = [
-  { href: "/crm",       label: "CRM",       icon: UsersIcon },
-  { href: "/projects",  label: "Projects",  icon: ProjectsIcon,  permission: "projects" },
-  { href: "/marketing", label: "Marketing", icon: MarketingIcon, activePaths: ["/marketing"] },
-  { href: "/portals",   label: "Portals",   icon: PortalsIcon },
+  { href: "/crm",       label: "CRM",       icon: UsersIcon,     permission: "contacts" },
+  { href: "/projects?tab=crm_opportunity",  label: "Projects",  icon: ProjectsIcon,  permission: "projects" },
+  { href: "/marketing", label: "Marketing", icon: MarketingIcon, activePaths: ["/marketing"], permission: "marketing" },
+  { href: "/portals",   label: "Portals",   icon: PortalsIcon,   permission: "portals" },
   { href: "/contacts",  label: "Contacts",  icon: ContactsIcon,  permission: "contacts" },
 ];
 
 const ACCOUNTING: NavItem[] = [
   { href: "/fpa",       label: "FP&A",      icon: FpaIcon,       permission: "view_fpa" },
-  { href: "/funding",   label: "Funding",   icon: FundingIcon },
+  { href: "/funding",   label: "Funding",   icon: FundingIcon,   permission: "funding" },
   { href: "/invoices",  label: "Receivables",  icon: InvoiceIcon, permission: "invoices" },
-  { href: "/payables",  label: "Payables",  icon: PayablesIcon },
-];
-
-const OPERATIONS: NavItem[] = [
-  { href: "/protocols",   label: "Protocols",  icon: ProtocolIcon,  permission: "protocols" },
-  { href: "/consumables", label: "Inventory",  icon: InventoryIcon,
-    activePaths: ["/consumables", "/chemicals", "/equipment"],
-    sub: [{ href: "/consumables", label: "Consumables" }, { href: "/chemicals", label: "Materials" }, { href: "/equipment", label: "Equipment" }] },
+  { href: "/payables",  label: "Payables",  icon: PayablesIcon,  permission: "payables" },
 ];
 
 const AgentManagerIcon = (
@@ -232,25 +255,37 @@ const ADMIN: NavItem[] = [
     </svg>
   ), permission: "manage_users" },
   { href: "/admin/agent-manager",  label: "Agent Manager",  icon: AgentManagerIcon, permission: "manage_users" },
+  { href: "/admin/learning",       label: "Course Content", icon: PartnersIcon,     permission: "manage_partners",
+    activePaths: ["/admin/learning"] },
+  { href: "/admin/activity",       label: "Activity",       icon: ActivityIcon,     permission: "view_activity" },
 ];
+
 
 // ── Title helper ───────────────────────────────────────────────────────────
 
+/** True for partner accounts, including sessions still carrying the old
+ *  `student` role name from before migration 159. */
+function isPartnerRole(role: string | undefined): boolean {
+  return role === "partner" || role === "student";
+}
+
 function pageTitleFromPath(pathname: string): string {
-  if (pathname.startsWith("/calendar")) return "Calendar";
-  if (pathname.startsWith("/chemicals")) return "Materials";
-  if (pathname.startsWith("/consumables")) return "Consumables";
-  if (pathname.startsWith("/equipment")) return "Equipment";
-  if (pathname.startsWith("/protocols")) return "Protocol Bank";
+  if (pathname.startsWith("/queue")) return "Review Queue";
+  if (pathname.startsWith("/compounds")) return "Compounds";
+  if (pathname.startsWith("/kb")) return "Knowledge Base";
   if (pathname.startsWith("/fpa")) return "FP&A";
   if (pathname.startsWith("/admin/agent-manager")) return "Agent Manager";
+  if (pathname.match(/^\/substrates\/[^/]+\/lca/)) return "LCA";
+  if (pathname.match(/^\/substrates\/[^/]+\/tea/)) return "Preliminary TEA";
+  if (pathname.startsWith("/admin/tea-admin")) return "Parameters";
+  if (pathname.startsWith("/admin/lca-admin")) return "Parameters";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/settings")) return "Settings";
-  if (pathname.startsWith("/notebook")) return "Notebook";
   if (pathname.startsWith("/tasks")) return "Tasks";
   if (pathname.startsWith("/contacts")) return "Contacts";
   if (pathname.startsWith("/projects/advisors")) return "Advisors";
   if (pathname.startsWith("/projects")) return "Projects";
+  if (pathname.startsWith("/crm/sales-pipeline")) return "Sales Pipeline";
   if (pathname.startsWith("/crm")) return "CRM";
   if (pathname.startsWith("/funding")) return "Funding";
   if (pathname.startsWith("/invoices")) return "Receivables";
@@ -259,14 +294,12 @@ function pageTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/portals")) return "Portals";
   if (pathname.startsWith("/reports")) return "Reports";
   if (pathname.startsWith("/inventory")) return "Inventory";
-  return "Collective ERP";
+  return "Open ERP Bioculinary";
 }
 
 function moduleKeyFromPath(pathname: string): string | null {
   if (pathname.startsWith("/tasks")) return null;
-  if (pathname.startsWith("/calendar")) return null;
   if (pathname.startsWith("/reports")) return null;
-  if (pathname.startsWith("/notebook")) return null;
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/portals")) return "portals";
@@ -275,10 +308,7 @@ function moduleKeyFromPath(pathname: string): string | null {
   if (pathname.startsWith("/funding")) return "funding";
   if (pathname.startsWith("/invoices")) return "receivables";
   if (pathname.startsWith("/payables")) return "payables";
-  if (pathname.startsWith("/protocols")) return "protocols";
-  if (pathname.startsWith("/chemicals")) return "chemicals";
-  if (pathname.startsWith("/consumables")) return "consumables";
-  if (pathname.startsWith("/equipment")) return "equipment";
+  if (pathname.startsWith("/kb")) return "literature";
   if (pathname.startsWith("/inventory")) return "inventory";
   if (pathname.startsWith("/marketing")) return "marketing";
   return null;
@@ -292,8 +322,8 @@ function NavLink({ href, label, icon, active, collapsed }: { href: string; label
       href={href}
       aria-label={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center rounded-md text-sm font-medium transition-colors min-h-[36px] ${
-        collapsed ? "justify-center p-2" : "gap-2.5 px-3 py-2"
+      className={`flex items-center rounded-md text-sm font-medium transition-colors min-h-[28px] ${
+        collapsed ? "justify-center p-1.5" : "gap-2 px-2.5 py-1"
       } ${
         active
           ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
@@ -396,8 +426,6 @@ function ModuleOwnerBadge({
     } finally { setSaving(false); }
   }
 
-  const initials = owner ? owner.user_name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase() : null;
-
   return (
     <div className="relative flex items-center" ref={ref}>
       {owner ? (
@@ -406,23 +434,22 @@ function ModuleOwnerBadge({
           title={`Owner: ${owner.user_name}`}
           className={`flex items-center gap-1.5 ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"} transition-opacity`}
         >
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-            {initials}
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{owner.user_name.split(" ")[0]}</span>
+          <Avatar name={owner.user_name} size={5} />
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">{owner.user_name.split(" ")[0]}</span>
         </button>
-      ) : isAdmin ? (
+      ) : (
         <button
-          onClick={() => setPickerOpen(o => !o)}
-          title="Assign owner"
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors border border-dashed border-gray-300 dark:border-gray-600 rounded-full px-2 py-0.5"
+          onClick={() => isAdmin && setPickerOpen(o => !o)}
+          disabled={!isAdmin}
+          title={isAdmin ? "Assign owner" : "No owner assigned"}
+          className={`flex items-center gap-1.5 ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"} transition-opacity`}
         >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          Assign
+          <Avatar name={null} size={5} />
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:block">
+            {isAdmin ? "Assign" : "Unassigned"}
+          </span>
         </button>
-      ) : null}
+      )}
 
       {pickerOpen && (
         <div className="absolute left-0 top-full mt-1.5 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -437,9 +464,7 @@ function ModuleOwnerBadge({
                 disabled={saving}
                 className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${owner?.user_id === u.user_id ? "bg-indigo-50 dark:bg-indigo-950/30" : ""}`}
               >
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-                  {(u.name || u.email).split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
+                <Avatar name={u.name || u.email} size={5} />
                 <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{u.name || u.email}</span>
                 {owner?.user_id === u.user_id && (
                   <svg className="w-3 h-3 text-indigo-500 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -466,135 +491,6 @@ function ModuleOwnerBadge({
   );
 }
 
-// ── Tasks Panel ────────────────────────────────────────────────────────────
-
-function TasksPanel() {
-  const { data: session } = useSession();
-  const [open, setOpen] = useState(false);
-  const [assignments, setAssignments] = useState<AppNotification[]>([]);
-  const [responding, setResponding] = useState<Set<string>>(new Set());
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  const loadAssignments = useCallback(async () => {
-    if (!session) return;
-    try {
-      const res = await fetch("/api/proxy/notifications");
-      if (res.ok) {
-        const d = await res.json();
-        const pending = (d.notifications ?? []).filter(
-          (n: AppNotification) => n.notification_type === "task_assigned" && n.status === "pending"
-        );
-        setAssignments(pending);
-      }
-    } catch { /* silent */ }
-  }, [session]);
-
-  useEffect(() => {
-    loadAssignments();
-    const iv = setInterval(loadAssignments, 60_000);
-    return () => clearInterval(iv);
-  }, [loadAssignments]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
-  }, [open]);
-
-  async function acceptAssignment(id: string) {
-    setResponding(prev => new Set([...prev, id]));
-    try {
-      const res = await fetch(`/api/proxy/notifications/${id}/respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approved" }),
-      });
-      if (res.ok) {
-        setAssignments(prev => prev.filter(n => n.notification_id !== id));
-        window.dispatchEvent(new CustomEvent("task-assignment-accepted"));
-      }
-    } finally { setResponding(prev => { const n = new Set(prev); n.delete(id); return n; }); }
-  }
-
-  async function dismissAssignment(id: string) {
-    setResponding(prev => new Set([...prev, id]));
-    try {
-      await fetch(`/api/proxy/notifications/${id}/read`, { method: "PATCH" }).catch(() => {});
-      setAssignments(prev => prev.filter(n => n.notification_id !== id));
-    } finally { setResponding(prev => { const n = new Set(prev); n.delete(id); return n; }); }
-  }
-
-  if (!session) return null;
-
-  return (
-    <div className="relative" ref={panelRef}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-label="Tasks and responsibilities"
-        className="relative p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-        {assignments.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-blue-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-            {assignments.length > 9 ? "9+" : assignments.length}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl shadow-black/10 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">My Work</span>
-            <Link href="/tasks" onClick={() => setOpen(false)} className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-medium">
-              Full view →
-            </Link>
-          </div>
-
-          {/* Pending task assignments */}
-          {assignments.length > 0 && (
-            <div className="border-b border-gray-100 dark:border-gray-800 p-3 space-y-2">
-              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-1">Assigned to you</p>
-              {assignments.map(n => (
-                <div key={n.notification_id} className="flex items-start gap-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-lg px-3 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-900 dark:text-gray-100 leading-snug truncate">{n.title}</p>
-                    {n.message && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{n.message}</p>}
-                    <button
-                      onClick={() => acceptAssignment(n.notification_id)}
-                      disabled={responding.has(n.notification_id)}
-                      className="mt-1.5 text-[10px] px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium transition-colors"
-                    >
-                      {responding.has(n.notification_id) ? "…" : "Accept"}
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => dismissAssignment(n.notification_id)}
-                    disabled={responding.has(n.notification_id)}
-                    aria-label="Dismiss"
-                    className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors mt-0.5 disabled:opacity-40"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="p-4 overflow-y-auto max-h-[32rem]">
-            <TasksWidget />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── User Profile Footer ────────────────────────────────────────────────────
 
@@ -620,7 +516,7 @@ function UserFooter() {
   if (!session?.user) return null;
 
   const name = profile?.full_name || session.user.name || session.user.email || "User";
-  const role = profile?.role || (session.user as { role?: string }).role || "viewer";
+  const role = profile?.role || (session.user as { role?: string }).role || "user";
   const title = profile?.title;
 
   return (
@@ -778,7 +674,11 @@ function NotificationsInbox() {
       if (res.ok) {
         const d = await res.json();
         setNotifications(d.notifications ?? []);
-        setUnreadCount(d.unread_count ?? 0);
+        // The badge counts only the notifications where someone is waiting on
+        // you -- a task handed over, a review asked of you, a review verdict.
+        // Notebook shares, portal views and messages still list below, they
+        // just do not light the bell.
+        setUnreadCount(d.actionable_unread_count ?? d.assignment_unread_count ?? 0);
       }
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -836,6 +736,41 @@ function NotificationsInbox() {
     await fetch(`/api/proxy/notifications/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
+  const [clearing, setClearing] = useState(false);
+  const [keptNote, setKeptNote] = useState<string | null>(null);
+  const [keptCount, setKeptCount] = useState(0);
+
+  // Two steps on purpose. The first click clears everything that is merely
+  // informational; assignments still awaiting an accept/decline survive it,
+  // because deleting them takes away the Inbox card's Accept and Decline while
+  // leaving the task sitting there. Wiping those is a second, explicit click —
+  // which matters here, where most of the backlog IS pending assignments and a
+  // one-shot "clear all" would quietly discard 50-odd open decisions.
+  async function clearAll(includePending: boolean) {
+    if (clearing) return;
+    setClearing(true);
+    setKeptNote(null);
+    try {
+      const url = includePending
+        ? "/api/proxy/notifications?include_pending=true"
+        : "/api/proxy/notifications";
+      const res = await fetch(url, { method: "DELETE" });
+      if (res.ok) {
+        const d = await res.json();
+        const kept = d.kept_awaiting_response ?? 0;
+        setNotifications(prev =>
+          includePending
+            ? []
+            : prev.filter(n => n.status === "pending" && n.notification_type === "task_assigned")
+        );
+        setUnreadCount(kept);
+        setKeptCount(kept);
+        setKeptNote(kept > 0 ? `${kept} awaiting your response were kept` : null);
+      }
+    } catch { /* leave the list as-is; the next poll re-syncs */ }
+    finally { setClearing(false); }
+  }
+
   function openCompose() {
     setComposing(true);
     setComposeTitle(""); setComposeMsg(""); setComposeRecipients([]); setSendResult(null);
@@ -886,7 +821,7 @@ function NotificationsInbox() {
 
   function entityLink(n: AppNotification) {
     if (n.entity_type === "task") return `/tasks`;
-    if (n.entity_type === "project") return `/projects`;
+    if (n.entity_type === "project") return `/projects?tab=crm_opportunity`;
     return "#";
   }
 
@@ -903,7 +838,7 @@ function NotificationsInbox() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 rounded flex items-center justify-center text-[10px] font-bold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -916,12 +851,24 @@ function NotificationsInbox() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</span>
               {unreadCount > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900">
-                  {unreadCount} new
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900">
+                  {unreadCount} waiting
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2">
+              {!composing && notifications.length > 0 && (
+                <button
+                  onClick={() => clearAll(false)}
+                  disabled={clearing}
+                  title="Clear notifications (keeps anything awaiting your response)"
+                  className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={composing ? () => setComposing(false) : openCompose}
                 title={composing ? "Back to inbox" : "Send a notification"}
@@ -944,6 +891,21 @@ function NotificationsInbox() {
             </div>
           </div>
 
+          {keptNote && !composing && (
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 flex-1">{keptNote}</p>
+              {keptCount > 0 && (
+                <button
+                  onClick={() => clearAll(true)}
+                  disabled={clearing}
+                  className="text-[10px] font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 hover:underline disabled:opacity-40"
+                >
+                  Clear those too
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Compose panel */}
           {composing ? (
             <form onSubmit={sendNotification} className="p-4 space-y-3">
@@ -962,9 +924,7 @@ function NotificationsInbox() {
                         onChange={() => toggleRecipient(u.user_id)}
                         className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0">
-                        {(u.name || u.email)[0].toUpperCase()}
-                      </div>
+                      <Avatar name={u.name || u.email} size={4} />
                       <span className="text-[11px] text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100 truncate">
                         {u.name || u.email}
                       </span>
@@ -987,7 +947,7 @@ function NotificationsInbox() {
               {/* Message */}
               <div>
                 <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1">Message (optional)</p>
-                <textarea
+                <AutoTextarea
                   value={composeMsg} onChange={e => setComposeMsg(e.target.value)}
                   placeholder="Additional details…"
                   rows={2}
@@ -1116,7 +1076,7 @@ function DevAgentPanel() {
       {/* Floating trigger */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-16 right-4 z-40 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-mono font-semibold rounded-full shadow-lg shadow-amber-500/30 transition-all hover:shadow-xl"
+        className="fixed bottom-16 right-4 z-40 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-mono font-semibold rounded shadow-lg shadow-amber-500/30 transition-all hover:shadow-xl"
         title="Open Agent Panel"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1270,7 +1230,7 @@ function DevTerminal() {
 
       {/* Log output */}
       {open && (
-        <div className="h-[calc(100%-1.75rem)] overflow-y-auto px-3 py-1 space-y-0.5">
+        <div className="h-[calc(100%-1.75rem)] overflow-y-auto px-3 py-1 space-y-0">
           {lines.length === 0 ? (
             <span className="text-gray-600">waiting for activity…</span>
           ) : (
@@ -1297,20 +1257,64 @@ function DevTerminal() {
   );
 }
 
+/** Persistent bar shown while an admin is previewing a partner account.
+ *  Deliberately loud and always on screen: the most dangerous thing about a
+ *  preview mode is forgetting you are in one. */
+function PreviewBanner({ who }: { who: string | null }) {
+  function exit() {
+    // Clearing the cookie is all it takes — the proxy stops sending X-View-As,
+    // so the very next request is the admin's own again.
+    document.cookie = "openerp_view_as=; path=/; max-age=0";
+    window.location.href = "/admin/users";
+  }
+  return (
+    <div className="shrink-0 flex items-center gap-3 px-4 py-2 bg-amber-500 text-amber-950">
+      <span className="text-sm font-semibold">
+        Previewing as {who ?? "a partner account"}
+      </span>
+      <span className="text-xs opacity-80 hidden sm:inline">
+        Read-only — you are seeing exactly what this partner sees.
+      </span>
+      <button
+        onClick={exit}
+        className="ml-auto px-3 py-1 rounded-md bg-amber-950 text-amber-50 text-xs font-medium hover:bg-amber-900"
+      >
+        Exit preview
+      </button>
+    </div>
+  );
+}
+
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const projectTab = searchParams.get("tab") ?? "all";
+  const projectTab = searchParams.get("tab") ?? "crm_opportunity";
   const { data: session } = useSession();
   const [myPerms, setMyPerms] = useState<Record<string, boolean> | null>(null);
+  // The grantable module list is served by the API, which also derives the
+  // guard from it, so the sidebar cannot offer something the guard refuses.
+  const { modules: partnerModules } = usePartnerModules();
+  // While an admin previews a partner account, /users/me answers as that
+  // partner. Driving the nav off this rather than the NextAuth session is what
+  // makes the whole sidebar switch over during a preview.
+  const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [previewOf, setPreviewOf] = useState<string | null>(null);
+  const [viewingAs, setViewingAs] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [moduleOwners, setModuleOwners] = useState<Record<string, ModuleOwner>>({});
-  const [tourOpen, setTourOpen] = useState(false);
+
+  useEffect(() => {
+    setViewingAs(document.cookie.includes("openerp_view_as="));
+  }, [pathname]);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") setSidebarCollapsed(true);
+    try {
+      const secs = localStorage.getItem("collapsedSections");
+      if (secs) setCollapsedSections(new Set(JSON.parse(secs)));
+    } catch {}
   }, []);
 
   function toggleSidebar() {
@@ -1320,22 +1324,27 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     });
   }
 
+  function toggleSection(header: string) {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(header)) next.delete(header);
+      else next.add(header);
+      try { localStorage.setItem("collapsedSections", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
   useEffect(() => {
     if (!session) return;
     fetch("/api/proxy/users/me")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.effective_permissions) setMyPerms(d.effective_permissions); })
+      .then(d => {
+        if (d?.effective_permissions) setMyPerms(d.effective_permissions);
+        if (d?.role) setProfileRole(d.role);
+        if (d?.full_name || d?.email) setPreviewOf(d.full_name || d.email);
+      })
       .catch(() => {});
   }, [session]);
-
-  useEffect(() => {
-    const role = (session?.user as { role?: string })?.role;
-    if (!session || role !== "admin" || pathname.startsWith("/setup")) return;
-    fetch("/api/proxy/settings/platform")
-      .then(r => r.ok ? r.json() : {})
-      .then(s => { if (!s.onboarding_complete || s.onboarding_complete === "false") router.replace("/setup"); })
-      .catch(() => {});
-  }, [session, pathname, router]);
 
   useEffect(() => {
     if (!session) return;
@@ -1358,57 +1367,99 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     });
   }
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/eula") || pathname.startsWith("/privacy") || pathname.startsWith("/portal/") || pathname.startsWith("/setup")) {
+  if (pathname.startsWith("/login") || pathname.startsWith("/eula") || pathname.startsWith("/privacy") || pathname.startsWith("/portal/") || pathname.startsWith("/invite/") || pathname.startsWith("/investors") || pathname.startsWith("/sms-consent")) {
     return <>{children}</>;
   }
 
-  const userRole = (session?.user as { role?: string } | undefined)?.role ?? "viewer";
+  // Read after mount, never during render: the server has no cookie jar, so
+  // deriving this inline would render false on the server and true on the
+  // client and trip a hydration mismatch.
+  // Prefer the role the API reported over the session's: during a preview they
+  // disagree, and the API's is the one everything else is enforcing against.
+  const userRole = profileRole
+    ?? (session?.user as { role?: string } | undefined)?.role
+    ?? "user";
 
   // Resolve permission: use fetched effective_permissions if available, else fall back to role defaults
   function can(key: string): boolean {
     if (myPerms) return myPerms[key] ?? false;
-    // Role-based fallback while permissions are loading
+    // Role-based fallback while permissions are loading.
+    // External partners deny by default: their grants come from their
+    // organisation, so guessing from the role would flash modules like System
+    // Design or Literature into a partner's sidebar for a moment before
+    // /users/me answers.
+    if (isPartnerRole(userRole)) return false;
     if (userRole === "admin") return true;
-    const userOff = ["view_fpa", "edit_fpa", "manage_users"];
-    const viewerOff    = ["contacts", "queue_upload", "queue_approve", "log_runs", "notebook",
-                          "model_retrain", "view_fpa", "edit_fpa", "manage_users", "dev_mode"];
-    if (userRole === "user") return !userOff.includes(key);
-    return !viewerOff.includes(key);
+    // The ordinary staff account, mirroring ROLE_DEFAULTS.user in auth.py:
+    // everything except the money it does not own and the admin tools.
+    const staffOff = ["funding", "view_fpa", "edit_fpa",
+                      "manage_users", "manage_partners", "view_activity"];
+    return !staffOff.includes(key);
   }
 
-  const title = pageTitleFromPath(pathname);
+  // Partner sidebar rows, from the API's module list rather than a copy here.
+  const partnerNav: NavItem[] = partnerModules.map(m => ({
+    href: m.href,
+    label: m.label,
+    icon: PARTNER_NAV_ICONS[m.key] ?? LearnIcon,
+    // Learning is the one module every partner account has, so it is never gated.
+    permission: m.key === "learn" ? undefined : m.key,
+  }));
 
+  const title = pageTitleFromPath(pathname);
+  const substrateTabMatch = pathname.match(/^\/substrates\/([^/]+)\/(tea|lca)/);
+  const substrateTabId = substrateTabMatch ? substrateTabMatch[1] : null;
   const currentModuleKey = moduleKeyFromPath(pathname);
   const currentOwner = currentModuleKey ? (moduleOwners[currentModuleKey] ?? null) : null;
   const isAdmin = can("manage_users");
+  // External partners never see the staff navigation tree. "student" is the
+  // pre-rename name (migration 159) and still arrives in NextAuth sessions
+  // issued before it, so both are treated as partner accounts.
+  const isPartner = isPartnerRole(userRole);
 
   function renderSection(header: string, items: NavItem[]) {
     const visible = items.filter(item => !item.permission || can(item.permission));
     if (visible.length === 0) return null;
+    const isSectionCollapsed = collapsedSections.has(header);
     return (
       <div>
-        {!sidebarCollapsed && <p className="px-3 mb-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{header}</p>}
-        <div className="space-y-0.5">
-          {visible.map((item) => {
-            const isActive = item.activePaths
-              ? item.activePaths.some(p => pathname.startsWith(p))
-              : (pathname === item.href || pathname.startsWith(item.href));
-            return (
-              <div key={item.href}>
-                <NavLink href={item.href} label={item.label} icon={item.icon} active={isActive} collapsed={sidebarCollapsed} />
-                {item.sub && isActive && !sidebarCollapsed && (
-                  <div className="ml-6 mt-1.5 space-y-0.5">
-                    {item.sub.map((s) => (
-                      <Link key={s.href} href={s.href} className="block px-3 py-1 rounded text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors text-center">
-                        {s.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {!sidebarCollapsed && (
+          <button
+            onClick={() => toggleSection(header)}
+            className="w-full flex items-center justify-between px-2.5 mb-0.5 group"
+          >
+            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{header}</span>
+            <svg
+              className={`w-3 h-3 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition-transform ${isSectionCollapsed ? "-rotate-90" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        )}
+        {!isSectionCollapsed && (
+          <div className="space-y-0">
+            {visible.map((item) => {
+              const isActive = item.activePaths
+                ? item.activePaths.some(p => pathname.startsWith(p))
+                : (pathname === item.href || pathname.startsWith(item.href));
+              return (
+                <div key={item.href}>
+                  <NavLink href={item.href} label={item.label} icon={item.icon} active={isActive} collapsed={sidebarCollapsed} />
+                  {item.sub && isActive && !sidebarCollapsed && (
+                    <div className="ml-6 mt-1.5 space-y-0">
+                      {item.sub.map((s) => (
+                        <Link key={s.href} href={s.href} className="block px-3 py-1 rounded text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors text-center">
+                          {s.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
@@ -1417,7 +1468,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
       <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Sidebar */}
-      <aside className={`${sidebarCollapsed ? "w-12" : "w-52"} shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-screen sticky top-0 transition-all duration-200`}>
+      <aside className={`${sidebarCollapsed ? "w-12" : "w-52"} shrink-0 bg-[var(--color-chrome)] border-r border-gray-200 dark:border-gray-800 flex flex-col h-screen sticky top-0 transition-all duration-200`}>
         <div className={`border-b border-gray-100 dark:border-gray-800 flex items-center ${sidebarCollapsed ? "flex-col gap-1 justify-center py-3 px-2" : "justify-between px-4 py-4"}`}>
           {sidebarCollapsed ? (
             <LogoImage className="h-7 w-auto mb-1" />
@@ -1440,16 +1491,31 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav id="main-nav" aria-label="Main navigation" className="flex-1 px-2 py-3 overflow-y-auto space-y-4">
+        <nav id="main-nav" aria-label="Main navigation" className="flex-1 px-2 py-2 overflow-y-auto space-y-2">
+          {isPartner ? (
+            <div className="space-y-0">
+              {partnerNav.filter(item => !item.permission || can(item.permission)).map(item => (
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={pathname.startsWith(item.href)}
+                  collapsed={sidebarCollapsed}
+                />
+              ))}
+            </div>
+          ) : (
+          <>
           {/* Primary section - no header */}
-          <div className="space-y-0.5">
+          <div className="space-y-0">
             {PRIMARY.filter(item => !item.permission || can(item.permission)).map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href);
               return (
                 <div key={item.href}>
                   <NavLink href={item.href} label={item.label} icon={item.icon} active={isActive} collapsed={sidebarCollapsed} />
                   {item.sub && isActive && !sidebarCollapsed && (
-                    <div className="ml-6 mt-1.5 space-y-0.5">
+                    <div className="ml-6 mt-1.5 space-y-0">
                       {item.sub.map((s) => (
                         <Link key={s.href} href={s.href} className="block px-3 py-1 rounded text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors text-center">
                           {s.label}
@@ -1462,22 +1528,98 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             })}
           </div>
 
+          {/* Learning Center */}
+          {LEARN.filter(item => !item.permission || can(item.permission)).map(item => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={pathname.startsWith(item.href)}
+              collapsed={sidebarCollapsed}
+            />
+          ))}
+
           {/* SALES section */}
           {renderSection("SALES", SALES)}
           {renderSection("ACCOUNTING", ACCOUNTING)}
 
-          {/* OPERATIONS section */}
-          {renderSection("OPERATIONS", OPERATIONS)}
+          {/* R&D banner + Analysis + System Design */}
+          {!sidebarCollapsed && (
+            <p className="px-2.5 pt-0.5 pb-0.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              R&amp;D
+            </p>
+          )}
+          {/* Analysis: single module (Analysis / ML Models / Data), no section divider */}
+          {(() => {
+            const item = ANALYSIS[0];
+            const isActive = item.activePaths!.some(p => pathname.startsWith(p));
+            const subs = (item.sub ?? []).filter(s => !s.permission || can(s.permission));
+            return (
+              <div className="space-y-0">
+                <NavLink href={item.href} label={item.label} icon={item.icon} active={isActive} collapsed={sidebarCollapsed} />
+                {isActive && !sidebarCollapsed && (
+                  <div className="ml-6 mt-1.5 space-y-0">
+                    {subs.map((s) => (
+                      <Link key={s.href} href={s.href} className="block px-3 py-1 rounded text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors text-center">
+                        {s.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Literature: its own module */}
+          {(() => {
+            const item = LITERATURE[0];
+            if (item.permission && !can(item.permission)) return null;
+            return (
+              <NavLink
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={pathname.startsWith(item.href)}
+                collapsed={sidebarCollapsed}
+              />
+            );
+          })()}
+
+          {/* System Design: single module, subtabs surfaced as sub-links */}
+          {(() => {
+            const item = SYSTEM_DESIGN[0];
+            if (item.permission && !can(item.permission)) return null;
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <div className="space-y-0">
+                <NavLink href={item.href} label={item.label} icon={item.icon} active={isActive} collapsed={sidebarCollapsed} />
+                {item.sub && isActive && !sidebarCollapsed && (
+                  <div className="ml-6 mt-1.5 space-y-0">
+                    {item.sub.map((s) => (
+                      <Link key={s.href} href={s.href} className="block px-3 py-1 rounded text-xs font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors text-center">
+                        {s.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
 
           {/* ADMIN section */}
           {renderSection("ADMIN", ADMIN)}
+          </>
+          )}
         </nav>
 
         {/* User profile footer */}
         {!sidebarCollapsed && <UserFooter />}
 
-        {/* Log Time + dark mode */}
+        {/* KB + Log Time + dark mode */}
         <div className="border-t border-gray-100 dark:border-gray-800 pt-2 pb-2 px-2 flex items-center justify-around">
+          <NavLink href="/kb" label="Knowledge Base" icon={KbIcon} active={pathname.startsWith("/kb")} collapsed={true} />
           <LogTimeButton />
           <DevToggle />
           <DarkModeToggle />
@@ -1485,9 +1627,31 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-3 shrink-0 flex items-center justify-between">
-          {pathname.startsWith("/contacts") ? (
+      <div className="flex-1 flex min-h-0 flex-col min-w-0">
+        <header className="bg-[var(--color-chrome)] border-b border-gray-200 dark:border-gray-800 px-6 py-3 shrink-0 flex items-center justify-between">
+          {/* Staff-only. The sidebar already excludes partners, but this strip
+              keyed off the path alone, so a partner who reached /tasks was
+              shown a Reports tab — a module no partner account can open. */}
+          {!isPartner && (pathname.startsWith("/tasks") || pathname.startsWith("/reports")) ? (
+            <div className="flex items-center gap-0 -ml-2">
+              {([
+                { label: "Tasks",     href: "/tasks",     match: "/tasks"     },
+                { label: "Reports",   href: "/reports",   match: "/reports"   },
+              ]).map(tab => (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    pathname.startsWith(tab.match)
+                      ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              ))}
+            </div>
+          ) : pathname.startsWith("/contacts") ? (
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contacts</span>
               {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
@@ -1496,27 +1660,21 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 overflow-x-auto">
               {([
-                { key: "all",             label: "All Projects",        href: "/projects" },
-                { key: "crm_opportunity", label: "R&D Contracts",       href: "/projects?tab=crm_opportunity" },
-                { key: "portfolio",       label: "Portfolio Contracts",  href: "/projects?tab=portfolio" },
-                { key: "partnership",     label: "Partnerships",         href: "/projects?tab=partnership" },
-                { key: "advisors",        label: "Advisors",             href: "/projects/advisors" },
-                { key: "grant",           label: "Grants & Funding",     href: "/projects?tab=grant" },
-                { key: "internal",        label: "Operations",           href: "/projects?tab=internal" },
-                { key: "marketing",       label: "Marketing",            href: "/projects?tab=marketing" },
+                { key: "contracts",    label: "Contracts",       href: "/projects?tab=crm_opportunity", activeKeys: ["crm_opportunity", "portfolio"] },
+                { key: "partnership",  label: "Partnerships",    href: "/projects?tab=partnership",     activeKeys: ["partnership", "advisors"] },
+                { key: "grant",        label: "Grants & Funding",href: "/projects?tab=grant",           activeKeys: ["grant"] },
+                { key: "internal",     label: "Operations",      href: "/projects?tab=internal",        activeKeys: ["internal"] },
+                { key: "marketing",    label: "Marketing",       href: "/projects?tab=marketing",       activeKeys: ["marketing"] },
               ] as const).map(tab => {
-                const isActive = tab.key === "advisors"
-                  ? pathname.startsWith("/projects/advisors")
-                  : !pathname.startsWith("/projects/advisors") && projectTab === tab.key;
+                const currentKey = pathname.startsWith("/projects/advisors") ? "advisors" : projectTab;
+                const isActive = (tab.activeKeys as readonly string[]).includes(currentKey);
                 return (
                   <Link
                     key={tab.key}
                     href={tab.href}
                     className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors whitespace-nowrap ${
                       isActive
-                        ? tab.key === "advisors"
-                          ? "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300"
-                          : "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
                         : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
@@ -1527,20 +1685,192 @@ function ShellInner({ children }: { children: React.ReactNode }) {
               </div>
               {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
             </div>
+          ) : pathname.startsWith("/funding") ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {([
+                  { key: "non-dilutive", label: "Applications" },
+                  { key: "dilutive",     label: "Investors" },
+                  { key: "plan",         label: "Plan" },
+                  { key: "rounds",       label: "Rounds" },
+                  { key: "management",   label: "Management" },
+                  { key: "reports",      label: "Reports" },
+                ] as const).map(tab => {
+                  const isActive = (searchParams.get("tab") ?? "non-dilutive") === tab.key;
+                  return (
+                    <Link
+                      key={tab.key}
+                      href={`/funding?tab=${tab.key}`}
+                      className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors whitespace-nowrap ${
+                        isActive
+                          ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      }`}
+                    >
+                      {tab.label}
+                    </Link>
+                  );
+                })}
+              </div>
+              {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
+            </div>
+          ) : pathname.startsWith("/crm") ? (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/crm"
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  !pathname.startsWith("/crm/sales-pipeline")
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                CRM
+              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/crm/sales-pipeline"
+                  className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                    pathname.startsWith("/crm/sales-pipeline")
+                      ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  Sales Pipeline
+                </Link>
+              </div>
+              {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
+            </div>
+          ) : (pathname.startsWith("/analyses") || pathname.startsWith("/model") || pathname.startsWith("/admin/tea-admin") || pathname.startsWith("/admin/lca-admin")) ? (
+            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="flex items-center">
+              <Link
+                href="/analyses"
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  pathname.startsWith("/analyses") && !pathname.startsWith("/analyses/logs") && !pathname.startsWith("/analyses/methodology") && !pathname.startsWith("/analyses/data")
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                Analysis
+              </Link>
+              {/* Methodology / Parameters / Logs / Prompts, only while Analysis is the active tab */}
+              {!pathname.startsWith("/model") && !pathname.startsWith("/analyses/data") && (
+              )}
+              </div>
+              <Link
+                href="/model"
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  pathname.startsWith("/model")
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                ML Models
+              </Link>
+              <Link
+                href="/analyses/data"
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  pathname.startsWith("/analyses/data")
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                Data
+              </Link>
+            </div>
+              {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
+            </div>
+          ) : substrateTabId ? (
+            <div className="flex items-center gap-1">
+              <Link
+                href={`/substrates/${substrateTabId}/tea`}
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  pathname.endsWith("/tea")
+                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                Preliminary TEA
+              </Link>
+              <Link
+                href={`/substrates/${substrateTabId}/lca`}
+                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
+                  pathname.endsWith("/lca")
+                    ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                LCA
+              </Link>
+            </div>
+          ) : pathname.startsWith("/system-design") ? (
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
+              {pathname === "/system-design" ? (
+                <>
+                  {/* Flowsheet title + current sheet name */}
+                  <div className="flex flex-col justify-center min-w-0 shrink-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 leading-none">Flowsheet</span>
+                    <div id="sd-name-slot" className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate max-w-[200px] leading-tight mt-0.5" />
+                  </div>
+                  <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
+                  <div id="sd-toolbar-slot" className="contents" />
+                </>
+              ) : (
+                <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">{pageTitleFromPath(pathname)}</h1>
+              )}
+            </div>
           ) : pathname.startsWith("/tasks") ? (
             <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Tasks</h1>
+          ) : pathname.startsWith("/literature") ? (
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {([
+                { key: "library",      label: "Library" },
+                { key: "queue",        label: "Review Queue" },
+                { key: "model-inputs", label: "Model Inputs" },
+                { key: "agents",       label: "Agents" },
+                { key: "methodology",  label: "Methodology" },
+              ] as const).map(t => {
+                const activeTab = searchParams.get("tab") ?? "library";
+                const isActive = activeTab === t.key ||
+                  (t.key === "model-inputs" && ["substrates", "training", "reference"].includes(activeTab)) ||
+                  (t.key === "queue" && activeTab === "history");
+                return (
+                  <Link key={t.key} href={`/literature?tab=${t.key}`}
+                    className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors whitespace-nowrap ${
+                      isActive
+                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    }`}
+                  >{t.label}</Link>
+                );
+              })}
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
-              {currentModuleKey && <ModuleTourInfoButton moduleKey={currentModuleKey} onClick={() => setTourOpen(true)} />}
               {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
             </div>
           )}
           {/* Right side */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {pathname.startsWith("/literature") && (() => {
+              const activeTab = searchParams.get("tab") ?? "library";
+              return activeTab === "library" && (
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent("literature:add-paper"))}
+                  className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  Add Paper
+                </button>
+              );
+            })()}
             {pathname.startsWith("/projects") && !pathname.startsWith("/projects/advisors") && (
               <Link
-                href={`/projects?${[projectTab !== "all" ? `tab=${projectTab}` : "", "create=1"].filter(Boolean).join("&")}`}
+                href={`/projects?tab=${projectTab}&create=1`}
                 className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
               >
                 <span className="text-base leading-none">+</span> New Project
@@ -1571,22 +1901,15 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             <RolesPanel />
             <TeamPanel />
             <TimeTrackingPanel />
-            <TasksPanel />
             <NotificationsInbox />
           </div>
         </header>
-        <main id="main-content" tabIndex={-1} className={`flex-1 bg-gray-50 dark:bg-gray-950 focus:outline-none ${pathname.startsWith("/notebook") || pathname.startsWith("/calendar") ? "overflow-hidden" : "overflow-auto p-6 pb-48"}`} suppressHydrationWarning>{children}</main>
+        {viewingAs && <PreviewBanner who={previewOf} />}
+        <main key={pathname} id="main-content" tabIndex={-1} className={`flex-1 min-h-0 bg-[var(--color-paper)] focus:outline-none ${pathname.startsWith("/literature") || pathname.startsWith("/notebook") || pathname.startsWith("/crm") || pathname.startsWith("/marketing") || pathname.startsWith("/funding") || pathname === "/system-design" ? "overflow-hidden" : "overflow-auto p-6 pb-48"}`} suppressHydrationWarning>{children}</main>
       </div>
-      <NotebookPanel />
+      <AssignmentToasts />
       {can("manage_users") && <DevAgentPanel />}
       <DevTerminal />
-      {currentModuleKey && (
-        <ModuleTour
-          moduleKey={currentModuleKey}
-          forceOpen={tourOpen}
-          onClose={() => setTourOpen(false)}
-        />
-      )}
     </div>
   );
 }

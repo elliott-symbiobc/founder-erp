@@ -146,7 +146,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         ],
         "tools": [],
         "default_system_prompt": (
-            "You are an executive assistant for Collective ERP, a biotech startup. "
+            "You are an executive assistant for Open ERP, a biotech startup. "
             "You have real-time access to ALL business data across every module "
             "and help the founder prioritize and manage their day.\n\n"
             "TODAY: {today}\n\n"
@@ -257,29 +257,119 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "- urgency: 'high' (do today), 'medium' (this week), 'low' (someday)"
         ),
     },
-    "queue_extract": {
-        "display_name": "Literature Queue Extractor",
-        "description": "Extracts fermentation yield/condition data from academic papers",
+    "lit_search": {
+        "display_name": "Literature Search & Acquisition",
+        "description": "Weekly sweep: searches PubMed, OpenAlex, CORE, Semantic Scholar, Springer concurrently, scores abstracts, fetches full text, stages extractions. No LLM — search pipeline only.",
         "module": "Literature",
         "pages": ["/literature"],
-        "file": "routers/queue.py",
+        "file": "agents/literature_agent.py → run_weekly_sweep",
+        "model": "n/a",
+        "max_tokens": 0,
+        "temperature": None,
+        "top_p": None,
+        "top_k": None,
+        "wired": True,
+        "context_sources": [
+            "QUERIES and TARGETED_QUERIES — ~50 hardcoded search strings",
+            "PubMed (NCBI E-utilities)",
+            "OpenAlex (open access metadata)",
+            "CORE (full-text open access)",
+            "Semantic Scholar (S2_API_KEY)",
+            "Springer (SPRINGER_API_KEY)",
+            "Unpaywall (PDF URL resolution)",
+        ],
+        "tools": ["pubmed", "openalex", "core", "semantic_scholar", "springer", "unpaywall"],
+        "default_system_prompt": (
+            "# Custom queries — one per line, replaces the built-in QUERIES+TARGETED_QUERIES list\n"
+            "# Leave blank to use built-in queries\n"
+            "# Example:\n"
+            "# Aspergillus tannase solid state fermentation production\n"
+            "# Aspergillus oryzae SSF wheat bran enzyme titer\n"
+        ),
+    },
+    "lit_assumptions": {
+        "display_name": "Literature Assumptions Extractor",
+        "description": "Searches PubMed, Europe PMC, and OpenAlex then uses Claude to extract titer/yield data for TEA modeling assumptions",
+        "module": "Literature",
+        "pages": ["/literature", "/analyses"],
+        "file": "worker.py → run_literature_assumptions_task",
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 500,
+        "temperature": None,
+        "top_p": None,
+        "top_k": None,
+        "wired": True,
+        "context_sources": [
+            "Target compound name",
+            "PubMed abstracts (up to 10, 600 chars each)",
+            "Europe PMC abstracts",
+            "OpenAlex abstracts",
+        ],
+        "tools": [],
+        "default_system_prompt": (
+            "You are a bioprocess engineer extracting fermentation performance data for TEA modeling.\n\n"
+            "Target compound: {output_name}\n\n"
+            "Literature sources found:\n{context}\n\n"
+            "Extract: titer_g_l, yield_g_g, sub_cost_per_ton, fermentation_mode, organism, "
+            "citations, confidence (high/medium/low), evidence_quotes.\n"
+            "Return ONLY valid JSON."
+        ),
+    },
+    "lit_composition": {
+        "display_name": "Composition from Papers",
+        "description": "Extracts substrate biochemical composition values from platform literature papers",
+        "module": "Literature",
+        "pages": ["/literature", "/analyses"],
+        "file": "agents/composition_agent.py → _extract_composition_from_papers",
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 4000,
+        "temperature": None,
+        "top_p": None,
+        "top_k": None,
+        "wired": True,
+        "context_sources": [
+            "Substrate name",
+            "Platform papers — full text (up to 50k chars) or abstract (up to 4k chars)",
+            "Composition field ontology (label, unit per field)",
+        ],
+        "tools": [],
+        "default_system_prompt": (
+            "Extract biochemical composition values for substrate '{substrate_name}' "
+            "from the literature below.\n\n"
+            "Target fields:\n{field_ref}\n\n"
+            "Papers:\n{combined_text}\n\n"
+            "Return ONLY a JSON object mapping field keys to numeric values with units."
+        ),
+    },
+    "queue_extract": {
+        "display_name": "Medium Protocol Generator",
+        "description": "Generates step-by-step medium preparation protocols from extracted medium composition data when a queue item is approved",
+        "module": "Literature",
+        "pages": ["/literature", "/queue"],
+        "file": "routers/queue.py → _generate_medium_protocol",
         "model": "claude-sonnet-4-20250514",
         "max_tokens": 2000,
         "temperature": None,
         "top_p": None,
         "top_k": None,
-        "wired": False,
+        "wired": True,
         "context_sources": [
-            "Paper full text (title, authors, DOI, journal, year)",
-            "Extraction schema from staging_queue (organism, substrate, yield targets)",
+            "Queue item: substrate name, strain name, enzyme class",
+            "Extracted medium composition and component list from paper",
+            "Paper DOI (for citation in protocol steps)",
         ],
         "tools": [],
         "default_system_prompt": (
-            "Extract structured fermentation data from the scientific paper below.\n\n"
-            "Paper: {title} ({year}) — {journal}\n"
-            "Full text:\n{full_text}\n\n"
-            "Extract all fermentation runs: organism, substrate, yield, titer, "
-            "productivity, conditions (pH, temp, DO). Return structured JSON array."
+            "Convert medium preparation information from a scientific paper into a clear, "
+            "step-by-step laboratory protocol.\n\n"
+            "Medium name: {substrate_name}\n"
+            "Raw composition from paper: {medium_comp}\n"
+            "Components: {medium_components}\n"
+            "Organism: {strain_name}\n"
+            "Target enzyme: {enzyme_class}\n\n"
+            "Return JSON with: title, materials (item/quantity_100ml/quantity_1L), equipment, "
+            "steps (step_number/instruction/critical_point), sterilization, storage, "
+            "quality_checks, safety_notes, source_citation."
         ),
     },
     "notebook_format": {
@@ -375,29 +465,31 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         ),
     },
     "paper_summary": {
-        "display_name": "Paper Summarizer",
-        "description": "Summarizes academic papers for the precision fermentation R&D database",
+        "display_name": "Structured Summary",
+        "description": "Generates 8-field structured scientific summary (one_sentence_summary, journal_credibility, authors, methodology, analytical_methods, hypothesis, results, discussion) stored as JSONB",
         "module": "Literature",
         "pages": ["/literature"],
         "file": "agents/paper_summary_agent.py",
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 1024,
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 8192,
         "temperature": None,
         "top_p": None,
         "top_k": None,
-        "wired": False,
+        "wired": True,
         "context_sources": [
-            "Paper full text",
-            "Paper metadata (title, authors, journal, year, DOI)",
+            "Paper title and abstract",
+            "Paper full text (up to 100,000 chars)",
         ],
         "tools": [],
         "default_system_prompt": (
-            "Summarize this precision fermentation research paper for a biotech R&D database.\n\n"
-            "Paper: {title} ({year})\n"
-            "Authors: {authors}\n\n"
-            "Full text:\n{full_text}\n\n"
-            "Return JSON with: paper_summary (2-3 paragraphs), key_findings (bullet list), "
-            "research_gaps (what is still unknown or unstudied)."
+            "You are a scientific paper analyst for a precision fermentation R&D platform.\n"
+            "Your audience: bioprocess engineers and computational biologists.\n\n"
+            "Given a paper title, abstract, and full text, return a JSON object with EXACTLY these 8 fields.\n"
+            "Extract only what is stated in the provided text. Return ONLY valid JSON — no prose, no code fences.\n\n"
+            "Fields: one_sentence_summary, journal_credibility, authors_institutions (array), "
+            "research_methodology (object: study_type, organism_system, substrate_feedstock, scale_vessel, "
+            "replicates, controls, statistics), analytical_methods (array), hypothesis, "
+            "results (array: group, metric, value, p_value), discussion."
         ),
     },
     "sop_generator": {
@@ -441,7 +533,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "temperature": None,
         "top_p": None,
         "top_k": None,
-        "wired": False,
+        "wired": True,
         "context_sources": [
             "Paper full text",
             "Paper metadata (title, authors, DOI)",
@@ -562,7 +654,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "context_sources": ["Opportunity title, notes, source link, current stage, tags, amount"],
         "tools": [],
         "default_system_prompt": (
-            "You are a funding opportunity analyst for an early-stage biotech/foodtech startup (Symbio). "
+            "You are a funding opportunity analyst for an early-stage biotech/foodtech startup (Open ERP). "
             "Given a funding opportunity, enrich it with relevant details from your knowledge.\n\n"
             "Return ONLY valid JSON with these fields (null for unknown):\n"
             "{\n"
@@ -576,10 +668,60 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "funding_type: e.g. 'SBIR', 'Accelerator', 'Grant', 'Angel', 'VC', 'Competition'\n"
             "amount: typical award amount as string e.g. '$50,000' or '$50K–$250K'\n"
             "tags: relevant tags for the opportunity (max 5)\n"
-            "notes: 2-4 sentences with key eligibility, requirements, focus areas, and strategic fit for Symbio\n"
+            "notes: 2-4 sentences with key eligibility, requirements, focus areas, and strategic fit for Open ERP\n"
             "decision_date: typical announcement or decision timeline if known\n"
             "enrichment_summary: one sentence describing what was found\n\n"
             "Only include fields you're reasonably confident about. Keep notes concise and actionable."
+        ),
+    },
+    "dilutive_enrich": {
+        "display_name": "Investor Enricher",
+        "description": "Enriches dilutive investor records — fills firm/fund details, focus, stage, check sizes, and links",
+        "module": "Funding",
+        "pages": ["/funding"],
+        "file": "routers/dilutive.py",
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 1024,
+        "temperature": None,
+        "top_p": None,
+        "top_k": None,
+        "wired": True,
+        "context_sources": ["Investor name, firm, role, current focus/stage/HQ, links"],
+        "tools": [],
+        "default_system_prompt": (
+            "You are a venture-capital analyst helping an early-stage biotech/foodtech startup (Open ERP) "
+            "research prospective investors. Given an investor or firm, enrich the record with what you know.\n\n"
+            "Return ONLY valid JSON with these fields (null for unknown):\n"
+            "{\n"
+            "  \"firm_type\": string,\n"
+            "  \"hq\": string,\n"
+            "  \"geo_focus\": string,\n"
+            "  \"investment_stage\": string,\n"
+            "  \"focus\": string,\n"
+            "  \"fund_size\": string,\n"
+            "  \"fund_launch_year\": string,\n"
+            "  \"website\": string,\n"
+            "  \"linkedin\": string,\n"
+            "  \"portfolio_url\": string,\n"
+            "  \"partners\": string,\n"
+            "  \"check_size_min\": string,\n"
+            "  \"check_size_max\": string,\n"
+            "  \"description\": string,\n"
+            "  \"tags\": [string],\n"
+            "  \"enrichment_summary\": string\n"
+            "}\n\n"
+            "firm_type: e.g. 'VC', 'Angel', 'Family Office', 'Corporate VC', 'Accelerator'\n"
+            "hq: city, country of headquarters\n"
+            "geo_focus: regions where they invest, e.g. 'US, Europe'\n"
+            "investment_stage: e.g. 'Pre-seed', 'Seed', 'Series A', 'Seed–Series B'\n"
+            "focus: thesis / sectors, e.g. 'Synthetic biology, foodtech, climate'\n"
+            "fund_size: total fund size as string, e.g. '$200M'\n"
+            "check_size_min / check_size_max: typical check range, e.g. '$250K' / '$2M'\n"
+            "partners: notable partners (comma-separated)\n"
+            "description: 2-3 sentences on the firm and its fit for Open ERP\n"
+            "tags: relevant tags (max 5)\n"
+            "enrichment_summary: one sentence describing what was found\n\n"
+            "Only include fields you're reasonably confident about. Do not invent URLs — leave links null if unsure."
         ),
     },
 }

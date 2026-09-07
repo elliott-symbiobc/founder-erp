@@ -319,7 +319,7 @@ def _get_advisor_google_token(user_id: str) -> str:
     return row["access_token"]
 
 
-BASE_URL = os.environ.get("NEXTAUTH_URL", "https://platform.collectiveerp.io")
+BASE_URL = os.environ.get("NEXTAUTH_URL", "https://erp.example.com")
 
 # 1x1 transparent GIF
 _PIXEL_GIF = base64.b64decode(
@@ -550,3 +550,5 @@ def delete_advisor(advisor_id: str):
             conn.commit()
     finally:
         conn.close()
+
+

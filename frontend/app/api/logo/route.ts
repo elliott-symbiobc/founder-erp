@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetch(`${API_URL}/settings/logo`, {
     method: "POST",
-    headers: { "X-User-Id": u.id ?? "" },
+    headers: { "X-User-Id": u.id ?? "", ...(process.env.INTERNAL_API_SECRET ? { "X-Internal-Secret": process.env.INTERNAL_API_SECRET } : {}) },
     body: formData,
   });
 
@@ -68,7 +68,7 @@ export async function DELETE(req: NextRequest) {
 
   const upstream = await fetch(`${API_URL}/settings/logo`, {
     method: "DELETE",
-    headers: { "X-User-Id": u.id ?? "" },
+    headers: { "X-User-Id": u.id ?? "", ...(process.env.INTERNAL_API_SECRET ? { "X-Internal-Secret": process.env.INTERNAL_API_SECRET } : {}) },
   });
 
   const data = await upstream.json().catch(() => ({}));

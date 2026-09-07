@@ -13,6 +13,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface AgentConfig {
@@ -445,11 +446,11 @@ export default function ExtractionDevPanel({ paperId, paperTitle, open, onClose 
               <>
                 <div className="flex items-center gap-2 flex-wrap shrink-0">
                   {cfg.override_active ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900 text-amber-300 font-mono font-semibold">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-900 text-amber-300 font-mono font-semibold">
                       ● OVERRIDE ACTIVE
                     </span>
                   ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 font-mono">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
                       BASE PROMPT (no override)
                     </span>
                   )}
@@ -467,7 +468,8 @@ export default function ExtractionDevPanel({ paperId, paperTitle, open, onClose 
                   can be restored with Reset.
                 </p>
 
-                <textarea
+                <AutoTextarea
+                  autoGrow={false}  /* prompt editor, flex-1 min-h-[300px] */
                   value={promptEdit}
                   onChange={(e) => {
                     setPromptEdit(e.target.value);

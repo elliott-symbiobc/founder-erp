@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy — Symbio" };
+export const metadata = { title: "Privacy Policy — Open ERP" };
 
 export default function PrivacyPage() {
   return (
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
             ← Back to Sign In
           </Link>
           <div className="mt-6 mb-2">
-            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Symbio</span>
+            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Open ERP</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Privacy Policy</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Last updated: April 8, 2026</p>
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">1. Introduction</h2>
-            <p>Collective ERP LLC (&ldquo;Symbio,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Symbio Computational Biology Platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
+            <p>Open ERP Bioculinary LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Open ERP Computational Biology Platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
           </section>
 
           <section>
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">4. Data Retention</h2>
-            <p>We retain your information for as long as your account is active or as needed to provide the Platform&rsquo;s services. Research data, financial models, and operational records are retained in accordance with Symbio&rsquo;s internal data governance policies. You may request deletion of your account and associated personal data by contacting us at <a href="mailto:privacy@collectiveerp.io" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@collectiveerp.io</a>. Note that certain data may be retained where required by law or legitimate business necessity.</p>
+            <p>We retain your information for as long as your account is active or as needed to provide the Platform&rsquo;s services. Research data, financial models, and operational records are retained in accordance with Open ERP&rsquo;s internal data governance policies. You may request deletion of your account and associated personal data by contacting us at <a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a>. Note that certain data may be retained where required by law or legitimate business necessity.</p>
           </section>
 
           <section>
@@ -75,7 +75,7 @@ export default function PrivacyPage() {
               <li><span className="font-medium">Service providers:</span> To trusted vendors who assist us in operating the Platform (e.g., cloud hosting, AI services), under confidentiality obligations;</li>
               <li><span className="font-medium">Legal requirements:</span> When required by law, court order, or government authority;</li>
               <li><span className="font-medium">Business transfers:</span> In connection with a merger, acquisition, or sale of assets, with appropriate confidentiality protections;</li>
-              <li><span className="font-medium">Protection of rights:</span> To protect the rights, safety, or property of Symbio, its users, or others.</li>
+              <li><span className="font-medium">Protection of rights:</span> To protect the rights, safety, or property of Open ERP, its users, or others.</li>
             </ul>
           </section>
 
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
               <li>Object to or restrict certain processing activities;</li>
               <li>Data portability where technically feasible.</li>
             </ul>
-            <p className="mt-2">To exercise any of these rights, contact us at <a href="mailto:privacy@collectiveerp.io" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@collectiveerp.io</a>. We will respond within 30 days.</p>
+            <p className="mt-2">To exercise any of these rights, contact us at <a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a>. We will respond within 30 days.</p>
           </section>
 
           <section>
@@ -116,14 +116,14 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">12. Contact Us</h2>
             <p>For questions, concerns, or requests related to this Privacy Policy, please contact:</p>
             <div className="mt-2 text-sm">
-              <p className="font-medium text-gray-800 dark:text-gray-200">Collective ERP LLC</p>
-              <p><a href="mailto:privacy@collectiveerp.io" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@collectiveerp.io</a></p>
+              <p className="font-medium text-gray-800 dark:text-gray-200">Open ERP Bioculinary LLC</p>
+              <p><a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a></p>
             </div>
           </section>
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} Collective ERP LLC. All rights reserved. &nbsp;·&nbsp;
+          &copy; {new Date().getFullYear()} Open ERP Bioculinary LLC. All rights reserved. &nbsp;·&nbsp;
           <Link href="/eula" className="hover:underline">EULA</Link>
         </p>
       </div>

@@ -213,6 +213,112 @@ function GoogleCard({ flash }: { flash?: string }) {
 
 // ── Plaid card ─────────────────────────────────────────────────────────────────
 
+
+function StripeCard() {
+  const [status, setStatus] = useState<any>(null);
+  const [key, setKey] = useState("");
+  const [whsec, setWhsec] = useState("");
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    const r = await fetch("/api/proxy/stripe/status", { cache: "no-store" });
+    if (r.ok) setStatus(await r.json());
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const post = async (path: string, body: any, what: string) => {
+    setBusy(what); setMsg("");
+    try {
+      const r = await fetch(`/api/proxy/stripe/${path}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.detail ?? `failed (${r.status})`);
+      setMsg(d.account_name ? `Connected to ${d.account_name}.` : "Saved.");
+      setKey(""); setWhsec("");
+      await load();
+    } catch (e: any) { setMsg(String(e?.message ?? e)); }
+    finally { setBusy(""); }
+  };
+
+  const disconnect = async () => {
+    if (!confirm("Forget the stored Stripe key? Invoices already sent stay in Stripe.")) return;
+    setBusy("disconnect");
+    await fetch("/api/proxy/stripe/connect", { method: "DELETE" });
+    setMsg("Disconnected."); setBusy(""); load();
+  };
+
+  const connected = Boolean(status?.connected);
+  const input = "w-full text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 " +
+                "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-mono " +
+                "focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+      <SectionHeader title="Stripe"
+        description="Delivery and collection for invoices. The platform stays the system of record; Stripe emails a payable invoice and reports payment back." />
+
+      <div className="flex items-center gap-2 mb-3">
+        <StatusDot connected={connected} />
+        <span className="text-xs text-gray-600 dark:text-gray-300">
+          {connected
+            ? `${status.account_name ?? status.account_id ?? "Connected"}${status.livemode ? " · live" : " · test mode"}`
+            : "Not connected"}
+        </span>
+        {connected && status.fingerprint && (
+          // The key itself is never returned; this is how you tell which one
+          // is stored without the server ever handing it back.
+          <span className="text-[10px] text-gray-400 font-mono">key …{status.fingerprint}</span>
+        )}
+        {connected && (
+          <ActionButton onClick={disconnect} disabled={busy === "disconnect"} variant="danger">
+            Disconnect
+          </ActionButton>
+        )}
+      </div>
+
+      {!connected && (
+        <div className="flex gap-2">
+          <input value={key} onChange={(e) => setKey(e.target.value)}
+                 placeholder="sk_live_… or sk_test_…" className={input} />
+          <ActionButton onClick={() => post("connect", { secret_key: key }, "connect")}
+                        disabled={!key.trim() || busy === "connect"} variant="primary">
+            {busy === "connect" ? "Checking…" : "Connect"}
+          </ActionButton>
+        </div>
+      )}
+
+      {connected && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <StatusDot connected={Boolean(status.webhook_configured)} />
+            <span className="text-xs text-gray-600 dark:text-gray-300">
+              {status.webhook_configured
+                ? "Webhook signing secret stored"
+                : "No webhook secret — payments will not come back on their own"}
+            </span>
+          </div>
+          <p className="text-[10px] text-gray-400 font-mono break-all">
+            Point the Stripe webhook at {status.webhook_url}
+          </p>
+          <div className="flex gap-2">
+            <input value={whsec} onChange={(e) => setWhsec(e.target.value)}
+                   placeholder="whsec_…" className={input} />
+            <ActionButton onClick={() => post("webhook-secret", { webhook_secret: whsec }, "whsec")}
+                          disabled={!whsec.trim() || busy === "whsec"}>
+              {busy === "whsec" ? "Saving…" : "Save secret"}
+            </ActionButton>
+          </div>
+        </div>
+      )}
+
+      {msg && <p className="mt-3 text-xs text-gray-500">{msg}</p>}
+    </div>
+  );
+}
+
 function PlaidCard() {
   const [status, setStatus] = useState<PlaidStatus | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
@@ -905,6 +1011,7 @@ function SettingsInner() {
             description="Shared connections used by the entire platform. Admin only."
           />
           <div className="space-y-3">
+            <StripeCard />
             <PlaidCard />
             <QuickBooksCard flash={qboConnected ? "QuickBooks connected successfully." : undefined} />
           </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface PortalInfo {
@@ -544,7 +545,7 @@ export default function PortalManagePage() {
                   <p className="text-xs text-gray-400">Loading…</p>
                 ) : (
                   <>
-                    <textarea
+                    <AutoTextarea
                       rows={4}
                       placeholder="Add a description shown to visitors on the portal overview page…"
                       value={descDraft}
@@ -592,7 +593,7 @@ export default function PortalManagePage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-600 dark:text-gray-300">Shared password</span>
                         {content?.has_portal_password && !showPasswordForm && (
-                          <span className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">Set</span>
+                          <span className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded font-medium">Set</span>
                         )}
                         {passwordSaved && <span className="text-[10px] text-green-600">Saved!</span>}
                       </div>
@@ -675,7 +676,7 @@ export default function PortalManagePage() {
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{v.name}</p>
                                 {!v.is_active && (
-                                  <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full">Disabled</span>
+                                  <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">Disabled</span>
                                 )}
                               </div>
                               <p className="text-[11px] text-gray-400">
@@ -811,7 +812,7 @@ export default function PortalManagePage() {
                   <form onSubmit={postUpdate} className="border border-blue-100 dark:border-blue-900/30 rounded-lg px-3 py-2.5 space-y-1.5 bg-blue-50/30 dark:bg-blue-950/10">
                     <input type="text" placeholder="Update title *" value={uTitle} onChange={e => setUTitle(e.target.value)} required autoFocus
                       className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    <textarea placeholder="Details (optional)…" value={uBody} onChange={e => setUBody(e.target.value)} rows={3}
+                    <AutoTextarea placeholder="Details (optional)…" value={uBody} onChange={e => setUBody(e.target.value)} rows={3}
                       className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none" />
                     <div className="flex gap-2">
                       <button type="submit" disabled={uSaving || !uTitle.trim()} className="text-xs px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 font-medium">

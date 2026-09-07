@@ -1,0 +1,2276 @@
+{
+ "generated_at": "2026-09-01T22:50:59+00:00",
+ "head": "d3e7f70",
+ "entries": [
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/ers.py"
+   ],
+   "tested": "answers",
+   "commit": "d3e7f70",
+   "full": "d3e7f70a045e9e748c2a27551ab9ee6a848bb7e0",
+   "date": "2026-09-01",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: add USDA ERS sweetener price adapter",
+   "version": "0.49.0",
+   "computed_version": "0.49.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.ers.ERSPrice",
+    "added: resolve.ers.LB_KG",
+    "added: resolve.ers.SHORT_TON_KG",
+    "added: resolve.ers.STALE_MONTHS",
+    "added: resolve.ers.TABLE_CACHE",
+    "added: resolve.ers.TABLE_URL"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/edit.py"
+   ],
+   "tested": "answers",
+   "commit": "8d86d79",
+   "full": "8d86d795d65da522256af045589a6a719a02b023",
+   "date": "2026-08-24",
+   "author": "Open ERP Dev",
+   "subject": "Sidestream API: run a notebook from the platform, and edit a cell's parameters",
+   "version": "0.48.0",
+   "computed_version": "0.48.0",
+   "level": "minor",
+   "reasons": [
+    "added: notebook.edit.INPUTS_CELL_ID",
+    "added: notebook.edit.cell_id",
+    "added: notebook.edit.find_cell",
+    "added: notebook.edit.outputs_of",
+    "added: notebook.edit.read_inputs",
+    "added: notebook.edit.render_inputs"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_fill.py",
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "2e9cd3b",
+   "full": "2e9cd3b5ac665d5a800a78220044c5da27018487",
+   "date": "2026-08-21",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: choose which sections the document carries; show every route",
+   "version": "0.47.0",
+   "computed_version": "0.47.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.docx_fill.drop_sections"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_out.py"
+   ],
+   "tested": "answers",
+   "commit": "b814949",
+   "full": "b8149496d3b769274e178062683d3dc560aa512b",
+   "date": "2026-08-21",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: the About Open ERP paragraph, as the company writes it",
+   "version": "0.46.0",
+   "computed_version": "0.46.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_fill.py",
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "77ae47b",
+   "full": "77ae47b73755f12afeb4958bd9063cf5342c9956",
+   "date": "2026-08-21",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: fill the stream profile and the value band; one document, not two",
+   "version": "0.46.0",
+   "computed_version": "0.46.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.docx_out.ABOUT_ORG"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/runstore.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/botanical.py",
+    "api/app/vendor_sidestream/resolve/citations.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py",
+    "api/app/vendor_sidestream/resolve/financial.py",
+    "api/app/vendor_sidestream/resolve/membership.py",
+    "api/app/vendor_sidestream/resolve/namecache.py",
+    "api/app/vendor_sidestream/resolve/outputs.py",
+    "api/app/vendor_sidestream/resolve/streamname.py"
+   ],
+   "tested": "answers",
+   "commit": "1527431",
+   "full": "15274313837da5d749c423d5d378f976750ac5f5",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: name run files by the section that writes them",
+   "version": "0.45.0",
+   "computed_version": "0.45.0",
+   "level": "minor",
+   "reasons": [
+    "added: runfiles.LEGACY",
+    "added: runfiles.NAMES",
+    "added: runfiles.migrate",
+    "added: runfiles.name",
+    "added: runfiles.path",
+    "added: runfiles.write_path"
+   ],
+   "files_changed": 13,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/build/draft.py",
+    "api/app/vendor_sidestream/build/prose.py",
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "4f8ba75",
+   "full": "4f8ba75ce10609b0b7daae16569f7aac31f747e5",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: the narrative sections can be written, behind DRAFT",
+   "version": "0.44.0",
+   "computed_version": "0.44.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.draft.api_completer"
+   ],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/build/prose.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py"
+   ],
+   "tested": "answers",
+   "commit": "92935aa",
+   "full": "92935aa225c7e161867ebb69f8c33e63f00f5e25",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: four wrong statements in the client document",
+   "version": "0.43.0",
+   "computed_version": "0.43.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "3841dcc",
+   "full": "3841dccc4496215f9b66b8de85c310ad57eae8b7",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: fill the house config, which is where placeholders come from",
+   "version": "0.43.0",
+   "computed_version": "0.43.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_fill.py",
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "c38bb1c",
+   "full": "c38bb1c525343b1572ac799d53a86bb3640803e2",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: fill the document tables, which the filler never reached",
+   "version": "0.43.0",
+   "computed_version": "0.43.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.docx_fill.fill_data_tables",
+    "added: build.docx_fill.fill_table",
+    "added: build.docx_out.data_tables"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/registers.py"
+   ],
+   "tested": "answers",
+   "commit": "80c79d0",
+   "full": "80c79d024593f0ad9955dadda290832c968568b7",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: price anchors were deduped with the extraction key",
+   "version": "0.42.0",
+   "computed_version": "0.42.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "b996a1b",
+   "full": "b996a1b5fc1bdaff647831fa060f7ecc98213f15",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: stop cutting customs descriptions, and bind today before use",
+   "version": "0.42.0",
+   "computed_version": "0.42.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/prose.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "977d8b1",
+   "full": "977d8b18c56a2603c951c3ff86c3810bee89fa4b",
+   "date": "2026-08-20",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: basket search reached the wrong acids; fix limit, tiebreak, display",
+   "version": "0.42.0",
+   "computed_version": "0.42.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "21535fd",
+   "full": "21535fd134e66dde1dd52b3fe86f9a176d8927b3",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.7 lists the families the schedule actually uses",
+   "version": "0.42.0",
+   "computed_version": "0.42.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.comtrade.families",
+    "added: resolve.comtrade.suggest_families"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "51565ec",
+   "full": "51565ecbef9fdeea9cfabcb3aa4ca8ec52365cbd",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: render the price basis, and collapse the provisional route list",
+   "version": "0.41.0",
+   "computed_version": "0.41.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "31dd1ec",
+   "full": "31dd1ec0012e247a6ddbd5aebecbbf5fcb8443fa",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: revert concurrent Comtrade lookups, flag fallback recommendations",
+   "version": "0.41.0",
+   "computed_version": "0.41.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "1ae137f",
+   "full": "1ae137f93638d93d2c43be624eed95f833d14961",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: a Comtrade timeout no longer kills the pricing cell",
+   "version": "0.41.0",
+   "computed_version": "0.41.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.comtrade.fetch_anchors"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "4ce2484",
+   "full": "4ce24845684280c5278f5048ade923b6b7382732",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.7 recommends a basket and says why",
+   "version": "0.40.0",
+   "computed_version": "0.40.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.comtrade.rank_baskets"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "2c83100",
+   "full": "2c8310007a3abc0da54afe39e7d0762a8d8aa078",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.7 lists candidate baskets and picks none",
+   "version": "0.39.0",
+   "computed_version": "0.39.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "2458ade",
+   "full": "2458ade83cebbef461662b48413300dff883a333",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.7 suggests baskets from a named chemical family",
+   "version": "0.39.0",
+   "computed_version": "0.39.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.comtrade.baskets"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/document.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/schema.py"
+   ],
+   "tested": "answers",
+   "commit": "1192ab6",
+   "full": "1192ab693b2f1f1084341c0c6f0ec8867e846c09",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.7 unblocks a run on basket prices, and notates them everywhere",
+   "version": "0.38.0",
+   "computed_version": "0.38.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "a5d3452",
+   "full": "a5d3452966d3ee1c7b5d668acbbfc7123d97a286",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.6 stops claiming a compound has no heading",
+   "version": "0.38.0",
+   "computed_version": "0.38.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/membership.py"
+   ],
+   "tested": "answers",
+   "commit": "e854619",
+   "full": "e8546198e9c54ff0ad05c4c48a0e10df41379a0e",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: honest match labels and no duplicate members in 4.5",
+   "version": "0.38.0",
+   "computed_version": "0.38.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/membership.py"
+   ],
+   "tested": "answers",
+   "commit": "9344d55",
+   "full": "9344d55b7971a8460f621ba669c7b4f614cb912c",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.5 proposes the split from ChEBI and the register",
+   "version": "0.38.0",
+   "computed_version": "0.38.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.membership.CACHE",
+    "added: resolve.membership.OLS",
+    "added: resolve.membership.ancestors",
+    "added: resolve.membership.propose"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/anchors.py",
+    "api/app/vendor_sidestream/resolve/eurostat.py"
+   ],
+   "tested": "answers",
+   "commit": "80d66da",
+   "full": "80d66da9095150eca913703506737802c1146aa0",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: price from two customs schedules, and read the spread",
+   "version": "0.37.0",
+   "computed_version": "0.37.0",
+   "level": "minor",
+   "reasons": [
+    "added: registers.anchors_path",
+    "added: registers.append_anchors",
+    "added: registers.read_anchors",
+    "added: resolve.anchors.Anchor",
+    "added: resolve.anchors.Summary",
+    "added: resolve.anchors.WIDE_SPREAD"
+   ],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "85aa683",
+   "full": "85aa6836893ca659a926c01840e942fc33eef5a4",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: refuse residual codes set by hand, and split mixed outputs",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "d75532b",
+   "full": "d75532b1b2cafe2f057a432d828d2faf6dc64f8e",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: document naming a class reference without its code",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "0d70381",
+   "full": "0d70381810beabbbeb861d78b6e1c79152b2503f",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 4.5 finds the HS code for a class reference",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/extract.py"
+   ],
+   "tested": "answers",
+   "commit": "ffde085",
+   "full": "ffde08597b99824806fee31f1e4a6acb65dda476",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: honour in_balance in closure, refuse change-percentages",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "9f8e7eb",
+   "full": "9f8e7eb128e070704986c762d78fdd721d460230",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: 1.5 shows the registers before you approve, and stops duplicating",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "3322c46",
+   "full": "3322c465852c7f9188daf68a4884a4054f4d66ce",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: notebook code comments say what the code does",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "7314637",
+   "full": "7314637dedcc78f457325873cbb02d02b647ddca",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: notebook prose says what each cell does",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/namesearch.py"
+   ],
+   "tested": "answers",
+   "commit": "fef4db4",
+   "full": "fef4db4e9410dd133242d36e2fa1441888fceaf6",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: parallelise name counts, narrate paper reads",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "403ea54",
+   "full": "403ea5447f47ddc157aabf16f541849a585859db",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: cards report how far a run got and what it produced, live",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "9e822b9",
+   "full": "9e822b90763a592e6906c2b588a974f00b903a25",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: fix the result card, and number repeated run names",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "e35883f",
+   "full": "e35883fd0aa57b2c8c08fae4dec935f1a2f5ed2b",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: reject aggregate HS headings, match sugars past stereo prefixes",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "df985c1",
+   "full": "df985c137251f5fb1ac025957d2bc8230d001052",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "sidestream: reject HS headings narrower than the term; make 1.4 legible",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/enzymes.py"
+   ],
+   "tested": "answers",
+   "commit": "3f0a9d5",
+   "full": "3f0a9d583cbe2fcfb690d445cab0615c541e67a9",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "enzymes: cache the whole dataclass, not a hand-written field list",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "a379bb2",
+   "full": "a379bb25769f78d85a3397956cd80e9682590572",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "notebooks: stamp the origin at provisioning, and backfill it on merge",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py"
+   ],
+   "tested": "answers",
+   "commit": "f34afea",
+   "full": "f34afeab6c925189baa9f9992186e832b4220c27",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "conversions: read the product out of the reaction where the nomenclature states it",
+   "version": "0.36.0",
+   "computed_version": "0.36.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.enzymes.sugar_from_reaction"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "c8ae618",
+   "full": "c8ae61815becbdc7d48681dc42c5e0fc464cf334",
+   "date": "2026-08-19",
+   "author": "Open ERP Dev",
+   "subject": "run cards: one card per run, and it opens",
+   "version": "0.35.0",
+   "computed_version": "0.35.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/botanical.py"
+   ],
+   "tested": "answers",
+   "commit": "4c1fd41",
+   "full": "4c1fd411744697b156a57e7ce261e03533d2512d",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "botanical: what a stream is, proposed from two ontologies and confirmed",
+   "version": "0.35.0",
+   "computed_version": "0.35.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.botanical.EUTILS",
+    "added: resolve.botanical.FIELDS",
+    "added: resolve.botanical.OLS",
+    "added: resolve.botanical.PART_WORDS",
+    "added: resolve.botanical.Part",
+    "added: resolve.botanical.Proposal"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "5c5fb02",
+   "full": "5c5fb02f05b88d72131df64ced92dfb19775a17e",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "notebook: headings and code text to ASD-STE100 as well",
+   "version": "0.34.0",
+   "computed_version": "0.34.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "77d4c6f",
+   "full": "77d4c6f170c7ae9bbb73bf21c6e4fd8d69e79962",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "notebook: all prose rewritten to ASD-STE100",
+   "version": "0.34.0",
+   "computed_version": "0.34.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py",
+    "api/app/vendor_sidestream/resolve/outputs.py"
+   ],
+   "tested": "answers",
+   "commit": "4e8d5f2",
+   "full": "4e8d5f2bf4deb8d1a300a98a45319c5ad795cee4",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "outputs: one table, two routes, and no catalog",
+   "version": "0.34.0",
+   "computed_version": "0.34.0",
+   "level": "minor",
+   "reasons": [
+    "removed: resolve.outputs.CATALOG_FIELDS",
+    "removed: resolve.outputs.RELATION_NONE",
+    "removed: resolve.outputs.RELATION_SUPPORTS",
+    "removed: resolve.outputs.catalog_path",
+    "removed: resolve.outputs.read_catalog",
+    "removed: resolve.outputs.write_catalog"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/bands.py",
+    "api/app/vendor_sidestream/analyse/closure.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/outputs.py"
+   ],
+   "tested": "answers",
+   "commit": "30aec79",
+   "full": "30aec79548f92e6911bad834ffc38fd752675a1c",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "composition: compounds are composition, not a register of their own",
+   "version": "0.33.0",
+   "computed_version": "0.33.0",
+   "level": "minor",
+   "reasons": [
+    "signature changed: resolve.outputs.propose_compounds (now requires composition_rows; no longer requires compound_rows)"
+   ],
+   "files_changed": 5,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/streamname.py"
+   ],
+   "tested": "answers",
+   "commit": "d3be721",
+   "full": "d3be7211a19a0e2439e8045b406c4834dd71c32b",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "aliases: publish them, and group the data tab by purpose",
+   "version": "0.32.0",
+   "computed_version": "0.32.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.streamname.read_alias_rows"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "8f693c2",
+   "full": "8f693c2b6f45e10ca0e5a2b044a91e20dadbecaa",
+   "date": "2026-08-18",
+   "author": "Open ERP Dev",
+   "subject": "auditability: see the registers, the strains and the API from the platform",
+   "version": "0.31.0",
+   "computed_version": "0.31.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py"
+   ],
+   "tested": "answers",
+   "commit": "84bd377",
+   "full": "84bd377ce4e6fb55b7e00bbc0b0c508779ae21e5",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "conversions: 4.2 matches enzymes to substrates instead of listing them",
+   "version": "0.31.0",
+   "computed_version": "0.31.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.enzymes.CHEBI_SEARCH",
+    "added: resolve.enzymes.Match",
+    "added: resolve.enzymes.TERM_FIELDS",
+    "added: resolve.enzymes.chebi_constituents",
+    "added: resolve.enzymes.match_substrates",
+    "added: resolve.enzymes.read_terms"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "a6cf0fe",
+   "full": "a6cf0febddd64ba1ea1477d4e343d5ca96bc6430",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "enzymes: archived strains were still supplying enzyme capability",
+   "version": "0.30.0",
+   "computed_version": "0.30.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py"
+   ],
+   "tested": "answers",
+   "commit": "6300be1",
+   "full": "6300be191e92e672f06f3344d350de2ee827f559",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "enzymes: every enzyme you could use, and which kind of \"could\"",
+   "version": "0.30.0",
+   "computed_version": "0.30.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "da950d0",
+   "full": "da950d03467d89b153eb72b1ce8920e56980daa2",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "conversions: pick the enzyme, do not type it",
+   "version": "0.30.0",
+   "computed_version": "0.30.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/enzymes.py",
+    "api/app/vendor_sidestream/resolve/outputs.py"
+   ],
+   "tested": "answers",
+   "commit": "c992274",
+   "full": "c99227476d1a5c3a1cd903a498d4c9732c0b0384",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "conversions: what the platform could make, not only what it can extract",
+   "version": "0.30.0",
+   "computed_version": "0.30.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.enzymes.APPROVED_FIELDS",
+    "added: resolve.enzymes.AVAILABLE_FIELDS",
+    "added: resolve.enzymes.COFACTORS",
+    "added: resolve.enzymes.Conversion",
+    "added: resolve.enzymes.ENZYME_CACHE",
+    "added: resolve.enzymes.ENZYME_DAT_URL"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/price_extract.py"
+   ],
+   "tested": "answers",
+   "commit": "63d53b4",
+   "full": "63d53b4849e9a5b2f5d2e969bfa5254953e9b30e",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "prices: a class floor must cite something, so price the class first",
+   "version": "0.29.0",
+   "computed_version": "0.29.0",
+   "level": "minor",
+   "reasons": [
+    "signature changed: resolve.price_extract.benchmark_row (now requires register_dir)",
+    "signature changed: resolve.price_extract.class_floor (now requires register_dir)"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/price_extract.py",
+    "api/app/vendor_sidestream/schema.py"
+   ],
+   "tested": "answers",
+   "commit": "fd7203b",
+   "full": "fd7203b18c1dceac43381df0bd52521b8093afd3",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "prices: a class floor when customs cannot see the output",
+   "version": "0.28.0",
+   "computed_version": "0.28.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.price_extract.benchmark_row",
+    "added: resolve.price_extract.class_floor",
+    "added: resolve.price_extract.classes"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "6cf378a",
+   "full": "6cf378aac9b36f0975749de46b7871b199a9df00",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "notebook: section 6 used a name section 5 does not bind",
+   "version": "0.27.0",
+   "computed_version": "0.27.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/comtrade.py"
+   ],
+   "tested": "answers",
+   "commit": "af706fb",
+   "full": "af706fb865444d45d2761ab866988ae7a7235353",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "prices: suggest the HS heading, and refuse a residual one",
+   "version": "0.27.0",
+   "computed_version": "0.27.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.comtrade.CLASSIFICATION_CACHE",
+    "added: resolve.comtrade.CLASSIFICATION_URL",
+    "added: resolve.comtrade.Heading",
+    "added: resolve.comtrade.classification",
+    "added: resolve.comtrade.classify_heading",
+    "added: resolve.comtrade.lookup"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "2ebadf3",
+   "full": "2ebadf3add0ec0627067b0fba167e3604ce16ad7",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "notebook: the market gate's verdicts collided with two other cells",
+   "version": "0.26.0",
+   "computed_version": "0.26.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/registers.py"
+   ],
+   "tested": "answers",
+   "commit": "ebded8a",
+   "full": "ebded8a42e742c34d4f02fa271434a5ef5df92e5",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "registers: read_compounds imports json",
+   "version": "0.26.0",
+   "computed_version": "0.26.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/coreoa.py",
+    "api/app/vendor_sidestream/resolve/namesearch.py"
+   ],
+   "tested": "answers",
+   "commit": "ccf9ddf",
+   "full": "ccf9ddf1b98289647bdf652430670165dbcc17f5",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "compounds: search for papers that report them, not only re-read old ones",
+   "version": "0.26.0",
+   "computed_version": "0.26.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.namesearch.COMPOUND_QUERY_TERMS",
+    "added: resolve.namesearch.compound_query",
+    "added: resolve.namesearch.compound_rows",
+    "added: resolve.namesearch.compounds_by_search"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "d27d621",
+   "full": "d27d621d7648945066cb46c1c7261c70373b84da",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "notebook: number the routes cell 5.1",
+   "version": "0.25.0",
+   "computed_version": "0.25.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/scale.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/resolve/compounds.py",
+    "api/app/vendor_sidestream/resolve/extract.py"
+   ],
+   "tested": "answers",
+   "commit": "7e52b01",
+   "full": "7e52b013872e964fa6b3936ec0ab674474c7e4df",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "scale and compounds: wire the two modules nothing called",
+   "version": "0.25.0",
+   "computed_version": "0.25.0",
+   "level": "minor",
+   "reasons": [
+    "added: analyse.scale.sweep",
+    "added: resolve.compounds.TO_PCT_DRY",
+    "added: resolve.compounds.VALID_UNITS",
+    "added: resolve.compounds.band_pct_dry",
+    "added: resolve.compounds.check_plausible",
+    "added: resolve.compounds.normalise_unit"
+   ],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/registers.py"
+   ],
+   "tested": "answers",
+   "commit": "a1a0bd8",
+   "full": "a1a0bd8b09e352e9f0f017a5bbc07247704a51e0",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "prices: read the register nothing was reading",
+   "version": "0.24.0",
+   "computed_version": "0.24.0",
+   "level": "minor",
+   "reasons": [
+    "added: registers.append_prices",
+    "added: registers.read_prices"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py",
+    ".../vendor_sidestream/notebook/patch_names_cell.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/extract.py",
+    "api/app/vendor_sidestream/resolve/namesearch.py",
+    "api/app/vendor_sidestream/resolve/outputs.py",
+    "api/app/vendor_sidestream/resolve/regulatory.py",
+    "api/app/vendor_sidestream/resolve/streamname.py"
+   ],
+   "tested": "answers",
+   "commit": "3576ea8",
+   "full": "3576ea83407bfc261e8a4eeeaf15be612caf566c",
+   "date": "2026-08-17",
+   "author": "Open ERP Dev",
+   "subject": "outputs: what a run can make, and whether anyone buys it",
+   "version": "0.23.0",
+   "computed_version": "0.23.0",
+   "level": "minor",
+   "reasons": [
+    "added: registers.append_compounds",
+    "added: registers.compound_record",
+    "added: registers.compounds_path",
+    "added: registers.read_compounds",
+    "added: resolve.extract.COMPOUND_PROMPT_OPEN",
+    "added: resolve.extract.COMPOUND_PROMPT_TARGETED"
+   ],
+   "files_changed": 8,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "a4e0521",
+   "full": "a4e0521cd4ae721f5e6c3bb8efae0938859b4204",
+   "date": "2026-08-14",
+   "author": "Open ERP Dev",
+   "subject": "notebook: section 4 recomputes its own verdicts; restore the register glob constant",
+   "version": "0.22.0",
+   "computed_version": "0.22.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/cells.py"
+   ],
+   "tested": "answers",
+   "commit": "2699ae4",
+   "full": "2699ae4d1e8b1cb897740d290adef15acce86f89",
+   "date": "2026-08-14",
+   "author": "Open ERP Dev",
+   "subject": "notebook: four sections \u2014 identity and composition, design basis, cost basis, routes",
+   "version": "0.22.0",
+   "computed_version": "0.22.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/bands.py",
+    "api/app/vendor_sidestream/notebook/cells.py",
+    "api/app/vendor_sidestream/notebook/form.py",
+    ".../vendor_sidestream/notebook/patch_names_cell.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/coreoa.py",
+    "api/app/vendor_sidestream/resolve/namecache.py",
+    "api/app/vendor_sidestream/resolve/namesearch.py"
+   ],
+   "tested": "answers",
+   "commit": "5f8130b",
+   "full": "5f8130b9bf6e133667c630a1ce6d5b017c0f077f",
+   "date": "2026-08-14",
+   "author": "Open ERP Dev",
+   "subject": "restore: recover uncommitted work after an accidental git checkout",
+   "version": "0.22.0",
+   "computed_version": "0.22.0",
+   "level": "minor",
+   "reasons": [
+    "removed: notebook.form.MARKER",
+    "removed: notebook.form.field",
+    "removed: notebook.form.render",
+    "removed: notebook.form.spec"
+   ],
+   "files_changed": 8,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/form.py"
+   ],
+   "tested": "answers",
+   "commit": "da27ef0",
+   "full": "da27ef0f5ad20245801ab178fa3f76c7aeb4902f",
+   "date": "2026-08-13",
+   "author": "Open ERP Dev",
+   "subject": "fix(notebook): the form is the kernel's, and the page is only the notebook",
+   "version": "0.21.0",
+   "computed_version": "0.21.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/form.py"
+   ],
+   "tested": "answers",
+   "commit": "687a79a",
+   "full": "687a79af8c24ea61a328ba6a0325af2c15b2b9b7",
+   "date": "2026-08-13",
+   "author": "Open ERP Dev",
+   "subject": "fix(notebook): one form, drawn from the cell without running it",
+   "version": "0.21.0",
+   "computed_version": "0.21.0",
+   "level": "minor",
+   "reasons": [
+    "added: notebook.form.spec"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/notebook/__init__.py",
+    "api/app/vendor_sidestream/notebook/form.py"
+   ],
+   "tested": "answers",
+   "commit": "fafce48",
+   "full": "fafce48dbf90853b2c150b05030e9b2f48835d30",
+   "date": "2026-08-10",
+   "author": "Open ERP Dev",
+   "subject": "feat(notebook): the form is python in the notebook, and the export runs",
+   "version": "0.20.0",
+   "computed_version": "0.20.0",
+   "level": "minor",
+   "reasons": [
+    "added: notebook.form.DOCUMENTS",
+    "added: notebook.form.MARKER",
+    "added: notebook.form.MOISTURE_BASES",
+    "added: notebook.form.TONNAGE_SCOPES",
+    "added: notebook.form.clean_streams",
+    "added: notebook.form.field"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "0f6a98b",
+   "full": "0f6a98b41a3cfb1b5fcc3ba79b98a8bd94e398a8",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "fix(notebooks): delete refused notebooks nobody had approved",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "d77ecb7",
+   "full": "d77ecb79f60c7dcca92d3d5dc32651e3a6d58d60",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "feat(ui): notebook cards, with archive and delete",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "908d4fc",
+   "full": "908d4fcbf9293ec57169dd5881c3888bbb8e35b6",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "feat(ui): notebooks autosave, and the overview shows them",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/__init__.py",
+    "api/app/vendor_sidestream/build/__init__.py",
+    "api/app/vendor_sidestream/resolve/__init__.py"
+   ],
+   "tested": "answers",
+   "commit": "d3c2446",
+   "full": "d3c244660d1d041f25d292bf3fb47e2862a0fad7",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "fix(explain): the explainer had the defect it was written to prevent",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "ed99dca",
+   "full": "ed99dca0abb1309d7fd35beb1c140ab42b46d19d",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "feat(ui): document selector, a step 2 panel, and a version hook that commits",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/namesearch.py"
+   ],
+   "tested": "answers",
+   "commit": "d963ca2",
+   "full": "d963ca2a0b1a4b19c2eb97139c8c7dbfc671144e",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "feat(keys): each user's own extraction key, in their own kernel",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/namecache.py",
+    "api/app/vendor_sidestream/resolve/namesearch.py",
+    "api/app/vendor_sidestream/resolve/relevance.py"
+   ],
+   "tested": "answers",
+   "commit": "903947e",
+   "full": "903947e3c90a269dccf705d8a85799666d8e38b9",
+   "date": "2026-08-09",
+   "author": "Open ERP Dev",
+   "subject": "feat(step2): relevance gate, caching, and the notebook cells",
+   "version": "0.19.0",
+   "computed_version": "0.19.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.namecache.CACHE_NAME",
+    "added: resolve.namecache.cache_path",
+    "added: resolve.namecache.entries",
+    "added: resolve.namecache.forget",
+    "added: resolve.namecache.get_profile",
+    "added: resolve.namecache.get_search"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/namesearch.py"
+   ],
+   "tested": "answers",
+   "commit": "d1ca648",
+   "full": "d1ca648345abc0df0cf050b5a4733e5df552f679",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(step2): name/composition search with a human approval gate",
+   "version": "0.18.0",
+   "computed_version": "0.18.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.namesearch.Candidate",
+    "added: resolve.namesearch.EPMC",
+    "added: resolve.namesearch.MIN_PAPERS",
+    "added: resolve.namesearch.NameSearch",
+    "added: resolve.namesearch.PART_QUALIFIERS",
+    "added: resolve.namesearch.PART_TERMS"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "1fa46b9",
+   "full": "1fa46b9af98cd0b12935d4ab853809641a6d6bb0",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(data): papers searched travel on the row; drop the duplicate review cell",
+   "version": "0.17.0",
+   "computed_version": "0.17.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "260070c",
+   "full": "260070c459b60b31463be936d8f0f6670f0f1865",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(data): one Sidestream composition dataset, product to source",
+   "version": "0.17.0",
+   "computed_version": "0.17.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/financial.py"
+   ],
+   "tested": "answers",
+   "commit": "dec5a68",
+   "full": "dec5a686d86aa1615f5adf87b6c7543c097ce6c9",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(financial): the Lang factors disagree by 22%, and I claimed they matched",
+   "version": "0.17.0",
+   "computed_version": "0.17.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.financial.CONFLICTING"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "ece934a",
+   "full": "ece934a6a343344bf1032e7e22fa79c6a7f449ac",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(data): clickable identifiers; a band and its evidence in one row",
+   "version": "0.16.0",
+   "computed_version": "0.16.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/financial.py"
+   ],
+   "tested": "answers",
+   "commit": "57551ba",
+   "full": "57551ba2e18b34288cf56aef0c0481b30e027dea",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "data: keep only what the pipeline reads; source the financial parameters",
+   "version": "0.16.0",
+   "computed_version": "0.16.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.financial.CACHE_NAME",
+    "added: resolve.financial.DEFAULT_URL",
+    "added: resolve.financial.Parameter",
+    "added: resolve.financial.REQUIRED",
+    "added: resolve.financial.TIMEOUT_S",
+    "added: resolve.financial.cache_path"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/registers_query.py",
+    "api/app/vendor_sidestream/resolve/citations.py"
+   ],
+   "tested": "answers",
+   "commit": "5b0c681",
+   "full": "5b0c681be5595288a2dd4818961e9e6f40b711cd",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "data: delete the substrate catalogue; composition register takes its place",
+   "version": "0.15.0",
+   "computed_version": "0.15.0",
+   "level": "minor",
+   "reasons": [
+    "added: registers_query.Selection",
+    "added: registers_query.all_rows",
+    "added: registers_query.for_streams",
+    "added: registers_query.streams",
+    "added: resolve.citations.CACHE_NAME",
+    "added: resolve.citations.CROSSREF"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "5923070",
+   "full": "5923070dcc131196629113f5b8a2564c8cbee426",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(review): a second notebook for auditing the register before it is used",
+   "version": "0.14.0",
+   "computed_version": "0.14.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "202b761",
+   "full": "202b7611c7c842a7370ab4d0316421f93d4d87ae",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(kernel): report the register snapshot; export it from cell 2",
+   "version": "0.14.0",
+   "computed_version": "0.14.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/readiness.py"
+   ],
+   "tested": "answers",
+   "commit": "783e1db",
+   "full": "783e1db8140d1f3d32558056afc2a23b51f20e3e",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(readiness): one closure rule, not two",
+   "version": "0.14.0",
+   "computed_version": "0.14.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/closure.py"
+   ],
+   "tested": "answers",
+   "commit": "aeda09f",
+   "full": "aeda09f6975ec42c688150a3d847ce236c1ef36b",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix: readiness runs in the kernel; closure knows which fractions overlap",
+   "version": "0.14.0",
+   "computed_version": "0.14.0",
+   "level": "minor",
+   "reasons": [
+    "added: analyse.closure.CLOSURE_MAX_PCT",
+    "added: analyse.closure.CLOSURE_MIN_PCT",
+    "added: analyse.closure.Closure",
+    "added: analyse.closure.NOT_IN_BALANCE",
+    "added: analyse.closure.OVERLAPS",
+    "added: analyse.closure.check"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "14f95f0",
+   "full": "14f95f0517aaf227ac5e478c5a22c2d8dcf9ef88",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(package): inputs, outputs and the CLI are derived, not listed",
+   "version": "0.13.0",
+   "computed_version": "0.13.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "cbda512",
+   "full": "cbda512ae406aa12c56245cd13e7d3d6b5f5c3cd",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(version): data files are not uncommitted code; plain wording on the card",
+   "version": "0.13.0",
+   "computed_version": "0.13.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/streamname.py"
+   ],
+   "tested": "answers",
+   "commit": "b66e880",
+   "full": "b66e880a373f5fe24e1baab61acf734fce67e226",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix: resolve names in the readiness endpoint; registers exposed; prose cut",
+   "version": "0.13.0",
+   "computed_version": "0.13.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.streamname.ALIAS_FIELDS",
+    "added: resolve.streamname.alias_path",
+    "added: resolve.streamname.read_aliases",
+    "added: resolve.streamname.seed_rows",
+    "added: resolve.streamname.write_aliases"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/__init__.py",
+    "api/app/vendor_sidestream/resolve/streamname.py"
+   ],
+   "tested": "answers",
+   "commit": "184c747",
+   "full": "184c747e9a23a2e054b047abd6e99b7da4e0f90e",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(resolve): stream names resolve visibly; docstring staleness is tested",
+   "version": "0.12.0",
+   "computed_version": "0.12.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.streamname.NOT_SYNONYMS",
+    "added: resolve.streamname.Resolution",
+    "added: resolve.streamname.SYNONYMS",
+    "added: resolve.streamname.normalise",
+    "added: resolve.streamname.resolve",
+    "added: resolve.streamname.resolve_all"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "b10750d",
+   "full": "b10750dd1412d2ffb6b471d30fa3d43b02252d5b",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(notebook): rename, save path, light theme, matching sections, stale labels",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "6f4392c",
+   "full": "6f4392c871889ccefd296f017eaf0c7eebfb4854",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(notebook): kernel status, sizing, real editing; widen version scope",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "444059c",
+   "full": "444059ccf8cceea5f9fcbc803da5c9ec5b3b74aa",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): a real IPython kernel per run",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "c67aa9f",
+   "full": "c67aa9fef0ef2e28f7887cc8cdaae2eafbac726b",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): explain a line from the code; fix the tier call it exposed",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "eeb9a1f",
+   "full": "eeb9a1fe2997247cfbbc0ad8d99986e41f57d369",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(analysis): the displayed code is the code that runs",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/version.py"
+   ],
+   "tested": "answers",
+   "commit": "6c809c8",
+   "full": "6c809c88f3ea0ff12ca7a2b3fe210740a99ec945",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "chore(version): trigger a history rebuild to verify the hook",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "a21489e",
+   "full": "a21489e2d294e5cbdb91644c6da4373dd11e0ce3",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(version): show the code that decides, in the panel",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/results_fingerprint.py",
+    "api/app/vendor_sidestream/version.py"
+   ],
+   "tested": "answers",
+   "commit": "69d21f9",
+   "full": "69d21f9bedc42e438cd2d4cea7b80b614856b8b0",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(version): major means the ANSWERS changed, not that a name moved",
+   "version": "0.11.0",
+   "computed_version": "0.11.0",
+   "level": "minor",
+   "reasons": [
+    "added: results_fingerprint.ROUND_TO",
+    "added: results_fingerprint.diff_answers",
+    "added: results_fingerprint.fingerprint"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/compounds.py",
+    "api/app/vendor_sidestream/version.py"
+   ],
+   "tested": "answers",
+   "commit": "8e17b19",
+   "full": "8e17b19d0fcfcfe1355f31c86bd6f1d1ebb2e4db",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(version): compute the version from the API surface, never type one",
+   "version": "0.10.0",
+   "computed_version": "0.10.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.compounds.COMPOUND_BANDS",
+    "added: resolve.compounds.COMPOUND_UNITS",
+    "added: resolve.compounds.CompoundValue",
+    "added: resolve.compounds.STREAM_COMPOUNDS",
+    "added: resolve.compounds.compounds_for",
+    "added: resolve.compounds.in_band"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_out.py",
+    "api/app/vendor_sidestream/build/house_template.py",
+    "api/app/vendor_sidestream/build/workbook.py",
+    "api/app/vendor_sidestream/cli.py"
+   ],
+   "tested": "answers",
+   "commit": "10d458b",
+   "full": "10d458bb7c9ec4b0b548f152f13341a14d8a4b4c",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): the .docx is produced, not promised; version on the card",
+   "version": "0.9.0",
+   "computed_version": "0.9.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.docx_out.DOCX_NAME",
+    "added: build.docx_out.document_prose",
+    "added: build.docx_out.write_docx",
+    "added: build.house_template.BLACK",
+    "added: build.house_template.CONF_RED",
+    "added: build.house_template.FILL_ACTIVE"
+   ],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/price_extract.py"
+   ],
+   "tested": "answers",
+   "commit": "3aace6a",
+   "full": "3aace6a95ed04edb3889a9ec2053fc5500587d71",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(prices): extract candidate prices; the human approves the judgement",
+   "version": "0.8.0",
+   "computed_version": "0.8.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.price_extract.OUTPUT_CLASS",
+    "added: resolve.price_extract.PRICE_BANDS",
+    "added: resolve.price_extract.PRICE_PROMPT",
+    "added: resolve.price_extract.PriceCandidate",
+    "added: resolve.price_extract.PriceExtraction",
+    "added: resolve.price_extract.consensus"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/resolve/context.py"
+   ],
+   "tested": "answers",
+   "commit": "20322e0",
+   "full": "20322e0389e0310620d60c61d51696174862d972",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(extraction): sentence-level guards; the paper gate is not enough",
+   "version": "0.7.0",
+   "computed_version": "0.7.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.context.FORMULATION_TERMS",
+    "added: resolve.context.PROCESS_TERMS",
+    "added: resolve.context.reject_by_context",
+    "added: resolve.context.reject_by_misalignment",
+    "added: resolve.context.screen"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/docx_fill.py",
+    "api/app/vendor_sidestream/build/draft.py",
+    "api/app/vendor_sidestream/build/prose.py"
+   ],
+   "tested": "answers",
+   "commit": "1552a08",
+   "full": "1552a08cacb5d4ba4ecd87e1fd9c4928a46f67d7",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): generate the document prose; fix the stacked layout",
+   "version": "0.6.0",
+   "computed_version": "0.6.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.docx_fill.MECHANISM",
+    "added: build.docx_fill.client_sections",
+    "added: build.docx_fill.fill_placeholders",
+    "added: build.draft.Completer",
+    "added: build.draft.MAX_ATTEMPTS",
+    "added: build.draft.SECTION_BRIEFS"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/pack.py",
+    "api/app/vendor_sidestream/resolve/plausibility.py"
+   ],
+   "tested": "answers",
+   "commit": "9b88ae9",
+   "full": "9b88ae9f5e902d3e3a265c99ec60d0513df1581a",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(analysis): costing was never blocked \u2014 the deployed reader was stale",
+   "version": "0.5.0",
+   "computed_version": "0.5.0",
+   "level": "minor",
+   "reasons": [
+    "added: resolve.plausibility.MIN_INDEPENDENT_PAPERS",
+    "added: resolve.plausibility.PLAUSIBLE_BANDS",
+    "added: resolve.plausibility.Screened",
+    "added: resolve.plausibility.check_plausible",
+    "added: resolve.plausibility.screen_stream"
+   ],
+   "files_changed": 2,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/build/runstore.py",
+    "api/app/vendor_sidestream/build/workbook.py",
+    "api/app/vendor_sidestream/cli.py"
+   ],
+   "tested": "answers",
+   "commit": "3aac4e9",
+   "full": "3aac4e9936e02804a8229654b494f307b8bdd452",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): the code is the primary surface, and it ships with the run",
+   "version": "0.4.0",
+   "computed_version": "0.4.0",
+   "level": "minor",
+   "reasons": [
+    "added: build.runstore.RunCard",
+    "added: build.runstore.RunStore",
+    "added: build.runstore.make_run_id"
+   ],
+   "files_changed": 3,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/readiness.py"
+   ],
+   "tested": "answers",
+   "commit": "280686b",
+   "full": "280686bc2d59e7931eb4eecf69b421b003f1376f",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(analysis): pending is not excluded; add a real Python console",
+   "version": "0.3.0",
+   "computed_version": "0.3.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "0157db7",
+   "full": "0157db7b9d26bde812da630dafb97bead28eaa8b",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): brief intake with live readiness and readable source",
+   "version": "0.3.0",
+   "computed_version": "0.3.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/pipeline.py"
+   ],
+   "tested": "answers",
+   "commit": "3cf8f0f",
+   "full": "3cf8f0f0a442ad2b1a627a38f40ceb2f2eda2783",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(analysis): deploy the costing orchestrator module",
+   "version": "0.3.0",
+   "computed_version": "0.3.0",
+   "level": "minor",
+   "reasons": [
+    "added: analyse.pipeline.cost_all"
+   ],
+   "files_changed": 1,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "8c0b712",
+   "full": "8c0b712978faf14e2731579d44f6256946db8914",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "fix(analysis): expose tier, registers and pipeline source",
+   "version": "0.2.0",
+   "computed_version": "0.2.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/analyse/readiness.py",
+    "api/app/vendor_sidestream/analyse/scale.py",
+    "api/app/vendor_sidestream/analyse/tier.py",
+    "api/app/vendor_sidestream/registers.py"
+   ],
+   "tested": "answers",
+   "commit": "99d491e",
+   "full": "99d491eae42c7f7104efc52f22c87bd8d314ff17",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): grade the evidence instead of gating on it",
+   "version": "0.2.0",
+   "computed_version": "0.2.0",
+   "level": "minor",
+   "reasons": [
+    "added: analyse.readiness.BriefReadiness",
+    "added: analyse.readiness.CLOSURE_MAX_PCT",
+    "added: analyse.readiness.CLOSURE_MIN_PCT",
+    "added: analyse.readiness.StreamReadiness",
+    "added: analyse.readiness.check_brief",
+    "added: analyse.readiness.check_stream"
+   ],
+   "files_changed": 4,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "88b27f7",
+   "full": "88b27f77c76f4e6e892773d67d3100b2beba9de1",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): runs as cards, house-format docx, and the populated workbook",
+   "version": "0.1.0",
+   "computed_version": "0.1.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "699b1e4",
+   "full": "699b1e46577b772b4c6252d93b2867a0d246aea9",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): wire costing into the pipeline; add the run page",
+   "version": "0.1.0",
+   "computed_version": "0.1.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [],
+   "tested": "answers",
+   "commit": "b1d2575",
+   "full": "b1d257512630ef2670b8816ae6ef87033b16ca2e",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(analysis): literature extraction datasets in Analysis > Data",
+   "version": "0.1.0",
+   "computed_version": "0.1.0",
+   "level": "patch",
+   "reasons": [],
+   "files_changed": 0,
+   "override": null
+  },
+  {
+   "files": [
+    "api/app/vendor_sidestream/__init__.py",
+    "api/app/vendor_sidestream/analyse/__init__.py",
+    "api/app/vendor_sidestream/analyse/cost.py",
+    "api/app/vendor_sidestream/analyse/rank.py",
+    "api/app/vendor_sidestream/analyse/validate.py",
+    "api/app/vendor_sidestream/build/__init__.py",
+    "api/app/vendor_sidestream/build/document.py",
+    "api/app/vendor_sidestream/build/workbook.py",
+    "api/app/vendor_sidestream/cli.py",
+    "api/app/vendor_sidestream/pack.py",
+    "api/app/vendor_sidestream/registers.py",
+    "api/app/vendor_sidestream/resolve/__init__.py"
+   ],
+   "tested": "surface only",
+   "commit": "1bcf9ca",
+   "full": "1bcf9ca5c6eb88b66229d46455d015b588769e0f",
+   "date": "2026-08-08",
+   "author": "Open ERP Dev",
+   "subject": "feat(sidestream): deterministic enumerate-cost-rank pipeline on the platform",
+   "version": "0.1.0",
+   "computed_version": "0.1.0",
+   "level": "initial",
+   "reasons": [],
+   "files_changed": 17,
+   "override": null
+  }
+ ]
+}

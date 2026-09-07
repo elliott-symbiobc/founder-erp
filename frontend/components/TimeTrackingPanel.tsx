@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Avatar } from "@/components/Avatar";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface TimeEntry {
@@ -73,13 +75,6 @@ function weekDates(start: Date): string[] {
   });
 }
 
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  const parts = name.trim().split(" ");
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 // ─── StartTimerModal ──────────────────────────────────────────────────────────
 
 function StartTimerModal({ tasks, onStart, onClose }: {
@@ -125,7 +120,7 @@ function StartTimerModal({ tasks, onStart, onClose }: {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Notes (optional)</label>
-            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What are you working on?"
+            <AutoTextarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What are you working on?"
               className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -230,7 +225,7 @@ function LogTimeModal({ users, tasks, onSave, onClose }: {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Notes (optional)</label>
-            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What were you working on?"
+            <AutoTextarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What were you working on?"
               className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -485,9 +480,7 @@ function TimeTrackingContent({ users, isAdmin, activeTimer, onTimerChange }: {
                   style={{ gridTemplateColumns: "200px repeat(7, 1fr) 80px" }}
                   onClick={() => setExpandedUser(isExpanded ? null : user.user_id)}>
                   <div className="px-4 py-2.5 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-                      {getInitials(user.name)}
-                    </div>
+                    <Avatar name={user.name} size={6} />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{user.name || user.email}</p>
                     </div>

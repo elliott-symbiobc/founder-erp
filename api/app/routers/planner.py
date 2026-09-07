@@ -235,25 +235,6 @@ def _gather_omnipresent_context(conn, user_id: str) -> dict:
     """Pull cross-module data for the omnipresent dashboard chat assistant."""
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    # Recent ELN notebook entries (with AI summaries)
-    notebook_entries = []
-    try:
-        cur.execute("""
-            SELECT title, entry_type, ai_summary,
-                   created_at::date AS entry_date
-            FROM eln_entries
-            WHERE user_id = %s::uuid AND is_deleted = false
-              AND ai_summary IS NOT NULL AND ai_summary != ''
-            ORDER BY created_at DESC LIMIT 8
-        """, (user_id,))
-        for r in cur.fetchall():
-            d = dict(r)
-            if d.get("entry_date") and hasattr(d["entry_date"], "isoformat"):
-                d["entry_date"] = d["entry_date"].isoformat()
-            notebook_entries.append(d)
-    except Exception:
-        conn.rollback()
-
     # Recent meeting notes (with AI summaries + action items)
     recent_notes = []
     try:
@@ -296,47 +277,6 @@ def _gather_omnipresent_context(conn, user_id: str) -> dict:
     except Exception:
         conn.rollback()
 
-    # Recent literature papers (key findings)
-    recent_papers = []
-    try:
-        cur.execute("""
-            SELECT title, year, journal, paper_summary, key_findings
-            FROM papers
-            WHERE (archived IS NULL OR archived = false)
-              AND paper_summary IS NOT NULL AND paper_summary != ''
-            ORDER BY added_at DESC LIMIT 5
-        """)
-        recent_papers = [dict(r) for r in cur.fetchall()]
-    except Exception:
-        conn.rollback()
-
-    # Active strains
-    active_strains = []
-    try:
-        cur.execute("""
-            SELECT name, organism_class, source
-            FROM strains
-            ORDER BY created_at DESC LIMIT 8
-        """)
-        active_strains = [dict(r) for r in cur.fetchall()]
-    except Exception:
-        conn.rollback()
-
-    # Top compound opportunities
-    top_compounds = []
-    try:
-        cur.execute("""
-            SELECT o.compound_name, o.feasibility_score, o.notes,
-                   st.name AS strain_name, sub.name AS substrate_name
-            FROM strain_compound_opportunities o
-            LEFT JOIN strains st ON st.strain_id = o.strain_id
-            LEFT JOIN substrates sub ON sub.substrate_id = o.substrate_id
-            ORDER BY o.feasibility_score DESC NULLS LAST LIMIT 5
-        """)
-        top_compounds = [dict(r) for r in cur.fetchall()]
-    except Exception:
-        conn.rollback()
-
     # Active funding opportunities
     funding = []
     try:
@@ -351,26 +291,11 @@ def _gather_omnipresent_context(conn, user_id: str) -> dict:
         conn.rollback()
 
     return {
-        "notebook_entries": notebook_entries,
         "recent_notes": recent_notes,
         "key_contacts": key_contacts,
-        "recent_papers": recent_papers,
-        "active_strains": active_strains,
-        "top_compounds": top_compounds,
         "funding": funding,
     }
 
-
-def _fmt_notebook_entries(entries: list) -> str:
-    if not entries:
-        return "No recent entries with summaries."
-    lines = []
-    for e in entries:
-        lines.append(
-            f"  [{e.get('entry_date', '?')}] [{e.get('entry_type', 'experiment')}] "
-            f"{e['title']}: {(e.get('ai_summary') or '')[:200]}"
-        )
-    return "\n".join(lines)
 
 
 def _fmt_recent_notes(notes: list) -> str:
@@ -408,36 +333,6 @@ def _fmt_key_contacts(contacts: list) -> str:
     return "\n".join(lines)
 
 
-def _fmt_papers(papers: list) -> str:
-    if not papers:
-        return "No papers with summaries in database."
-    lines = []
-    for p in papers:
-        lines.append(
-            f"  [{p.get('year', '?')}] {p['title']}"
-            + (f" — {(p.get('key_findings') or '')[:200]}" if p.get("key_findings") else "")
-        )
-    return "\n".join(lines)
-
-
-def _fmt_strains_compounds(strains: list, compounds: list) -> str:
-    parts = []
-    if strains:
-        strain_list = ", ".join(
-            f"{s['name']} ({s.get('organism_class', '?')})" for s in strains
-        )
-        parts.append(f"Strains: {strain_list}")
-    if compounds:
-        comp_list = []
-        for c in compounds:
-            score = f" [{c['feasibility_score']:.0f}%]" if c.get("feasibility_score") is not None else ""
-            comp_list.append(
-                f"{c['compound_name']}{score}"
-                + (f" from {c['strain_name']}/{c['substrate_name']}"
-                   if c.get("strain_name") else "")
-            )
-        parts.append("Top compounds: " + "; ".join(comp_list))
-    return "\n".join(parts) if parts else "No strain/compound data yet."
 
 
 def _fmt_funding(funding: list) -> str:
@@ -1146,17 +1041,17 @@ def brain_dump(body: BrainDump, request: Request):
                 # If no contacts, create as task instead
                 if cur.rowcount == 0:
                     cur.execute("""
-                        INSERT INTO tasks (user_id, title, description)
-                        VALUES (%s::uuid, %s, %s) RETURNING task_id
-                    """, (user["user_id"], title, notes))
+                        INSERT INTO tasks (user_id, assigned_to, title, description)
+                        VALUES (%s::uuid, %s::uuid, %s, %s) RETURNING task_id
+                    """, (user["user_id"], user["user_id"], title, notes))
                     created_tasks.append({"title": title, "urgency": urgency})
                 else:
                     created_reminders.append({"title": title, "urgency": urgency})
             else:
                 cur.execute("""
-                    INSERT INTO tasks (user_id, title, description)
-                    VALUES (%s::uuid, %s, %s) RETURNING task_id::text
-                """, (user["user_id"], title, notes))
+                    INSERT INTO tasks (user_id, assigned_to, title, description)
+                    VALUES (%s::uuid, %s::uuid, %s, %s) RETURNING task_id::text
+                """, (user["user_id"], user["user_id"], title, notes))
                 row = cur.fetchone()
                 created_tasks.append({"task_id": str(row["task_id"]), "title": title, "urgency": urgency})
 
@@ -1442,18 +1337,6 @@ def get_brief(request: Request):
         except Exception:
             conn.rollback()
 
-        # Fermentation runs
-        runs_data = {"total": 0, "this_week": 0}
-        try:
-            cur.execute("SELECT COUNT(*) AS total FROM fermentation_runs WHERE archived = FALSE")
-            row = cur.fetchone()
-            if row: runs_data["total"] = int(row["total"] or 0)
-            cur.execute("SELECT COUNT(*) AS this_week FROM fermentation_runs WHERE archived = FALSE AND created_at::date >= %s", (week_start,))
-            row = cur.fetchone()
-            if row: runs_data["this_week"] = int(row["this_week"] or 0)
-        except Exception:
-            conn.rollback()
-
         # Signals
         signals = []
 
@@ -1476,13 +1359,18 @@ def get_brief(request: Request):
 
         try:
             cur.execute("""
+                -- Last contact comes from contact_interactions, which is what the
+                -- Gmail and Calendar sync actually writes. This read used to hit a
+                -- contact_emails table that migration 072 never applied, so it threw
+                -- into the rollback below and this signal never once appeared.
                 SELECT c.name, c.contact_id::text,
-                       COALESCE(EXTRACT(DAY FROM NOW() - MAX(ce.sent_at))::int, 999) AS days_since
+                       COALESCE(EXTRACT(DAY FROM NOW() - MAX(ci.occurred_at))::int, 999) AS days_since
                 FROM contacts c
                 JOIN projects p ON p.contact_id = c.contact_id AND p.status = 'active'
-                LEFT JOIN contact_emails ce ON ce.contact_id = c.contact_id
+                LEFT JOIN contact_interactions ci ON ci.contact_id = c.contact_id
                 GROUP BY c.contact_id, c.name
-                HAVING MAX(ce.sent_at) < NOW() - INTERVAL '14 days' OR MAX(ce.sent_at) IS NULL
+                HAVING MAX(ci.occurred_at) < NOW() - INTERVAL '14 days'
+                    OR MAX(ci.occurred_at) IS NULL
                 ORDER BY days_since DESC LIMIT 2
             """)
             for row in cur.fetchall():
@@ -1544,7 +1432,6 @@ def get_brief(request: Request):
             "contacts": contacts_row,
             "fpa": fpa_data,
             "invoices": invoices_data,
-            "runs": runs_data,
             "signals": signals[:8],
         }
     finally:
@@ -1585,16 +1472,16 @@ def chat(body: ChatRequest, request: Request):
             pass
 
         # ── Block A: static role context (prompt-cached across all requests) ──
-        _block_a_text = """You are an executive assistant for Collective ERP, a biotech startup.
+        _block_a_text = """You are an executive assistant for Open ERP, a biotech startup.
 You have real-time access to ALL business data across every module and help the founder prioritize and manage their day.
 
 === YOUR ROLE ===
-- You are omnipresent — you see every module: tasks, projects, finances, lab notebook, meeting notes, contacts, literature, strains, compounds, and funding
+- You are omnipresent — you see every module: tasks, projects, finances, meeting notes, contacts, and funding
 - Be a sharp, direct executive assistant — not overly formal
 - Use the calendar to understand what time is already committed today
 - If the user gives a brain dump or asks to add something, populate extracted_tasks — these go into their task list, NOT the calendar
 - When asked about priorities or what to do today, give a numbered list tied to the actual data above, accounting for calendar commitments
-- When asked about R&D, compounds, contacts, or funding, draw from those sections
+- When asked about contacts or funding, draw from those sections
 - When asked what to do next, look at overdue items and high-revenue projects first
 - Keep responses concise (under 200 words) unless detail is explicitly requested
 - If something is alarming (overdue tasks, low runway, at-risk project, stalled R&D), flag it proactively
@@ -1636,19 +1523,10 @@ FINANCIALS:
 TODAY'S CALENDAR:
 {_fmt_gcal(today_gcal)}
 
-=== R&D ===
-
-RECENT ELN ENTRIES:
-{_fmt_notebook_entries(omni['notebook_entries'])}
+=== RECORDS ===
 
 RECENT MEETING NOTES:
 {_fmt_recent_notes(omni['recent_notes'])}
-
-STRAINS & COMPOUND OPPORTUNITIES:
-{_fmt_strains_compounds(omni['active_strains'], omni['top_compounds'])}
-
-RECENT LITERATURE:
-{_fmt_papers(omni['recent_papers'])}
 
 === BUSINESS DEVELOPMENT ===
 
@@ -1737,9 +1615,9 @@ FUNDING OPPORTUNITIES:
                 continue
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur.execute("""
-                INSERT INTO tasks (user_id, title, description)
-                VALUES (%s::uuid, %s, %s) RETURNING task_id::text
-            """, (user["user_id"], title, task.get("notes")))
+                INSERT INTO tasks (user_id, assigned_to, title, description)
+                VALUES (%s::uuid, %s::uuid, %s, %s) RETURNING task_id::text
+            """, (user["user_id"], user["user_id"], title, task.get("notes")))
             row = cur.fetchone()
             created_tasks.append({"task_id": str(row["task_id"]), "title": title, "urgency": task.get("urgency", "medium")})
 
@@ -1792,10 +1670,10 @@ FUNDING OPPORTUNITIES:
                 title = f"Email follow-up: {action}" + (f" ({contact_name_or_email})" if contact_name_or_email else "")
                 cur2.execute(
                     """
-                    INSERT INTO tasks (user_id, title, due_date)
-                    VALUES (%s::uuid, %s, %s) RETURNING task_id::text
+                    INSERT INTO tasks (user_id, assigned_to, title, due_date)
+                    VALUES (%s::uuid, %s::uuid, %s, %s) RETURNING task_id::text
                     """,
-                    (user["user_id"], title, due_date),
+                    (user["user_id"], user["user_id"], title, due_date),
                 )
                 row = cur2.fetchone()
                 created_followups.append({

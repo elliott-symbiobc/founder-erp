@@ -391,6 +391,19 @@ async def stream_trace(trace_id: str):
 # Source inspection
 # ---------------------------------------------------------------------------
 
+def _module_to_file_path(module_path: str) -> str | None:
+    """Resolve a dotted module path to its absolute file path (must be in /app)."""
+    try:
+        mod = importlib.import_module(module_path)
+        path = inspect.getfile(mod)
+        # Must be within /app to prevent writes outside the agents tree
+        if path.startswith("/app/"):
+            return path
+        return None
+    except Exception:
+        return None
+
+
 @router.get("/source/{module_path:path}")
 def get_source(module_path: str, fn: str | None = None):
     """Return source code for a module or specific function within it."""
@@ -422,6 +435,104 @@ def get_source(module_path: str, fn: str | None = None):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     return {"module": module_path, "source": source}
+
+
+@router.put("/source/{module_path:path}")
+def put_source(module_path: str, body: dict):
+    """Write updated source code to the agent file on disk.
+
+    The agents directory is volume-mounted so edits persist immediately.
+    The API server auto-reloads on file change (uvicorn --reload).
+    Worker needs a restart to pick up changes.
+    """
+    if not _safe_path(module_path):
+        raise HTTPException(status_code=403, detail="Module not in allowlist")
+    file_path = _module_to_file_path(module_path)
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Module file not found or outside /app")
+    source = body.get("source", "")
+    if not source or not source.strip():
+        raise HTTPException(status_code=400, detail="source must not be empty")
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(source)
+        return {"ok": True, "file": file_path, "bytes": len(source)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Pipeline prompt overrides (agent_prompt_overrides table)
+# ---------------------------------------------------------------------------
+
+def _ensure_prompt_registry():
+    """Import modules that register prompts so the registry is populated."""
+    try:
+        importlib.import_module("app.agents.composition_agent")
+    except Exception:
+        pass
+    try:
+        importlib.import_module("app.agents.tea_agent")
+    except Exception:
+        pass
+
+
+@router.get("/prompts")
+def list_prompts():
+    """List all registered pipeline prompts with their active overrides."""
+    _ensure_prompt_registry()
+    try:
+        from app.agents.prompt_store import list_all_prompts
+        return {"prompts": list_all_prompts()}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/prompts/{agent_module:path}/{prompt_key}")
+def get_prompt_detail(agent_module: str, prompt_key: str):
+    """Get a single prompt — returns both default text and active override if any."""
+    _ensure_prompt_registry()
+    try:
+        from app.agents.prompt_store import PROMPT_REGISTRY, list_all_prompts
+        prompts = list_all_prompts()
+        for p in prompts:
+            if p["agent_module"] == agent_module and p["prompt_key"] == prompt_key:
+                return p
+        raise HTTPException(status_code=404, detail=f"Prompt '{agent_module}/{prompt_key}' not registered")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.put("/prompts/{agent_module:path}/{prompt_key}")
+def save_prompt_override(agent_module: str, prompt_key: str, body: dict):
+    """Save a prompt override. Body: {prompt_text, description?}"""
+    _ensure_prompt_registry()
+    from app.agents.prompt_store import PROMPT_REGISTRY, save_override
+    # Only allow registered prompts
+    if agent_module not in PROMPT_REGISTRY or prompt_key not in PROMPT_REGISTRY[agent_module]:
+        raise HTTPException(status_code=404, detail=f"Prompt '{agent_module}/{prompt_key}' not registered")
+    prompt_text = body.get("prompt_text", "").strip()
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="prompt_text must not be empty")
+    description = body.get("description", "")
+    try:
+        save_override(agent_module, prompt_key, prompt_text, description)
+        return {"ok": True, "agent_module": agent_module, "prompt_key": prompt_key}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.delete("/prompts/{agent_module:path}/{prompt_key}")
+def delete_prompt_override(agent_module: str, prompt_key: str):
+    """Delete a prompt override, reverting the agent to its code default."""
+    try:
+        from app.agents.prompt_store import delete_override
+        deleted = delete_override(agent_module, prompt_key)
+        return {"ok": True, "deleted": deleted}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Avatar } from "@/components/Avatar";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 interface CompanyContact {
   contact_id: string;
   name: string;
@@ -59,10 +61,6 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-function initials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
-}
-
 function stageColor(stage: string): string {
   const map: Record<string, string> = {
     lead: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
@@ -73,6 +71,12 @@ function stageColor(stage: string): string {
     lost: "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400",
   };
   return map[stage] ?? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+}
+
+// Ensure external links have a scheme; a bare domain would otherwise be
+// treated as a relative path and navigate inside our own app.
+function extUrl(u: string): string {
+  return /^https?:\/\//i.test(u) ? u : `https://${u.replace(/^\/+/, "")}`;
 }
 
 function EditableField({ label, value, onSave, multiline = false }: {
@@ -97,7 +101,7 @@ function EditableField({ label, value, onSave, multiline = false }: {
       <div className="space-y-1">
         <p className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{label}</p>
         {multiline ? (
-          <textarea
+          <AutoTextarea
             autoFocus
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -250,12 +254,12 @@ export default function CompanyDetailPage() {
               {company.logo_url ? (
                 <img src={company.logo_url} alt={company.name} className="w-12 h-12 rounded-xl object-cover" />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold select-none">
+                <div className="w-12 h-12 rounded-xl bg-gray-700 dark:bg-gray-600 flex items-center justify-center text-white text-lg font-bold select-none">
                   {company.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
               <div>
-                <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{company.name}</h1>
+                <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{company.name}</h1>
                 {company.industry && <p className="text-xs text-zinc-400 dark:text-zinc-500">{company.industry}</p>}
                 {company.company_location && <p className="text-xs text-zinc-400 dark:text-zinc-500">{company.company_location}</p>}
               </div>
@@ -296,7 +300,7 @@ export default function CompanyDetailPage() {
                             <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate group-hover/proj:text-blue-600 dark:group-hover/proj:text-blue-400 transition-colors">
                               {p.name}
                             </span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${stageColor(p.stage)}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${stageColor(p.stage)}`}>
                               {p.stage}
                             </span>
                           </Link>
@@ -311,19 +315,19 @@ export default function CompanyDetailPage() {
             {/* External links */}
             <div className="flex flex-wrap gap-2">
               {company.website_url && (
-                <a href={company.website_url} target="_blank" rel="noopener noreferrer"
+                <a href={extUrl(company.website_url)} target="_blank" rel="noopener noreferrer"
                   className="text-xs px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                   Website ↗
                 </a>
               )}
               {company.linkedin_url && (
-                <a href={company.linkedin_url} target="_blank" rel="noopener noreferrer"
+                <a href={extUrl(company.linkedin_url)} target="_blank" rel="noopener noreferrer"
                   className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors">
                   LinkedIn ↗
                 </a>
               )}
               {company.esg_url && (
-                <a href={company.esg_url} target="_blank" rel="noopener noreferrer"
+                <a href={extUrl(company.esg_url)} target="_blank" rel="noopener noreferrer"
                   className="text-xs px-2.5 py-1 rounded-lg border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 transition-colors">
                   ESG Report ↗
                 </a>
@@ -350,7 +354,7 @@ export default function CompanyDetailPage() {
               <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Regulatory Pressures</p>
               <div className="flex flex-wrap gap-1.5">
                 {company.regulatory_pressures.map((r, i) => (
-                  <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">{r}</span>
+                  <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">{r}</span>
                 ))}
               </div>
             </div>
@@ -362,7 +366,7 @@ export default function CompanyDetailPage() {
               <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Government Incentives</p>
               <div className="flex flex-wrap gap-1.5">
                 {company.government_incentives.map((g, i) => (
-                  <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">{g}</span>
+                  <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">{g}</span>
                 ))}
               </div>
             </div>
@@ -383,7 +387,7 @@ export default function CompanyDetailPage() {
               </button>
             </div>
             {editingDesc ? (
-              <textarea autoFocus value={descDraft} onChange={e => setDescDraft(e.target.value)}
+              <AutoTextarea autoFocus value={descDraft} onChange={e => setDescDraft(e.target.value)}
                 onBlur={() => { setEditingDesc(false); if (descDraft !== (company.description ?? "")) patch({ description: descDraft || null }); }}
                 rows={5}
                 className="w-full text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
@@ -414,7 +418,7 @@ export default function CompanyDetailPage() {
                       </p>
                       <p className="text-[11px] text-zinc-400 dark:text-zinc-500 capitalize">{p.project_type?.replace(/_/g, " ")}</p>
                     </div>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${stageColor(p.stage)}`}>
+                    <span className={`text-[11px] px-2 py-0.5 rounded font-medium flex-shrink-0 ${stageColor(p.stage)}`}>
                       {p.stage}
                     </span>
                   </Link>
@@ -438,13 +442,7 @@ export default function CompanyDetailPage() {
                   <Link key={c.contact_id} href={`/contacts/${c.contact_id}`}
                     className="flex items-center gap-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg p-1.5 -mx-1.5 transition-colors group/person">
                     <div className="flex-shrink-0">
-                      {c.avatar_url ? (
-                        <img src={c.avatar_url} alt={c.name} className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold select-none">
-                          {initials(c.name)}
-                        </div>
-                      )}
+                      <Avatar url={c.avatar_url} name={c.name} size={8} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate group-hover/person:text-blue-600 dark:group-hover/person:text-blue-400 transition-colors">
@@ -453,7 +451,7 @@ export default function CompanyDetailPage() {
                       {c.title && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">{c.title}</p>}
                     </div>
                     {c.open_reminders > 0 && (
-                      <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-semibold">
+                      <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-semibold">
                         {c.open_reminders}
                       </span>
                     )}

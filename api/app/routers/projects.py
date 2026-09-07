@@ -21,7 +21,7 @@ from typing import Optional
 import anthropic
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 from app.routers.auth import get_current_user
 
@@ -123,8 +123,9 @@ def list_projects(
                     c.title as contact_title,
                     p.assigned_to,
                     COALESCE(u.full_name, u.name) as assigned_to_name,
-                    (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.project_id) as task_count,
-                    (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.project_id AND pt.is_done = TRUE) as tasks_done,
+                    p.linked_opportunity_id, p.linked_investor_id,
+                    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.project_id) as task_count,
+                    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.project_id AND t.status = 'done') as tasks_done,
                     (SELECT MAX(ci.occurred_at) FROM contact_interactions ci WHERE ci.contact_id = p.contact_id AND ci.interaction_type IN ('email_sent','email_received')) as last_email_at,
                     (SELECT COUNT(*) FROM contact_interactions ci WHERE ci.contact_id = p.contact_id AND ci.interaction_type IN ('email_sent','email_received')) as email_count
                 FROM projects p
@@ -148,6 +149,79 @@ def list_projects(
             return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ── Status Settings (before /{project_id} to avoid route conflict) ────────────
+
+DEFAULT_STATUS_CRITERIA = {
+    "in_progress": "Active work is underway. Recent outbound emails or meetings have occurred, tasks are being completed, and the client is engaged.",
+    "waiting_client": "Open ERP has sent the most recent communication and is waiting for a client reply. No response received in the last 3-7 days.",
+    "waiting_sbc": "The client sent the most recent email or is expecting a response or deliverable from Open ERP. Open Open ERP-assigned tasks exist.",
+    "awaiting_vendor": "Progress is blocked on a third-party vendor, lab result, or external dependency. Not waiting on the client directly.",
+}
+
+
+@router.get("/status-settings")
+def get_status_settings_early():
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT criteria FROM project_status_settings ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            return {"criteria": row["criteria"] if row else DEFAULT_STATUS_CRITERIA}
+    finally:
+        conn.close()
+
+
+@router.put("/status-settings")
+def update_status_settings_early(body: dict):
+    criteria = body.get("criteria", {})
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM project_status_settings ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "UPDATE project_status_settings SET criteria=%s, updated_at=NOW() WHERE id=%s",
+                    (psycopg2.extras.Json(criteria), row[0]),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO project_status_settings (criteria) VALUES (%s)",
+                    (psycopg2.extras.Json(criteria),),
+                )
+        conn.commit()
+        return {"criteria": criteria}
+    finally:
+        conn.close()
+
+
+
+@router.post("/calculate-all-statuses")
+async def calculate_all_statuses(background_tasks: BackgroundTasks):
+    """Fire-and-forget: recalculate AI status for every active project."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT project_id FROM projects ORDER BY updated_at DESC")
+            ids = [r["project_id"] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    async def run_all():
+        import asyncio
+        sem = asyncio.Semaphore(5)  # max 5 concurrent Claude calls
+        async def one(pid):
+            async with sem:
+                try:
+                    await calculate_status(pid)
+                except Exception:
+                    pass
+        await asyncio.gather(*[one(pid) for pid in ids])
+
+    background_tasks.add_task(run_all)
+    return {"queued": len(ids)}
 
 
 # ── Get one ───────────────────────────────────────────────────────────────────
@@ -372,9 +446,12 @@ def resolve_reminder(project_id: str, reminder_id: str):
 # ── Create ────────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=201)
-def create_project(body: dict):
+def create_project(body: dict, request: Request):
     if not body.get("name"):
         raise HTTPException(status_code=400, detail="name is required")
+
+    user = get_current_user(request)
+    creator_id = user["user_id"] if user else None
 
     conn = get_conn()
     try:
@@ -383,15 +460,31 @@ def create_project(body: dict):
                 INSERT INTO projects (
                     name, description, project_type, stage, status,
                     contact_id, probability, expected_revenue,
-                    date_start, date_deadline, tags, notes
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    date_start, date_deadline, tags, notes, assigned_to,
+                    -- crm_type and section were not inserted at all, so a
+                    -- project created through the API always landed as a plain
+                    -- lead with no section. Those two columns are what separate
+                    -- an R&D contract from a portfolio contract from a
+                    -- partnership -- without them the row lands in the wrong
+                    -- pipeline and the Projects board files it under the wrong
+                    -- tab.
+                    crm_type, section
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::uuid,%s,%s)
                 RETURNING project_id
             """, (
                 body["name"],
                 body.get("description"),
-                body.get("project_type", "project"),
+                # Defaults must be values the rest of the system actually uses.
+                # These were "project" and "active", and neither is a real value:
+                # types are crm_opportunity / partnership / grant / marketing /
+                # portfolio, and statuses are in_progress / waiting_sbc /
+                # waiting_client. A project created without them explicitly set
+                # landed with a status nothing filters on -- the same mismatch
+                # that left the Tasks page's project dropdown empty. The
+                # Projects page passes both, which is why this went unnoticed.
+                body.get("project_type") or "crm_opportunity",
                 body.get("stage"),
-                body.get("status", "active"),
+                body.get("status") or "in_progress",
                 body.get("contact_id"),
                 body.get("probability"),
                 body.get("expected_revenue"),
@@ -399,6 +492,11 @@ def create_project(body: dict):
                 body.get("date_deadline"),
                 body.get("tags", []),
                 body.get("notes"),
+                body.get("assigned_to") or creator_id,
+                body.get("crm_type") or "lead",
+                # section is CHECK-constrained to client/partnership, so an
+                # unrecognised value must become NULL rather than fail the write.
+                body.get("section") if body.get("section") in ("client", "partnership") else None,
             ))
             row = cur.fetchone()
             conn.commit()
@@ -439,6 +537,43 @@ def update_project(project_id: str, body: dict):
                     "UPDATE contacts SET archived = false, updated_at = NOW() WHERE contact_id = %s AND archived = true",
                     (updates["contact_id"],),
                 )
+            # Sync back to linked funding entry
+            # notes is no longer synced to the opportunity: 129 made opportunity
+            # notes a dated log, and a blob sync would overwrite the history.
+            SYNC_TO_OPP = {"name": "title", "date_deadline": "deadline", "status": "stage"}
+            SYNC_TO_INV = {"notes": "notes"}
+            opp_fields = {opp_col: updates[proj_col] for proj_col, opp_col in SYNC_TO_OPP.items() if proj_col in updates}
+            inv_fields  = {inv_col:  updates[proj_col] for proj_col, inv_col  in SYNC_TO_INV.items()  if proj_col in updates}
+            if opp_fields or inv_fields:
+                cur.execute(
+                    "SELECT linked_opportunity_id, linked_investor_id FROM projects WHERE project_id = %s",
+                    (project_id,),
+                )
+                links = cur.fetchone()
+                if links and links[0] and opp_fields:
+                    # Stage moves are events on the funding side (129) — a sync
+                    # that skips the log would leave silent gaps in the history.
+                    if "stage" in opp_fields:
+                        cur.execute(
+                            "SELECT stage FROM funding_opportunities WHERE opportunity_id = %s",
+                            (str(links[0]),))
+                        prev = cur.fetchone()
+                        if prev and prev[0] != opp_fields["stage"]:
+                            cur.execute(
+                                "INSERT INTO funding_stage_history "
+                                "(opportunity_id, stage_from, stage_to) VALUES (%s, %s, %s)",
+                                (str(links[0]), prev[0], opp_fields["stage"]))
+                    opp_set = ", ".join(f"{k} = %s" for k in opp_fields)
+                    cur.execute(
+                        f"UPDATE funding_opportunities SET {opp_set}, updated_at = NOW() WHERE opportunity_id = %s",
+                        list(opp_fields.values()) + [str(links[0])],
+                    )
+                if links and links[1] and inv_fields:
+                    inv_set = ", ".join(f"{k} = %s" for k in inv_fields)
+                    cur.execute(
+                        f"UPDATE dilutive_investors SET {inv_set}, updated_at = NOW() WHERE investor_id = %s",
+                        list(inv_fields.values()) + [str(links[1])],
+                    )
             conn.commit()
         return {"ok": True}
     finally:
@@ -1023,7 +1158,11 @@ async def funding_search(project_id: str, request: Request):
             proj = dict(proj)
 
             cur.execute(
-                """SELECT opportunity_id, title, funding_type, amount, stage, tags, notes
+                """SELECT opportunity_id, title, funding_type, amount, stage, tags,
+                          (SELECT string_agg(n.body, ' | ' ORDER BY n.created_at DESC)
+                             FROM (SELECT body, created_at FROM funding_notes fn
+                                   WHERE fn.opportunity_id = funding_opportunities.opportunity_id
+                                   ORDER BY created_at DESC LIMIT 3) n) AS notes
                    FROM funding_opportunities
                    WHERE stage NOT IN ('Won','Lost','Rejected')
                    ORDER BY created_at DESC
@@ -1095,3 +1234,177 @@ Include ALL {len(opps)} opportunities. Sort by score descending."""
 
     results.sort(key=lambda x: x["relevance_score"], reverse=True)
     return {"results": results}
+
+
+# ── AI Status Calculation ──────────────────────────────────────────────────────
+
+@router.post("/{project_id}/calculate-status")
+async def calculate_status(project_id: str):
+    import json as _json
+    from datetime import date
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Project core info
+            cur.execute("""
+                SELECT p.name, p.project_type, p.stage, p.status, p.notes,
+                       p.date_deadline,
+                       c.name as contact_name, c.organization as contact_org
+                FROM projects p
+                LEFT JOIN contacts c ON c.contact_id = p.contact_id
+                WHERE p.project_id = %s
+            """, (project_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Project not found")
+            p = dict(row)
+
+            # All contact IDs linked to project
+            cur.execute("""
+                SELECT DISTINCT contact_id FROM (
+                    SELECT contact_id FROM projects WHERE project_id = %s AND contact_id IS NOT NULL
+                    UNION
+                    SELECT contact_id FROM project_contacts WHERE project_id = %s
+                ) sub
+            """, (project_id, project_id))
+            contact_ids = [r["contact_id"] for r in cur.fetchall()]
+
+            # Recent emails (last 15)
+            emails = []
+            if contact_ids:
+                cur.execute("""
+                    SELECT ci.interaction_type, ci.subject, ci.content_preview,
+                           ci.occurred_at, ci.direction, c.name as contact_name
+                    FROM contact_interactions ci
+                    JOIN contacts c ON c.contact_id = ci.contact_id
+                    WHERE ci.contact_id = ANY(%s)
+                      AND ci.interaction_type IN ('email_sent','email_received','meeting')
+                    ORDER BY ci.occurred_at DESC
+                    LIMIT 15
+                """, (contact_ids,))
+                emails = [dict(r) for r in cur.fetchall()]
+
+            # Open tasks with due dates
+            cur.execute("""
+                SELECT t.title, t.due_date, t.status, t.kanban_status,
+                       u.name as assigned_to_name
+                FROM tasks t
+                LEFT JOIN users u ON u.user_id = t.assigned_to
+                WHERE t.project_id = %s AND t.status = 'open'
+                ORDER BY t.due_date ASC NULLS LAST
+                LIMIT 20
+            """, (project_id,))
+            open_tasks = [dict(r) for r in cur.fetchall()]
+
+            # Status criteria
+            cur.execute("SELECT criteria FROM project_status_settings ORDER BY id DESC LIMIT 1")
+            settings_row = cur.fetchone()
+            criteria = settings_row["criteria"] if settings_row else DEFAULT_STATUS_CRITERIA
+    finally:
+        conn.close()
+
+    today = date.today()
+
+    # Format emails
+    email_lines = []
+    for e in emails:
+        d = str(e["occurred_at"])[:10]
+        direction = "→ (outbound)" if e["direction"] == "outbound" else "← (inbound)" if e["direction"] == "inbound" else ""
+        subj = e.get("subject") or ""
+        preview = (e.get("content_preview") or "")[:150]
+        email_lines.append(f"[{d}] {direction} {e['interaction_type']} with {e['contact_name']}: {subj} — {preview}")
+
+    # Format tasks
+    task_lines = []
+    overdue_count = 0
+    for t in open_tasks:
+        due = ""
+        overdue = ""
+        if t.get("due_date"):
+            dd = t["due_date"] if isinstance(t["due_date"], date) else date.fromisoformat(str(t["due_date"])[:10])
+            days = (dd - today).days
+            if days < 0:
+                overdue_count += 1
+                overdue = f" ⚠ OVERDUE by {abs(days)}d"
+            else:
+                due = f" (due in {days}d)"
+        assigned = f" [assigned: {t['assigned_to_name']}]" if t.get("assigned_to_name") else ""
+        task_lines.append(f"- {t['title']}{due}{overdue}{assigned}")
+
+    criteria_block = "\n".join(
+        f'  "{k}": {v}' for k, v in criteria.items()
+    )
+
+    prompt = f"""You are a project status classifier for a biotech consulting firm (Open ERP Bioculinary).
+
+Analyze the project activity below and classify the current status into exactly one of these four values:
+- in_progress
+- waiting_client
+- waiting_sbc
+- awaiting_vendor
+
+Status criteria defined by the user:
+{criteria_block}
+
+Project: {p['name']}
+Contact: {(p.get('contact_name') or '') + (' (' + p['contact_org'] + ')' if p.get('contact_org') else '')}
+Stage: {p.get('stage') or 'N/A'}
+Overdue tasks: {overdue_count}
+
+Open tasks ({len(open_tasks)} total):
+{chr(10).join(task_lines) if task_lines else "No open tasks."}
+
+Recent communications (newest first):
+{chr(10).join(email_lines) if email_lines else "No recent email activity."}
+
+Respond with a JSON object with exactly two keys:
+- "status": one of "in_progress", "waiting_client", "waiting_sbc", "awaiting_vendor"
+- "reason": one sentence explaining why (max 20 words)
+
+Example: {{"status": "waiting_client", "reason": "Last outbound email sent 5 days ago with no reply from client."}}
+
+JSON only, no other text."""
+
+    client = anthropic.AsyncAnthropic()
+    msg = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=100,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = msg.content[0].text.strip()
+
+    try:
+        result = _json.loads(raw)
+        status = result.get("status", "in_progress")
+        reason = result.get("reason", "")
+    except Exception:
+        import re
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if m:
+            result = _json.loads(m.group())
+            status = result.get("status", "in_progress")
+            reason = result.get("reason", "")
+        else:
+            status = "in_progress"
+            reason = "Could not parse AI response."
+
+    valid = {"in_progress", "waiting_client", "waiting_sbc", "awaiting_vendor"}
+    if status not in valid:
+        status = "in_progress"
+
+    # Persist the new status
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE projects SET status=%s, updated_at=NOW() WHERE project_id=%s",
+                (status, project_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"status": status, "reason": reason}
+
+

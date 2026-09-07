@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell,
 } from "recharts";
+import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,8 +77,8 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function CompletionBar({ pct, color = "#3b82f6" }: { pct: number; color?: string }) {
   return (
-    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
-      <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }} />
+    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded h-2 overflow-hidden">
+      <div className="h-full rounded" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }} />
     </div>
   );
 }
@@ -234,8 +235,8 @@ function CrmTab({ data }: { data: CrmData }) {
                 {rows.map(r => (
                   <div key={`${r.section}-${r.stage}`} className="flex items-center gap-3">
                     <span className="text-xs text-gray-600 dark:text-gray-400 w-28 truncate">{r.stage}</span>
-                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(r.count * 20, 100)}%`, backgroundColor: color }} />
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded h-2 overflow-hidden">
+                      <div className="h-full rounded" style={{ width: `${Math.min(r.count * 20, 100)}%`, backgroundColor: color }} />
                     </div>
                     <span className="text-xs text-gray-500 w-6 text-right">{r.count}</span>
                   </div>
@@ -255,7 +256,7 @@ function CrmTab({ data }: { data: CrmData }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{p.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-full capitalize"
+                    <span className="text-xs px-1.5 py-0.5 rounded capitalize"
                       style={{ backgroundColor: `${SECTION_COLOR[p.section] ?? "#9ca3af"}22`, color: SECTION_COLOR[p.section] ?? "#9ca3af" }}>
                       {p.section}
                     </span>
@@ -351,15 +352,459 @@ function TeamTab({ members }: { members: TeamMember[] }) {
   );
 }
 
+// ── KPI types ──────────────────────────────────────────────────────────────
+
+interface KpiData {
+  as_of: string;
+  week_start: string;
+  sales: {
+    source_url: string;
+    outreach_by_week: { week: string; unique_contacts: number; calls_meetings: number; direct_emails: number }[];
+    outreach_this_week: { unique_contacts: number; calls_meetings: number; direct_emails: number };
+    new_leads_this_week: { id: string; title: string; stage: string; priority: string | null }[];
+    pipeline_stages: { stage: string; count: number; pipeline_value: number; avg_value: number; deal_ids: string[]; deal_titles: string[] }[];
+    total_pipeline: number;
+    avg_deal_size: number;
+    avg_sales_cycle_days: number | null;
+    warm_intros: { total: number; committed: number; warm_total: number; warm_committed: number };
+    conversion_by_segment: { segment: string; total: number; won: number; active: number; conversion_pct: number; deal_ids: string[]; deal_titles: string[] }[];
+    tea_reports: { filename: string }[];
+  };
+  operations: {
+    source_url: string;
+    active_deployments: { id: string; name: string; stage: string }[];
+    avg_contract_to_deployment_days: number | null;
+    open_equipment_milestones: { id: string; title: string; status: string; project_name: string; project_id: string }[];
+  };
+  financial: {
+    source_url: string;
+    current_month_burn: number;
+    net_burn: number;
+    cash_balance: number;
+    burn_mode: string;
+    projected_annual_revenue: number;
+    runway_months: number | null;
+    ytd_revenue: number;
+    ytd_opex: number;
+  };
+  capital: {
+    source_url: string;
+    committed_capital: number;
+    open_round_committed: number;
+    total_raised: number;
+    investor_status: { status: string; count: number; ids: string[]; names: string[] }[];
+    term_sheets_outstanding: number;
+    term_sheet_names: string[];
+    investor_meetings_this_week: number;
+  };
+}
+
+// ── KPI helpers ─────────────────────────────────────────────────────────────
+
+function KpiCard({
+  label, value, sub, accent, sourceUrl, sourceLabel, drill,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: "red" | "green" | "yellow" | "blue";
+  sourceUrl?: string;
+  sourceLabel?: string;
+  drill?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const valColor =
+    accent === "red" ? "text-red-500" :
+    accent === "green" ? "text-green-500" :
+    accent === "yellow" ? "text-yellow-500" :
+    accent === "blue" ? "text-blue-500" :
+    "text-gray-900 dark:text-gray-100";
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+          <p className={`text-2xl font-semibold leading-tight ${valColor}`}>{value}</p>
+          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          {drill && (
+            <button onClick={() => setOpen(o => !o)}
+              className="text-xs text-blue-500 hover:text-blue-700 underline">
+              {open ? "hide" : "details"}
+            </button>
+          )}
+          {sourceUrl && (
+            <Link href={sourceUrl}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors"
+              title={`View in ${sourceLabel ?? "source"}`}>
+              ↗
+            </Link>
+          )}
+        </div>
+      </div>
+      {open && drill && (
+        <div className="mt-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+          {drill}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiSection({ title, sourceUrl, sourceLabel, children }: {
+  title: string; sourceUrl?: string; sourceLabel?: string; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h3>
+        {sourceUrl && (
+          <Link href={sourceUrl}
+            className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-0.5">
+            {sourceLabel ?? "View data"} ↗
+          </Link>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DrillList({ items }: { items: string[] }) {
+  if (!items.length) return <p className="text-xs text-gray-400">No records.</p>;
+  return (
+    <ul className="space-y-0.5">
+      {items.map((item, i) => (
+        <li key={i} className="text-xs text-gray-600 dark:text-gray-400">• {item}</li>
+      ))}
+    </ul>
+  );
+}
+
+// ── KPI Tab components ───────────────────────────────────────────────────────
+
+function KpiInternalTab({ data }: { data: KpiData }) {
+  const { sales, operations, financial, capital } = data;
+
+  const STAGE_ORDER = ["New", "Qualified", "Initial Testing", "Proposition", "Won", "Inactive", "No Response"];
+  const orderedStages = [...sales.pipeline_stages].sort(
+    (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage)
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* ── Sales & Pipeline ── */}
+      <KpiSection title="Sales & Pipeline" sourceUrl={sales.source_url} sourceLabel="CRM">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <KpiCard
+            label="Unique Contacts Reached (this week)"
+            value={sales.outreach_this_week.unique_contacts}
+            sub={`${sales.outreach_this_week.calls_meetings} calls/meetings · ${sales.outreach_this_week.direct_emails} direct emails`}
+            accent="blue"
+            sourceUrl="/contacts"
+            sourceLabel="Contacts"
+          />
+          <KpiCard
+            label="Discovery Calls / Meetings (this week)"
+            value={sales.outreach_this_week.calls_meetings}
+            sourceUrl="/contacts"
+            sourceLabel="Contacts"
+          />
+          <KpiCard
+            label="New Leads This Week"
+            value={sales.new_leads_this_week.length}
+            accent={sales.new_leads_this_week.length > 0 ? "green" : undefined}
+            sourceUrl="/crm?tab=pipeline"
+            sourceLabel="CRM Pipeline"
+            drill={<DrillList items={sales.new_leads_this_week.map(d => `${d.title}${d.stage && d.stage !== "New" ? ` — ${d.stage}` : ""}${d.priority ? ` · ${d.priority}` : ""}`)} />}
+          />
+          <KpiCard
+            label="TEA Reports Generated"
+            value={sales.tea_reports.length}
+            sourceUrl="/reports"
+            sourceLabel="Reports"
+            drill={<DrillList items={sales.tea_reports.map(r => r.filename)} />}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <KpiCard
+            label="Total Pipeline Value"
+            value={fmt$(sales.total_pipeline)}
+            sourceUrl={sales.source_url}
+            sourceLabel="CRM"
+          />
+          <KpiCard
+            label="Average Deal Size"
+            value={sales.avg_deal_size > 0 ? fmt$(sales.avg_deal_size) : "—"}
+            sourceUrl={sales.source_url}
+            sourceLabel="CRM"
+          />
+          <KpiCard
+            label="Avg Sales Cycle (days)"
+            value={sales.avg_sales_cycle_days != null ? `${sales.avg_sales_cycle_days}d` : "—"}
+            sub="Won deals only"
+            sourceUrl={sales.source_url}
+            sourceLabel="CRM"
+          />
+        </div>
+
+        {/* Pipeline stage funnel */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <SectionHeader>Pipeline Stage Conversions</SectionHeader>
+            <Link href={sales.source_url} className="text-xs text-gray-400 hover:text-blue-500">CRM ↗</Link>
+          </div>
+          <div className="space-y-2">
+            {orderedStages.map((s, i) => {
+              const maxCount = Math.max(...orderedStages.map(x => x.count), 1);
+              return (
+                <div key={s.stage} className="group">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500 w-28 truncate">{s.stage}</span>
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded h-3 overflow-hidden">
+                      <div className="h-full rounded transition-all"
+                        style={{ width: `${Math.min((s.count / maxCount) * 100, 100)}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-6 text-right">{s.count}</span>
+                    <span className="text-xs text-gray-400 w-20 text-right">{fmt$(s.pipeline_value)}</span>
+                    <Link href={sales.source_url}
+                      className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                      title={s.deal_titles?.join(", ")}>↗</Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <KpiCard
+            label="Warm Intros (total)"
+            value={sales.warm_intros.warm_total}
+            sub={`${sales.warm_intros.warm_committed} committed`}
+            accent="green"
+            sourceUrl="/funding"
+            sourceLabel="Funding"
+          />
+          <KpiCard
+            label="Investors (all types)"
+            value={sales.warm_intros.total}
+            sub={`${sales.warm_intros.committed} committed`}
+            sourceUrl="/funding"
+            sourceLabel="Funding"
+          />
+        </div>
+
+        {/* Market segment conversion */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <SectionHeader>Conversion Rate by Market Segment</SectionHeader>
+            <Link href={sales.source_url} className="text-xs text-gray-400 hover:text-blue-500">CRM ↗</Link>
+          </div>
+          <div className="space-y-3">
+            {sales.conversion_by_segment.map(seg => (
+              <div key={seg.segment}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{seg.segment}</span>
+                  <div className="flex items-center gap-3 text-xs text-gray-400">
+                    <span>{seg.won} won / {seg.total} total</span>
+                    <span className="w-8 text-right text-gray-600 dark:text-gray-300 font-medium">{seg.conversion_pct}%</span>
+                  </div>
+                </div>
+                <CompletionBar pct={seg.conversion_pct} color="#3b82f6" />
+                {seg.deal_titles?.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-1 truncate" title={seg.deal_titles.join(", ")}>
+                    {seg.deal_titles.slice(0, 3).join(", ")}{seg.deal_titles.length > 3 ? ` +${seg.deal_titles.length - 3}` : ""}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-3">Segments matched by keyword in deal title/description.</p>
+        </div>
+
+        {/* Weekly outreach chart */}
+        {sales.outreach_by_week.length > 0 && (
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <SectionHeader>Unique Contacts Reached per Week</SectionHeader>
+              <Link href="/contacts" className="text-xs text-gray-400 hover:text-blue-500">Contacts ↗</Link>
+            </div>
+            <ResponsiveContainer width="100%" height={180} className="mt-2">
+              <BarChart data={sales.outreach_by_week} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="week" tick={{ fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip labelFormatter={d => `Week of ${d}`} />
+                <Bar dataKey="direct_emails" name="Direct Emails" stackId="a" fill="#3b82f6" />
+                <Bar dataKey="calls_meetings" name="Calls/Meetings" stackId="a" fill="#10b981" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </KpiSection>
+
+      {/* ── Operations ── */}
+      <KpiSection title="Operations" sourceUrl={operations.source_url} sourceLabel="Projects">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <KpiCard
+            label="Active Deployments"
+            value={operations.active_deployments.length}
+            accent={operations.active_deployments.length > 0 ? "green" : undefined}
+            sourceUrl={operations.source_url}
+            sourceLabel="Projects"
+            drill={<DrillList items={operations.active_deployments.map(d => `${d.name} — ${d.stage}`)} />}
+          />
+          <KpiCard
+            label="Avg Contract → Deployment"
+            value={operations.avg_contract_to_deployment_days != null
+              ? `${operations.avg_contract_to_deployment_days}d` : "—"}
+            sub="Pilot/Production with start date"
+            sourceUrl={operations.source_url}
+            sourceLabel="Projects"
+          />
+          <KpiCard
+            label="Open Equipment Milestones"
+            value={operations.open_equipment_milestones.length}
+            accent={operations.open_equipment_milestones.length > 0 ? "yellow" : undefined}
+            sourceUrl={operations.source_url}
+            sourceLabel="Projects"
+            drill={<DrillList items={operations.open_equipment_milestones.map(m => `${m.project_name}: ${m.title} (${m.status})`)} />}
+          />
+        </div>
+      </KpiSection>
+
+      {/* ── Financial ── */}
+      <KpiSection title="Financial" sourceUrl={financial.source_url} sourceLabel="FP&A">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard
+            label="Monthly Burn Rate"
+            value={fmt$(financial.current_month_burn)}
+            sub={`${financial.burn_mode === "manual" ? "Manual entries" : financial.burn_mode === "reconciled" ? "Reconciled (Plaid)" : "Auto"} · net ${fmt$(financial.net_burn)}/mo`}
+            accent="red"
+            sourceUrl={financial.source_url}
+            sourceLabel="FP&A"
+          />
+          <KpiCard
+            label="Runway"
+            value={financial.runway_months != null ? `${financial.runway_months} mo` : "—"}
+            sub={financial.cash_balance > 0 ? `${fmt$(financial.cash_balance)} cash on hand` : "Based on actuals"}
+            accent={financial.runway_months != null && financial.runway_months <= 3 ? "red" : "green"}
+            sourceUrl={financial.source_url}
+            sourceLabel="FP&A"
+          />
+          <KpiCard
+            label="Projected Annual Revenue"
+            value={fmt$(financial.projected_annual_revenue)}
+            sub="Current year FPA projection"
+            sourceUrl={financial.source_url}
+            sourceLabel="FP&A"
+          />
+          <KpiCard
+            label="YTD Revenue vs Opex"
+            value={fmt$(financial.ytd_revenue)}
+            sub={`vs ${fmt$(financial.ytd_opex)} opex`}
+            accent={financial.ytd_revenue >= financial.ytd_opex ? "green" : "yellow"}
+            sourceUrl={financial.source_url}
+            sourceLabel="FP&A"
+          />
+        </div>
+      </KpiSection>
+
+      {/* ── Capital ── */}
+      <KpiSection title="Capital" sourceUrl={capital.source_url} sourceLabel="Funding">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <KpiCard
+            label="Capital Committed (closed rounds)"
+            value={fmt$(capital.committed_capital)}
+            accent="green"
+            sourceUrl={capital.source_url}
+            sourceLabel="Funding"
+          />
+          <KpiCard
+            label="Open Round Committed"
+            value={fmt$(capital.open_round_committed)}
+            sourceUrl={capital.source_url}
+            sourceLabel="Funding"
+          />
+          <KpiCard
+            label="Term Sheets Outstanding"
+            value={capital.term_sheets_outstanding}
+            accent={capital.term_sheets_outstanding > 0 ? "yellow" : undefined}
+            sourceUrl={capital.source_url}
+            sourceLabel="Funding"
+            drill={<DrillList items={capital.term_sheet_names} />}
+          />
+          <KpiCard
+            label="Investor Meetings (this week)"
+            value={capital.investor_meetings_this_week}
+            sourceUrl="/contacts"
+            sourceLabel="Contacts"
+          />
+        </div>
+
+        {capital.investor_status.length > 0 && (
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <SectionHeader>Investor Pipeline Status</SectionHeader>
+              <Link href={capital.source_url} className="text-xs text-gray-400 hover:text-blue-500">Funding ↗</Link>
+            </div>
+            <div className="space-y-2">
+              {capital.investor_status.map((s, i) => (
+                <div key={s.status} className="group">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-36 truncate">{s.status}</span>
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded h-2 overflow-hidden">
+                      <div className="h-full rounded"
+                        style={{ width: `${Math.min(s.count * 10, 100)}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
+                    <span className="text-xs font-semibold w-6 text-right" style={{ color: COLORS[i % COLORS.length] }}>{s.count}</span>
+                    <Link href={capital.source_url}
+                      className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={s.names?.join(", ")}>↗</Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </KpiSection>
+    </div>
+  );
+}
+
+function KpisTab({ data }: { data: KpiData }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <span className="text-xs text-gray-400">As of {data.as_of}</span>
+      </div>
+      <KpiInternalTab data={data} />
+    </div>
+  );
+}
+
 // ── Main exported panel ────────────────────────────────────────────────────
 
 export default function ReportsPanel({ isAdmin }: { isAdmin: boolean }) {
   const [days, setDays] = useState(30);
-  const [tab, setTab] = useState<"tasks" | "crm" | "team">("tasks");
+  const [tab, setTab] = useState<"kpis" | "tasks" | "crm" | "team">("kpis");
   const [taskData, setTaskData] = useState<TaskOverview | null>(null);
   const [crmData, setCrmData] = useState<CrmData | null>(null);
   const [teamData, setTeamData] = useState<TeamMember[] | null>(null);
+  const [kpiData, setKpiData] = useState<KpiData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  useEffect(() => {
+    setKpiLoading(true);
+    fetch("/api/proxy/reports/kpis")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setKpiData(d); })
+      .finally(() => setKpiLoading(false));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -379,10 +824,13 @@ export default function ReportsPanel({ isAdmin }: { isAdmin: boolean }) {
   }, [isAdmin]);
 
   const tabs = [
+    { key: "kpis" as const, label: "KPIs" },
     { key: "tasks" as const, label: "My Tasks" },
     { key: "crm" as const, label: "CRM & Projects" },
     ...(isAdmin ? [{ key: "team" as const, label: "Team" }] : []),
   ];
+
+  const showDaysPicker = tab !== "kpis";
 
   return (
     <div className="space-y-6">
@@ -399,16 +847,32 @@ export default function ReportsPanel({ isAdmin }: { isAdmin: boolean }) {
             </button>
           ))}
         </div>
-        <select value={days} onChange={e => setDays(Number(e.target.value))}
-          className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-          <option value={180}>Last 180 days</option>
-        </select>
+        {showDaysPicker && (
+          <select value={days} onChange={e => setDays(Number(e.target.value))}
+            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+            <option value={180}>Last 180 days</option>
+          </select>
+        )}
       </div>
 
-      {loading && (
+      {tab === "kpis" && (
+        kpiLoading
+          ? <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Loading KPIs…
+            </div>
+          : kpiData
+            ? <KpisTab data={kpiData} />
+            : <p className="text-sm text-gray-400 py-12 text-center">KPI data unavailable.</p>
+      )}
+
+      {loading && tab !== "kpis" && (
         <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
           <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

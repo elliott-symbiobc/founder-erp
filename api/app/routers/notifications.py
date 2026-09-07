@@ -20,6 +20,11 @@ from app.routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
+# Notification types that mean a person is waiting on you, as opposed to the
+# ambient ones (notebook shares, portal views). Only these light the bell and
+# raise a popup; everything else still lists in the panel.
+ACTIONABLE_TYPES = ["task_assigned", "review_requested", "review_resolved"]
+
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
@@ -87,14 +92,33 @@ def list_notifications(
         )
         rows = [_fmt(r) for r in cur.fetchall()]
 
-        # Count unread for badge
+        # Two counts, because the bell badge and the list answer different
+        # questions. The list still shows everything -- notebook shares, portal
+        # views, messages someone sent you -- but the badge and the popup are
+        # reserved for the types where a person is waiting on you: a task
+        # handed over, a review asked of you, or a verdict on a review you
+        # requested. Counted here rather than from `rows`, which is capped at
+        # `limit` and would undercount.
         cur.execute(
-            "SELECT COUNT(*) AS cnt FROM task_notifications WHERE recipient_id = %s::uuid AND status = 'pending'",
-            (user["user_id"],),
+            """
+            SELECT COUNT(*) FILTER (WHERE status = 'pending')                AS unread,
+                   COUNT(*) FILTER (WHERE status = 'pending'
+                                      AND notification_type = ANY(%s))       AS actionable
+            FROM task_notifications
+            WHERE recipient_id = %s::uuid
+            """,
+            (ACTIONABLE_TYPES, user["user_id"]),
         )
-        unread_count = cur.fetchone()["cnt"]
+        counts = cur.fetchone()
 
-        return {"notifications": rows, "unread_count": int(unread_count)}
+        return {
+            "notifications": rows,
+            "unread_count": int(counts["unread"]),
+            "actionable_unread_count": int(counts["actionable"]),
+            # Kept so an older cached bundle does not read undefined and blank
+            # the badge mid-deploy.
+            "assignment_unread_count": int(counts["actionable"]),
+        }
     finally:
         conn.close()
 
@@ -127,12 +151,50 @@ def respond_notification(notification_id: str, body: RespondBody, request: Reque
         )
         row = _fmt(cur.fetchone())
 
-        # If denied, unassign the task/project from this user
-        if body.action == "denied":
+        if body.action == "approved":
+            # Accepting takes the task out of triage. Without this the Inbox
+            # column never drains: the notification clears but the card stays
+            # where it was, so the board keeps presenting a decision already
+            # made. Only Inbox moves -- a task accepted from anywhere else is
+            # already somewhere its owner put it.
             if notif["entity_type"] == "task":
                 cur.execute(
-                    "UPDATE tasks SET assigned_to = NULL, updated_at = now() WHERE task_id = %s::uuid AND assigned_to = %s::uuid",
+                    """
+                    UPDATE tasks SET kanban_status = 'todo', updated_at = now()
+                    WHERE task_id = %s::uuid AND assigned_to = %s::uuid
+                      AND kanban_status = 'inbox'
+                    """,
                     (str(notif["entity_id"]), user["user_id"]),
+                )
+
+        # Declining hands the work back rather than dropping it.
+        if body.action == "denied":
+            if notif["entity_type"] == "task":
+                # This used to set assigned_to = NULL, which cannot succeed:
+                # migration 140 made the column NOT NULL precisely so a task
+                # could never sit on nobody's board. So every decline threw and
+                # rolled back the status update with it -- declining an
+                # assignment has never worked since that migration landed.
+                #
+                # The task goes back to whoever sent it, which is migration
+                # 140's own backfill rule (a task with no assignee falls to its
+                # creator) and leaves someone accountable for it. It also
+                # returns to their Inbox, so the hand-back is visible rather
+                # than silent. sender_id is preferred over the task's creator:
+                # the person who asked is the person to answer to.
+                cur.execute(
+                    """
+                    UPDATE tasks t
+                    SET assigned_to = COALESCE(%s::uuid, t.user_id),
+                        kanban_status = 'inbox',
+                        updated_at = now()
+                    WHERE t.task_id = %s::uuid AND t.assigned_to = %s::uuid
+                    """,
+                    (
+                        str(notif["sender_id"]) if notif.get("sender_id") else None,
+                        str(notif["entity_id"]),
+                        user["user_id"],
+                    ),
                 )
             elif notif["entity_type"] == "project":
                 cur.execute(
@@ -190,6 +252,54 @@ def delete_notification(notification_id: str, request: Request):
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Notification not found")
         conn.commit()
+    finally:
+        conn.close()
+
+
+@router.delete("")
+def clear_notifications(request: Request, include_pending: bool = False):
+    """Clear the current user's notifications.
+
+    Assignments still waiting on an accept/decline are kept by default. The
+    Inbox column reads those pending rows to decide whether to offer Accept and
+    Decline on a delegated task, so deleting them would take the decision away
+    while leaving the task sitting there — the notification is the only record
+    that an answer is still owed. Pass include_pending=true to wipe those too.
+    """
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        if include_pending:
+            cur.execute(
+                "DELETE FROM task_notifications WHERE recipient_id = %s::uuid",
+                (user["user_id"],),
+            )
+        else:
+            cur.execute(
+                """
+                DELETE FROM task_notifications
+                WHERE recipient_id = %s::uuid
+                  AND NOT (status = 'pending' AND notification_type = 'task_assigned')
+                """,
+                (user["user_id"],),
+            )
+        deleted = cur.rowcount
+        conn.commit()
+
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM task_notifications
+            WHERE recipient_id = %s::uuid
+              AND status = 'pending' AND notification_type = 'task_assigned'
+            """,
+            (user["user_id"],),
+        )
+        kept = cur.fetchone()[0]
+        return {"deleted": deleted, "kept_awaiting_response": kept}
     finally:
         conn.close()
 

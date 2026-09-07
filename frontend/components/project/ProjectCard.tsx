@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/Avatar";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ export interface CardTask {
   status: string;
   assigned_to_name: string | null;
   locked: boolean;
+  due_date: string | null;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -48,21 +50,21 @@ export interface CardTask {
 export const STATUS_CARD: Record<string, string> = {
   in_progress:     "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/50",
   waiting_client:  "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800/50",
-  waiting_sbc:     "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/50",
+  waiting_sbc:     "bg-[#C31010]/10 border-[#C31010]/30 dark:bg-[#C31010]/15 dark:border-[#C31010]/40",
   awaiting_vendor: "bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-800/50",
 };
 
 export const STATUS_DOT: Record<string, string> = {
   in_progress:     "bg-green-500",
   waiting_client:  "bg-amber-400",
-  waiting_sbc:     "bg-blue-500",
+  waiting_sbc:     "bg-[#C31010]",
   awaiting_vendor: "bg-orange-400",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
   in_progress:     "In Progress",
-  waiting_client:  "Waiting on Client",
-  waiting_sbc:     "Waiting on SBC",
+  waiting_client:  "Awaiting Client",
+  waiting_sbc:     "Awaiting Us",
   awaiting_vendor: "Awaiting Vendor",
 };
 
@@ -104,35 +106,34 @@ export function daysSince(d: string | null): number | null {
 
 // ── Avatar ─────────────────────────────────────────────────────────────────────
 
-export function Avatar({ name, url, size = 7 }: { name: string | null; url: string | null; size?: number }) {
-  if (url) return <img src={url} className={`w-${size} h-${size} rounded-full object-cover`} />;
-  const initials = (name ?? "?").split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
-  return (
-    <div className={`w-${size} h-${size} rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300 flex-shrink-0`}>
-      {initials}
-    </div>
-  );
-}
+// Avatar now lives in components/Avatar.tsx; re-exported for existing importers.
+export { Avatar };
 
 // ── ProjectCard ────────────────────────────────────────────────────────────────
 
-export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType = false }:
-  { p: Project; compact?: boolean; onDelete?: (id: string) => void; onUpdate?: () => void; showType?: boolean }) {
+export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType = false, href }:
+  { p: Project; compact?: boolean; onDelete?: (id: string) => void; onUpdate?: () => void; showType?: boolean; href?: string }) {
   const router = useRouter();
   const deadline = daysUntil(p.date_deadline);
   const lastEmail = daysSince(p.last_email_at);
   const [confirmDel, setConfirmDel] = useState(false);
   const [localStatus, setLocalStatus] = useState(p.status);
   const [tasks, setTasks] = useState<CardTask[]>([]);
-  const [tasksOpen, setTasksOpen] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
+  const loadedForCount = useRef<number>(-1);
 
-  async function loadTasks() {
-    if (tasksLoaded) return;
+  async function loadTasks(count: number) {
     const r = await fetch(`/api/proxy/tasks?project_id=${p.project_id}&all_users=true`);
     if (r.ok) { const all: CardTask[] = await r.json(); setTasks(all.filter(t => t.status === "open" && !t.locked)); }
+    loadedForCount.current = count;
     setTasksLoaded(true);
   }
+
+  useEffect(() => {
+    if (!compact) return;
+    if (loadedForCount.current === p.task_count && tasksLoaded) return;
+    loadTasks(p.task_count);
+  }, [p.project_id, p.task_count]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleTask(t: CardTask) {
     await fetch(`/api/proxy/tasks/${t.task_id}`, {
@@ -154,9 +155,11 @@ export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType =
   return (
     <div className="relative group">
       <div
-        className={`group/card border rounded-lg p-3 hover:shadow-sm transition-all cursor-pointer ${compact ? (STATUS_CARD[localStatus] ?? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800") + " hover:brightness-95" : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600"}`}
-        onClick={() => router.push(`/projects/${p.project_id}`)}
+        className="relative group/card border rounded-lg p-3 hover:shadow-sm transition-all cursor-pointer bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+        onClick={() => router.push(href ?? `/projects/${p.project_id}`)}
       >
+        {compact && <div className={`absolute left-0 top-3 bottom-3 w-0.5 rounded ${STATUS_DOT[localStatus] ?? "bg-zinc-300"}`} />}
+        <div className={compact ? "pl-3" : ""}>
         {/* Company + type badge */}
         <div className="flex items-start justify-between gap-2 mb-0.5">
           <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate group-hover/card:text-blue-600 dark:group-hover/card:text-blue-400 transition-colors leading-tight">
@@ -169,14 +172,16 @@ export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType =
           )}
         </div>
 
-        {/* Substrate */}
-        {p.substrate ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mb-2">{p.substrate}</p>
-        ) : (
-          <p className="text-xs text-zinc-300 dark:text-zinc-600 truncate mb-2 italic">No substrate</p>
+        {/* Substrate — hidden for marketing, operations, and grants */}
+        {!["marketing", "internal", "grant"].includes(p.project_type) && (
+          p.substrate ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mb-2">{p.substrate}</p>
+          ) : (
+            <p className="text-xs text-zinc-300 dark:text-zinc-600 truncate mb-2 italic">No substrate</p>
+          )
         )}
 
-        {/* Status + revenue */}
+        {/* Status + revenue + owner */}
         <div className="flex items-center gap-1.5 mb-2" onClick={e => e.stopPropagation()}>
           <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[localStatus] ?? "bg-gray-300"}`} />
           <select
@@ -186,15 +191,21 @@ export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType =
           >
             {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          {p.expected_revenue ? (
-            <span className="ml-auto text-[11px] text-zinc-400 dark:text-zinc-500 font-mono shrink-0">
-              {fmtCurrency(p.expected_revenue)}
-            </span>
-          ) : null}
+          <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+            {p.expected_revenue ? (
+              <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono">{fmtCurrency(p.expected_revenue)}</span>
+            ) : null}
+            {p.assigned_to_name && (
+              <div className="flex items-center gap-1" title={p.assigned_to_name}>
+                <Avatar name={p.assigned_to_name} url={null} size={4} />
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[60px]">{p.assigned_to_name.split(" ")[0]}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Plan needed flag */}
-        {(p.project_type === "crm_opportunity" || p.project_type === "portfolio") && p.task_count === 0 && (
+        {(p.project_type === "crm_opportunity" || p.project_type === "portfolio" || p.project_type === "grant") && p.task_count === 0 && (
           <div className="flex items-center gap-1 mb-2 -mt-1" onClick={e => e.stopPropagation()}>
             <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
               <path d="M4 3h16v13l-8 5-8-5V3z" />
@@ -231,35 +242,28 @@ export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType =
         )}
 
         {/* Active tasks toggle (compact/pipeline mode only) */}
-        {compact && (
-          <div className="border-t border-black/5 dark:border-white/5 mt-2 pt-2" onClick={e => e.stopPropagation()}>
-            <button
-              className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors w-full"
-              onClick={() => { setTasksOpen(o => !o); if (!tasksOpen) loadTasks(); }}
-            >
-              <svg className={`w-3 h-3 transition-transform ${tasksOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-              Active tasks {tasksLoaded && tasks.length > 0 ? `(${tasks.length})` : ""}
-            </button>
-            {tasksOpen && (
-              <div className="mt-1.5 space-y-1">
-                {!tasksLoaded && <p className="text-[10px] text-zinc-400 italic">Loading…</p>}
-                {tasksLoaded && tasks.length === 0 && <p className="text-[10px] text-zinc-400 italic">No active tasks</p>}
-                {tasks.map(t => (
-                  <div key={t.task_id} className="flex items-center gap-1.5 group/task">
-                    <button
-                      onClick={() => toggleTask(t)}
-                      className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-600 hover:border-green-400 hover:bg-green-50 flex-shrink-0 transition-colors"
-                    />
-                    <span className="flex-1 text-[11px] text-zinc-600 dark:text-zinc-300 truncate min-w-0">{t.title}</span>
-                    {t.assigned_to_name && (
-                      <span className="text-[10px] text-zinc-400 flex-shrink-0">{t.assigned_to_name.split(" ")[0]}</span>
-                    )}
-                  </div>
-                ))}
+        {compact && tasksLoaded && tasks.length > 0 && (
+          <div className="border-t border-black/5 dark:border-white/5 mt-2 pt-2 space-y-1" onClick={e => e.stopPropagation()}>
+            {tasks.map(t => (
+              <div key={t.task_id} className="flex items-center gap-1.5">
+                <button
+                  onClick={() => toggleTask(t)}
+                  className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-600 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 flex-shrink-0 transition-colors"
+                />
+                <span className="flex-1 text-[11px] text-zinc-600 dark:text-zinc-300 truncate min-w-0">{t.title}</span>
+                {t.due_date && (() => { const dl = daysUntil(t.due_date); return (
+                  <span className={`text-[10px] flex-shrink-0 font-medium ${dl !== null && dl < 0 ? "text-red-500" : dl !== null && dl < 3 ? "text-amber-500" : "text-zinc-400 dark:text-zinc-500"}`}>
+                    {dl !== null && dl < 0 ? `${Math.abs(dl)}d late` : dl === 0 ? "today" : `${dl}d`}
+                  </span>
+                ); })()}
+                {t.assigned_to_name && (
+                  <span className="text-[10px] text-zinc-400 flex-shrink-0">{t.assigned_to_name.split(" ")[0]}</span>
+                )}
               </div>
-            )}
+            ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* Delete button */}

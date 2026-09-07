@@ -4,7 +4,7 @@ contacts_sync.py — Background tasks for the contacts module.
 Tasks:
   - sync_gmail_contacts(user_id)          Pull Gmail threads for known contact emails
   - sync_calendar_contacts(user_id)       Pull Calendar events involving known contacts
-  - enrich_contact(contact_id)            Claude + Semantic Scholar profile enrichment
+  - enrich_contact(contact_id)            Apollo + Brand.dev + Claude profile enrichment
   - summarize_contact(contact_id)         Claude AI summary of interactions
 """
 
@@ -15,6 +15,8 @@ from typing import Optional
 
 import psycopg2
 import psycopg2.extras
+
+from app.tasks import comm_sync
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +171,8 @@ def sync_gmail_contacts(user_id: str) -> dict:
                         headers=auth_headers,
                         params={
                             "format": "metadata",
-                            "metadataHeaders": ["Subject", "From", "To", "Cc", "Date"],
+                            "metadataHeaders": ["Subject", "From", "To", "Cc",
+                                                "Date", "Message-ID"],
                         },
                         timeout=15,
                     )
@@ -186,6 +189,9 @@ def sync_gmail_contacts(user_id: str) -> dict:
                     cc_addr = hdr.get("cc", "")
                     date_str = hdr.get("date", "")
                     snippet = msg.get("snippet", "")[:500]
+                    # Per-mailbox Gmail ids make the same email look like two;
+                    # this header is the same in every copy of it.
+                    rfc_id = (hdr.get("message-id") or "").strip() or None
 
                     contact_is_sender = email.lower() in from_addr.lower()
 
@@ -218,18 +224,21 @@ def sync_gmail_contacts(user_id: str) -> dict:
                         "gmail_id": msg_id,
                     }
 
+                    if rfc_id and _already_logged(cur, contact_id, rfc_id):
+                        continue
                     cur.execute(
                         """
                         INSERT INTO contact_interactions
                             (contact_id, interaction_type, subject, content_preview,
-                             external_id, occurred_at, direction, metadata)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (contact_id, external_id) DO NOTHING
+                             external_id, occurred_at, direction, metadata,
+                             rfc_message_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
                         """,
                         (
                             contact_id, interaction_type, subject, snippet,
                             msg_id, occurred_at, direction,
-                            psycopg2.extras.Json(metadata),
+                            psycopg2.extras.Json(metadata), rfc_id,
                         ),
                     )
                     synced += 1
@@ -290,6 +299,21 @@ def sync_gmail_contacts(user_id: str) -> dict:
         conn.close()
 
 
+def _already_logged(cur, contact_id, rfc_message_id) -> bool:
+    """Is this email already on the contact's timeline, from another mailbox?
+
+    external_id is a Gmail message id, which is issued per-mailbox: with two
+    accounts connected, the same email arrives twice under two ids and the
+    (contact_id, external_id) key cannot tell. The RFC822 Message-ID can.
+    """
+    cur.execute(
+        "SELECT 1 FROM contact_interactions "
+        "WHERE contact_id = %s AND rfc_message_id = %s LIMIT 1",
+        (contact_id, rfc_message_id),
+    )
+    return cur.fetchone() is not None
+
+
 def sync_gmail_incremental(user_id: str) -> dict:
     """
     Incremental Gmail sync using the History API.
@@ -319,8 +343,19 @@ def sync_gmail_incremental(user_id: str) -> dict:
         # Load contact email → id map
         cur.execute("SELECT contact_id, email FROM contacts WHERE email IS NOT NULL AND archived = false")
         contacts_by_email = {r["email"].lower(): r["contact_id"] for r in cur.fetchall()}
-        if not contacts_by_email:
-            return {"status": "skipped", "reason": "no_contacts_with_email"}
+
+        # Our own mail domains — used to tell inbound from outbound. A message
+        # from a teammate is still us, not the investor.
+        cur.execute(
+            "SELECT DISTINCT lower(split_part(COALESCE(google_email, ''), '@', 2)) AS d "
+            "FROM google_oauth_tokens WHERE google_email IS NOT NULL"
+        )
+        our_domains = {r["d"] for r in cur.fetchall() if r["d"]}
+        if not our_domains:
+            our_domains = {"example.com"}
+
+        # NB: no early return on an empty contact map any more — investor
+        # matching does not depend on contacts existing.
 
         auth_headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -379,7 +414,8 @@ def sync_gmail_incremental(user_id: str) -> dict:
                 msg_resp = httpx.get(
                     f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}",
                     headers=auth_headers,
-                    params={"format": "metadata", "metadataHeaders": ["Subject", "From", "To", "Cc", "Date"]},
+                    params={"format": "metadata",
+                            "metadataHeaders": ["Subject", "From", "To", "Cc", "Date", "Message-ID"]},
                     timeout=15,
                 )
                 if msg_resp.status_code != 200:
@@ -394,6 +430,7 @@ def sync_gmail_incremental(user_id: str) -> dict:
                 subject   = hdr.get("subject", "(no subject)")
                 date_str  = hdr.get("date", "")
                 snippet   = msg.get("snippet", "")[:500]
+                rfc_id    = (hdr.get("message-id") or "").strip() or None
 
                 # Find which contact(s) this message involves
                 to_list = _parse_email_addresses(to_addr)
@@ -425,20 +462,49 @@ def sync_gmail_incremental(user_id: str) -> dict:
                         "from": from_addr, "to": to_addr, "cc": cc_addr,
                         "gmail_id": msg_id,
                     }
+                    if rfc_id and _already_logged(cur, contact_id, rfc_id):
+                        continue
                     cur.execute(
                         """
                         INSERT INTO contact_interactions
                             (contact_id, interaction_type, subject, content_preview,
-                             external_id, occurred_at, direction, metadata)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (contact_id, external_id) DO NOTHING
+                             external_id, occurred_at, direction, metadata,
+                             rfc_message_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
                         """,
                         (contact_id, interaction_type, subject, snippet,
-                         msg_id, occurred_at, direction, psycopg2.extras.Json(metadata)),
+                         msg_id, occurred_at, direction,
+                         psycopg2.extras.Json(metadata), rfc_id),
                     )
                     synced += 1
                     if not is_group:
                         contacts_updated.add((contact_id, occurred_at))
+
+                # Same message, second matcher: pipeline entities match on their
+                # own address list and on known threads, so investor mail lands
+                # even when nobody involved is a contact.
+                try:
+                    moved = comm_sync.record_message(
+                        cur,
+                        msg_id=msg_id,
+                        thread_id=msg.get("threadId"),
+                        from_email=(from_list[0] if from_list else ""),
+                        to_emails=all_recipients,
+                        subject=subject,
+                        snippet=snippet,
+                        occurred_at=occurred_at,
+                        user_id=user_id,
+                        our_domains=our_domains,
+                        rfc_message_id=hdr.get("message-id"),
+                    )
+                    for entity_type, entity_id, direction in moved:
+                        if direction == "inbound":
+                            comm_sync.apply_inbound(cur, entity_type, entity_id, occurred_at)
+                        else:
+                            comm_sync.apply_outbound(cur, entity_type, entity_id)
+                except Exception as exc:
+                    logger.warning("comm_sync failed for message %s: %s", msg_id, exc)
 
             except Exception as exc:
                 logger.warning("incremental sync failed for message %s: %s", msg_id, exc)
@@ -609,18 +675,6 @@ def summarize_contact(contact_id: str) -> dict:
         )
         open_reminders = [dict(r) for r in cur.fetchall()]
 
-        # Fetch substrate links
-        cur.execute(
-            """
-            SELECT s.name, csl.role
-            FROM contact_substrate_links csl
-            JOIN substrates s ON s.substrate_id = csl.substrate_id
-            WHERE csl.contact_id = %s
-            """,
-            (contact_id,),
-        )
-        substrate_links = [dict(r) for r in cur.fetchall()]
-
         # Build context
         parts = []
 
@@ -643,8 +697,6 @@ def summarize_contact(contact_id: str) -> dict:
             + (f"\nSubject areas: {', '.join(contact.get('subject_areas') or [])}" if contact.get('subject_areas') else "")
             + (f"\nNotes: {contact['notes']}" if contact.get('notes') else "")
         )
-        if substrate_links:
-            profile += "\nLinked substrates: " + ", ".join(f"{sl['name']} ({sl['role']})" for sl in substrate_links)
         parts.append(profile)
 
         # Interactions
@@ -711,16 +763,155 @@ def summarize_contact(contact_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Web enrichment (Semantic Scholar + Claude knowledge)
+# Web enrichment (Apollo person match + Brand.dev employer + Claude synthesis)
 # ---------------------------------------------------------------------------
+#
+# Design rule, learned the hard way from the Semantic Scholar version this
+# replaced: NEVER identify a person by name alone. "Pablo Sanchez" + employer
+# resolves to a different real human on both S2 and Apollo — an IT technician in
+# Colombia rather than the VP we meant. A confidently wrong profile is worse
+# than an empty one, because it silently feeds the Claude synthesis below and
+# comes back out as authoritative prose. Email is the only join key we trust.
+
+_GW_BASE = "https://api.gooseworks.ai/v1"
+_GENERIC_MAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
+    "icloud.com", "me.com", "msn.com", "live.com", "comcast.net", "proton.me",
+    "protonmail.com", "att.net", "verizon.net", "sbcglobal.net",
+}
+
+
+def _gw_key() -> str:
+    """GooseWorks API key — credentials file first, env var as fallback."""
+    import json as _json
+    try:
+        with open(os.path.expanduser("~/.gooseworks/credentials.json")) as f:
+            return _json.load(f)["api_key"]
+    except Exception:
+        return os.environ.get("GOOSEWORKS_API_KEY", "")
+
+
+def _contact_domain(email: Optional[str]) -> Optional[str]:
+    """Employer domain from an email address. Consumer mailbox providers return
+    None — 'gmail.com' is not an employer, and looking it up would attach
+    Google's brand data to every freelancer in the CRM."""
+    if not email or "@" not in email:
+        return None
+    domain = email.rsplit("@", 1)[-1].strip().lower()
+    if not domain or "." not in domain:
+        return None
+    return None if domain in _GENERIC_MAIL_DOMAINS else domain
+
+
+def _apollo_person(email: Optional[str], linkedin_url: Optional[str] = None) -> Optional[dict]:
+    """Match one person in Apollo on a unique identifier — email, or failing
+    that a LinkedIn profile URL. Both point at exactly one human; a name does
+    not. Returns the raw person object or None."""
+    import json as _json
+    import urllib.request
+
+    key = _gw_key()
+    if not key:
+        return None
+    if email:
+        query = {"email": email, "reveal_personal_emails": False}
+    elif linkedin_url:
+        query = {"linkedin_url": linkedin_url, "reveal_personal_emails": False}
+    else:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{_GW_BASE}/proxy/apollo/people/match",
+            data=_json.dumps(query).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            payload = _json.load(resp)
+    except Exception as exc:
+        logger.warning("Apollo match failed for %s: %s", email or linkedin_url, exc)
+        return None
+
+    person = (payload.get("data") or payload).get("person")
+    if not person:
+        return None
+
+    # Apollo echoes the query back even on a miss. Require the match to actually
+    # carry an identity before trusting it.
+    if not (person.get("name") or person.get("linkedin_url")):
+        return None
+    return person
+
+
+def _brand_for_domain(domain: str) -> Optional[dict]:
+    """Employer brand data via the same Brand.dev proxy the company enrichment
+    endpoint uses. Returns None on any failure — enrichment degrades, not fails."""
+    import json as _json
+    import urllib.request
+
+    key = _gw_key()
+    if not key or not domain:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{_GW_BASE}/proxy/orthogonal/run",
+            data=_json.dumps({
+                "api": "brand-dev",
+                "path": "/v1/brand/retrieve",
+                "query": {"domain": domain},
+            }).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            payload = _json.load(resp)
+    except Exception as exc:
+        logger.warning("Brand.dev lookup failed for %s: %s", domain, exc)
+        return None
+
+    if (payload.get("status") or "").lower() == "error":
+        return None
+    return ((payload.get("data") or {}).get("brand")) or None
+
+
+def _claude_json(prompt: str, max_tokens: int = 700) -> Optional[dict]:
+    """One Claude call that must return a JSON object. Tolerates markdown
+    fences. Returns None rather than raising — a failed synthesis should leave
+    the verified facts intact, not lose them."""
+    import json as _json
+    import re as _re
+    import anthropic
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = msg.content[0].text.strip() if msg.content else ""
+        fence = _re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+        if fence:
+            raw = fence.group(1).strip()
+        if not raw:
+            return None
+        parsed = _json.loads(raw)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception as exc:
+        logger.warning("Claude synthesis failed: %s", exc)
+        return None
+
 
 def enrich_contact(contact_id: str) -> dict:
     """
-    Enrich a contact's profile using:
-    1. Semantic Scholar API — find publications by this person
-    2. Claude — synthesize professional context
+    Enrich a contact from verified sources, then synthesize.
+
+    1. Apollo people/match, keyed on email — title, LinkedIn, location, employer
+    2. Brand.dev on the employer domain — what the company actually does
+    3. Claude — synthesize relevance from the facts above, inventing nothing
+
+    Blank contact columns get filled from step 1; existing values are never
+    overwritten. Tags come only from the existing contact_tags vocabulary.
     """
-    import anthropic
+    import json as _json
 
     conn = _conn()
     try:
@@ -730,148 +921,155 @@ def enrich_contact(contact_id: str) -> dict:
         if not contact:
             return {"status": "error", "error": "contact not found"}
 
-        name = contact["name"]
-        org = contact.get("organization", "")
+        name = (contact["name"] or "").strip()
+        email = (contact.get("email") or "").strip()
+        linkedin = (contact.get("linkedin_url") or "").strip()
+        org = (contact.get("organization") or "").strip()
         enrichment = dict(contact.get("enrichment_data") or {})
 
-        # 1. Semantic Scholar paper search
-        papers = []
-        try:
-            import requests
-            s2_key = os.environ.get("S2_API_KEY", "")
-            hdrs = {"x-api-key": s2_key} if s2_key else {}
-            query = f"{name} {org}".strip()
-            r = requests.get(
-                "https://api.semanticscholar.org/graph/v1/author/search",
-                params={"query": query, "fields": "name,affiliations,paperCount,citationCount,papers.title,papers.year"},
-                headers=hdrs,
-                timeout=10,
-            )
-            if r.status_code == 200:
-                data = r.json()
-                authors = data.get("data", [])
-                if authors:
-                    best = authors[0]
-                    enrichment["s2_author_id"] = best.get("authorId")
-                    enrichment["s2_paper_count"] = best.get("paperCount", 0)
-                    enrichment["s2_citation_count"] = best.get("citationCount", 0)
-                    recent_papers = sorted(
-                        best.get("papers", []),
-                        key=lambda p: p.get("year", 0),
-                        reverse=True,
-                    )[:5]
-                    papers = [{"title": p.get("title"), "year": p.get("year")} for p in recent_papers]
-                    enrichment["recent_papers"] = papers
-        except Exception as exc:
-            logger.warning("S2 search failed for %s: %s", name, exc)
+        # Drop artifacts of the Semantic Scholar era so re-enriching a contact
+        # clears stale publication counts instead of leaving them orphaned.
+        for dead in ("s2_author_id", "s2_paper_count", "s2_citation_count",
+                     "recent_papers", "regulatory_pressures", "government_incentives"):
+            enrichment.pop(dead, None)
 
-        # 2. Claude enrichment prompt
-        papers_text = ""
-        if papers:
-            papers_text = "\nPublications found:\n" + "\n".join(
-                f"  - {p['title']} ({p['year']})" for p in papers
-            )
+        sources = []
+        facts = {}          # verified, attributable — never invented by an LLM
+        col_updates = {}    # blank contact columns we can safely fill
 
-        prompt = (
-            f"You are enriching a contact record for a biotech CRM. Based on the information below, "
-            f"provide a structured professional profile.\n\n"
-            f"Name: {name}\n"
-            f"Organization: {org or 'Unknown'}\n"
-            f"Title: {contact.get('title', 'Unknown')}\n"
-            f"Subject Areas: {', '.join(contact.get('subject_areas') or []) or 'Not specified'}\n"
-            f"{papers_text}\n\n"
-            f"Provide a JSON object with these fields (use null for unknown):\n"
-            f'{{"professional_background": "2-3 sentences about expertise and role",\n'
-            f' "key_expertise": ["list", "of", "expertise areas"],\n'
-            f' "industry_focus": "primary industry/sector",\n'
-            f' "relevance_to_biotech": "why this contact matters to a biotech focused on fungal fermentation and industrial waste streams",\n'
-            f' "suggested_tags": ["up to 5 relevant tags"]}}\n\n'
-            f"Return only valid JSON, no markdown code blocks."
+        # --- 1. Apollo person match (unique identifiers only) -----------------
+        person = _apollo_person(email, linkedin) if (email or linkedin) else None
+        if person:
+            sources.append("apollo")
+            p_org = person.get("organization") or {}
+            facts.update({k: v for k, v in {
+                "person_title": person.get("title"),
+                "person_headline": person.get("headline"),
+                "person_linkedin": person.get("linkedin_url"),
+                "person_location": ", ".join(filter(None, [
+                    person.get("city"), person.get("state"), person.get("country")])) or None,
+                "employer_name": p_org.get("name"),
+                "employer_industry": p_org.get("industry"),
+                "employer_size": p_org.get("estimated_num_employees"),
+                "employer_founded": p_org.get("founded_year"),
+                "employer_website": p_org.get("website_url"),
+                "employer_linkedin": p_org.get("linkedin_url"),
+            }.items() if v})
+            # Fill blanks on the record itself — never overwrite curated values.
+            for col, val in (
+                ("title", person.get("title")),
+                ("linkedin_url", person.get("linkedin_url")),
+                ("avatar_url", person.get("photo_url")),
+                ("website_url", p_org.get("website_url")),
+            ):
+                if val and not str(contact.get(col) or "").strip():
+                    col_updates[col] = val
+        elif email or linkedin:
+            logger.info("No Apollo match for %s <%s>", name, email or linkedin)
+
+        # --- 2. Employer brand data ------------------------------------------
+        domain = _contact_domain(email) or _contact_domain(facts.get("employer_website"))
+        if not domain and facts.get("employer_website"):
+            domain = (facts["employer_website"] or "").replace("https://", "").replace(
+                "http://", "").replace("www.", "").split("/")[0].lower() or None
+        brand = _brand_for_domain(domain) if domain else None
+        if brand:
+            sources.append("brand_dev")
+            eic = (brand.get("industries") or {}).get("eic") or []
+            brand_industry = None
+            if eic:
+                brand_industry = eic[0].get("subindustry") or eic[0].get("industry")
+            facts.update({k: v for k, v in {
+                "employer_domain": domain,
+                "employer_description": brand.get("description"),
+                "employer_industry_classified": brand_industry,
+            }.items() if v})
+            enrichment["brand_dev"] = brand
+
+        # --- 3. Claude synthesis over verified facts only ---------------------
+        if facts:
+            facts_text = "\n".join(f"  {k}: {v}" for k, v in facts.items())
+            prompt = (
+                "You are enriching a CRM record for Open ERP Bioculinary, a biotech company "
+                "working on fungal fermentation and upcycling agricultural and industrial "
+                "waste streams into food ingredients.\n\n"
+                "VERIFIED FACTS about this contact, retrieved from Apollo and Brand.dev:\n"
+                f"  name: {name}\n"
+                f"  organization on file: {org or 'unknown'}\n"
+                f"{facts_text}\n\n"
+                "Write a JSON object with exactly these fields:\n"
+                '{"professional_background": "2-3 sentences on this person\'s role and remit",\n'
+                ' "key_expertise": ["3-5 areas"],\n'
+                ' "industry_focus": "primary sector",\n'
+                ' "company_focus": "1-2 sentences on what their employer does",\n'
+                ' "relevance_to_biotech": "why this contact matters to Open ERP specifically",\n'
+                ' "partnership_potential": "1-2 concrete sentences on how Open ERP could work with them",\n'
+                ' "suggested_tags": ["up to 5 short tags"]}\n\n'
+                "RULES:\n"
+                "- Ground every claim in the verified facts above. Do not invent job history, "
+                "credentials, publications, or company details that are not stated.\n"
+                "- If the facts are too thin to support a field, use null. A null is correct; "
+                "a plausible guess is not.\n"
+                "- Do not speculate about regulations or grant programs.\n"
+                "Return only valid JSON, no markdown fences."
+            )
+            synth = _claude_json(prompt)
+            if synth:
+                sources.append("claude")
+                for k in ("professional_background", "key_expertise", "industry_focus",
+                          "company_focus", "relevance_to_biotech", "partnership_potential",
+                          "suggested_tags"):
+                    if synth.get(k) is not None:
+                        enrichment[k] = synth[k]
+        else:
+            logger.info("No verified data for contact %s — skipping synthesis", contact_id)
+
+        # --- 4. Tags from the existing vocabulary only ------------------------
+        cur.execute("SELECT name FROM contact_tags")
+        vocab = {r["name"].lower(): r["name"] for r in cur.fetchall()}
+        current = {t.lower() for t in (contact.get("tags") or [])}
+        added_tags = []
+        for suggested in (enrichment.get("suggested_tags") or [])[:5]:
+            canon = vocab.get(str(suggested).strip().lower())
+            if canon and canon.lower() not in current:
+                added_tags.append(canon)
+                current.add(canon.lower())
+        if added_tags:
+            col_updates["tags"] = list(contact.get("tags") or []) + added_tags
+
+        # --- 5. Persist -------------------------------------------------------
+        enrichment["verified_facts"] = facts
+        enrichment["enrichment_sources"] = sources
+        enrichment["enrichment_confidence"] = (
+            "verified" if person else "partial" if brand else "none"
         )
-
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            message = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
+        if not (email or linkedin):
+            enrichment["enrichment_note"] = (
+                "No email or LinkedIn URL on file — person-level lookup needs a "
+                "unique identifier. Add either one to enable it."
             )
-            import json, re as _re
-            _raw = message.content[0].text.strip() if message.content else ""
-            _fence = _re.search(r"```(?:json)?\s*([\s\S]*?)```", _raw)
-            if _fence: _raw = _fence.group(1).strip()
-            if not _raw: raise ValueError("Claude returned empty response")
-            claude_data = json.loads(_raw)
-            enrichment.update(claude_data)
 
-            # Auto-suggest tags if contact has none
-            cur.execute("SELECT tags FROM contacts WHERE contact_id = %s", (contact_id,))
-            existing = cur.fetchone()
-            if existing and not (existing["tags"] or []):
-                suggested = claude_data.get("suggested_tags", [])[:5]
-                if suggested:
-                    cur.execute(
-                        "UPDATE contacts SET tags = %s WHERE contact_id = %s",
-                        (suggested, contact_id),
-                    )
-        except Exception as exc:
-            logger.warning("Claude enrichment failed for %s: %s", name, exc)
-
-        # 3. Company profile + regulatory + incentives (second Claude call)
-        try:
-            company_prompt = (
-                f"You are a business intelligence analyst for a biotech startup (Collective ERP) "
-                f"focused on food ingredients, fermentation, and upcycling agricultural waste streams.\n\n"
-                f"Research this company and contact:\n"
-                f"Name: {name}\n"
-                f"Organization: {org or 'Unknown'}\n"
-                f"Title: {contact.get('title', 'Unknown')}\n\n"
-                f"Return a JSON object with these exact fields (null if unknown, [] if none apply):\n"
-                f'{{\n'
-                f'  "company_location": "City, State or Country",\n'
-                f'  "company_size": "estimated headcount range e.g. 50-200 employees",\n'
-                f'  "company_focus": "1-2 sentence description of what the company does",\n'
-                f'  "company_type": "e.g. food manufacturer, ingredient supplier, research institution, retailer, distributor",\n'
-                f'  "regulatory_pressures": [\n'
-                f'    "Name each specific regulation/standard that affects this company — \n'
-                f'     e.g. FDA FSMA Preventive Controls, California Prop 65, USDA NOP organic, \n'
-                f'     EU Novel Foods Regulation. Be specific, not generic."\n'
-                f'  ],\n'
-                f'  "government_incentives": [\n'
-                f'    "Name each specific grant or program available to this company/sector — \n'
-                f'     e.g. USDA SBIR Phase I, NSF SBIR, California Competes Tax Credit, \n'
-                f'     NIFA Sustainable Ag Research. Be specific."\n'
-                f'  ],\n'
-                f'  "partnership_potential": "1-2 sentences on how Symbio could partner with this company"\n'
-                f'}}\n\n'
-                f"Base regulatory and incentive answers on the company location and industry. "
-                f"Return only valid JSON, no markdown code blocks."
-            )
-            company_msg = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=700,
-                messages=[{"role": "user", "content": company_prompt}],
-            )
-            import json as _json2
-            raw2 = company_msg.content[0].text.strip()
-            # Strip markdown fences if present
-            import re as _re2
-            fence2 = _re2.search(r"```(?:json)?\s*([\s\S]*?)```", raw2)
-            if fence2:
-                raw2 = fence2.group(1).strip()
-            company_data = _json2.loads(raw2)
-            enrichment.update(company_data)
-            logger.info("Company enrichment complete for %s", name)
-        except Exception as exc:
-            logger.warning("Company enrichment failed for %s: %s", name, exc)
-
-        cur.execute(
-            "UPDATE contacts SET enrichment_data = %s, last_enriched_at = NOW() WHERE contact_id = %s",
-            (psycopg2.extras.Json(enrichment), contact_id),
-        )
+        sets = ["enrichment_data = %s", "last_enriched_at = NOW()", "updated_at = NOW()"]
+        params = [psycopg2.extras.Json(enrichment)]
+        for col, val in col_updates.items():
+            sets.insert(0, f"{col} = %s")
+            params.insert(0, val)
+        params.append(contact_id)
+        cur.execute(f"UPDATE contacts SET {', '.join(sets)} WHERE contact_id = %s", params)
         conn.commit()
-        logger.info("Enrichment complete for contact %s", contact_id)
-        return {"status": "success", "contact_id": contact_id, "enrichment": enrichment}
+
+        logger.info(
+            "Enriched contact %s (%s) — sources=%s filled=%s",
+            contact_id, name, ",".join(sources) or "none", ",".join(col_updates) or "none",
+        )
+        return {
+            "status": "success",
+            "contact_id": contact_id,
+            "sources": sources,
+            "confidence": enrichment["enrichment_confidence"],
+            "filled": list(col_updates),
+            "enrichment": enrichment,
+        }
 
     except Exception as exc:
         logger.exception("enrich_contact failed for %s", contact_id)
@@ -1399,5 +1597,110 @@ def refresh_stale_summaries() -> dict:
     except Exception as exc:
         logger.exception("refresh_stale_summaries failed")
         return {"status": "error", "error": str(exc)}
+    finally:
+        conn.close()
+
+
+def backfill_entity_gmail(entity_type: str, entity_id: str, per_address: int = 25) -> dict:
+    """Pull historical Gmail for an entity's already-linked addresses and record
+    it onto the entity.
+
+    The 5-minute incremental sync only sees NEW mail (Gmail historyId) and skips
+    anything already stored in contact_interactions, so a freshly-linked deal
+    never picks up past correspondence on its own. This one-off pass queries
+    Gmail directly for each linked address and feeds every hit through the same
+    pipeline matcher (comm_sync.record_message), which is idempotent.
+    """
+    import httpx
+    from datetime import datetime, timezone
+    from email.utils import parsedate_to_datetime
+    from app.tasks import comm_sync
+
+    conn = _conn()
+    recorded = 0
+    scanned = 0
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT DISTINCT lower(email) AS email FROM comm_addresses "
+            "WHERE entity_type = %s AND entity_id = %s AND email IS NOT NULL",
+            (entity_type, str(entity_id)),
+        )
+        emails = [r["email"] for r in cur.fetchall() if r["email"]]
+        if not emails:
+            return {"status": "skipped", "reason": "no_addresses", "recorded": 0}
+
+        cur.execute(
+            "SELECT DISTINCT lower(split_part(COALESCE(google_email, ''), '@', 2)) AS d "
+            "FROM google_oauth_tokens WHERE google_email IS NOT NULL"
+        )
+        our_domains = {r["d"] for r in cur.fetchall() if r["d"]} or {"example.com"}
+
+        cur.execute("SELECT user_id::text AS uid FROM google_oauth_tokens")
+        uids = [r["uid"] for r in cur.fetchall()]
+
+        for uid in uids:
+            token = _get_valid_token(uid, conn)
+            if not token:
+                continue
+            headers = {"Authorization": f"Bearer {token}"}
+            seen_ids: set = set()
+            for email in emails:
+                try:
+                    resp = httpx.get(
+                        "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+                        headers=headers,
+                        params={"q": f"from:{email} OR to:{email}", "maxResults": per_address},
+                        timeout=20,
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    for ref in resp.json().get("messages", []):
+                        mid = ref["id"]
+                        if mid in seen_ids:
+                            continue
+                        seen_ids.add(mid)
+                        scanned += 1
+                        mr = httpx.get(
+                            f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{mid}",
+                            headers=headers,
+                            params={"format": "metadata",
+                                    "metadataHeaders": ["Subject", "From", "To", "Cc", "Date", "Message-ID"]},
+                            timeout=20,
+                        )
+                        if mr.status_code != 200:
+                            continue
+                        m = mr.json()
+                        hdr = {h["name"].lower(): h["value"]
+                               for h in m.get("payload", {}).get("headers", [])}
+                        from_list = _parse_email_addresses(hdr.get("from", ""))
+                        all_recipients = list(set(
+                            _parse_email_addresses(hdr.get("to", "")) +
+                            _parse_email_addresses(hdr.get("cc", ""))
+                        ))
+                        try:
+                            occurred_at = parsedate_to_datetime(hdr.get("date", ""))
+                        except Exception:
+                            occurred_at = datetime.now(timezone.utc)
+                        moved = comm_sync.record_message(
+                            cur,
+                            msg_id=mid,
+                            thread_id=m.get("threadId"),
+                            from_email=(from_list[0] if from_list else ""),
+                            to_emails=all_recipients,
+                            subject=hdr.get("subject", "(no subject)"),
+                            snippet=m.get("snippet", "")[:500],
+                            occurred_at=occurred_at,
+                            user_id=uid,
+                            our_domains=our_domains,
+                            rfc_message_id=hdr.get("message-id"),
+                        )
+                        recorded += len(moved)
+                except Exception:
+                    logger.exception("backfill: gmail error for %s / %s", uid, email)
+                    continue
+        conn.commit()
+        return {"status": "success", "recorded": recorded, "scanned": scanned,
+                "addresses": len(emails), "mailboxes": len(uids)}
     finally:
         conn.close()

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Task {
@@ -12,6 +13,8 @@ interface Task {
   milestone_id: string | null; milestone_title: string | null;
   assigned_to: string | null; assigned_to_name: string | null;
   blocked_by_count: number; locked: boolean;
+  follow_up_of: string | null; trigger_days: number | null; condition: string | null;
+  description: string | null;
 }
 
 interface Resource {
@@ -50,7 +53,7 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
       <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
         {title}
         {count !== undefined && (
-          <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{count}</span>
+          <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded">{count}</span>
         )}
       </h3>
       {action}
@@ -63,7 +66,11 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
 export function ActiveTasksSection({ projectId }: { projectId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addingTitle, setAddingTitle] = useState("");
+  const [addingDue, setAddingDue] = useState("");
+  const [addingDesc, setAddingDesc] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [descDraft, setDescDraft] = useState("");
   const [milestones, setMilestones] = useState<Array<{ milestone_id: string; title: string }>>([]);
 
   const load = useCallback(async () => {
@@ -78,14 +85,41 @@ export function ActiveTasksSection({ projectId }: { projectId: string }) {
 
   const activeTasks = tasks.filter(t => t.status === "open" && !t.locked);
   const blocked = tasks.filter(t => t.blocked_by_count > 0 && t.status === "open" && !t.locked);
+  const [followUpTarget, setFollowUpTarget] = useState<string | null>(null); // task_id we're adding follow-up to
+  const [followUpTitle, setFollowUpTitle] = useState("");
+  const [followUpDays, setFollowUpDays] = useState("7");
 
   async function addTask() {
     if (!addingTitle.trim()) return;
     await fetch("/api/proxy/tasks", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: addingTitle.trim(), project_id: projectId }),
+      body: JSON.stringify({ title: addingTitle.trim(), project_id: projectId, due_date: addingDue || null, description: addingDesc || null }),
     });
-    setAddingTitle(""); setAdding(false); load();
+    setAddingTitle(""); setAddingDue(""); setAddingDesc(""); setAdding(false); load();
+  }
+
+  async function saveDesc(taskId: string, desc: string) {
+    await fetch(`/api/proxy/tasks/${taskId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: desc || null }),
+    });
+    setEditingDescId(null);
+    load();
+  }
+
+  async function addFollowUp(parentTaskId: string) {
+    if (!followUpTitle.trim()) return;
+    await fetch("/api/proxy/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: followUpTitle.trim(),
+        project_id: projectId,
+        follow_up_of: parentTaskId,
+        trigger_days: parseInt(followUpDays) || 7,
+        condition: "no_response",
+      }),
+    });
+    setFollowUpTarget(null); setFollowUpTitle(""); setFollowUpDays("7"); load();
   }
 
   async function toggle(t: Task) {
@@ -127,42 +161,100 @@ export function ActiveTasksSection({ projectId }: { projectId: string }) {
       )}
 
       <div className="space-y-1">
-        {activeTasks.map(t => (
-          <div key={t.task_id} className="group rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/30 px-1 py-1">
-            <div className="flex items-center gap-2 text-xs flex-nowrap min-w-0">
-              <button onClick={() => toggle(t)} className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-600 hover:border-green-400 flex-shrink-0" />
-              {t.activity_type && <span className="text-zinc-300 dark:text-zinc-600 flex-shrink-0">{ACTIVITY_ICON[t.activity_type] ?? ""}</span>}
-              <span className="flex-1 truncate min-w-0 text-zinc-700 dark:text-zinc-300">{t.title}</span>
-              {t.due_date && <span className={`text-[10px] flex-shrink-0 ${(daysUntil(t.due_date) ?? 1) < 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtDate(t.due_date)}</span>}
-              {t.assigned_to_name && <span className="text-[10px] flex-shrink-0 text-zinc-400 max-w-[80px] truncate">{t.assigned_to_name.split(" ")[0]}</span>}
-            </div>
-            {(t.milestone_title || milestones.length > 0) && (
-              <div className="flex items-center gap-1.5 mt-0.5 pl-5">
-                {t.milestone_title && <span className="text-[10px] text-zinc-400 truncate">{t.milestone_title}</span>}
-                {milestones.length > 0 && (
-                  <select onChange={e => { if (e.target.value) assignToMilestone(t.task_id, e.target.value); }} defaultValue=""
-                    className={`hidden group-hover:inline-block ${SEL_XS} py-0 text-[10px]`} onClick={e => e.stopPropagation()}>
-                    <option value="">Move…</option>
-                    {milestones.map(m => <option key={m.milestone_id} value={m.milestone_id}>{m.title}</option>)}
-                  </select>
+        {activeTasks.map(t => {
+          const isFollowUp = !!t.follow_up_of;
+          const hasFollowUp = activeTasks.some(x => x.follow_up_of === t.task_id);
+          return (
+            <div key={t.task_id}>
+              <div className={`rounded px-1 py-1 ${isFollowUp ? "ml-4 border-l-2 border-amber-200 dark:border-amber-800/40 pl-2" : ""}`}>
+                <div className="flex items-center gap-2 text-xs flex-nowrap min-w-0">
+                  <button onClick={() => toggle(t)} className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-600 hover:border-green-400 flex-shrink-0" />
+                  {isFollowUp && <span className="text-amber-400 flex-shrink-0 text-[10px]">↩</span>}
+                  {t.activity_type && !isFollowUp && <span className="text-zinc-300 dark:text-zinc-600 flex-shrink-0">{ACTIVITY_ICON[t.activity_type] ?? ""}</span>}
+                  <span className="flex-1 truncate min-w-0 text-zinc-700 dark:text-zinc-300">{t.title}</span>
+                  {isFollowUp && (
+                    <span className="text-[10px] text-amber-500 dark:text-amber-400 flex-shrink-0 font-medium">
+                      if no reply · {t.trigger_days ?? 7}d
+                    </span>
+                  )}
+                  {t.due_date && <span className={`text-[10px] flex-shrink-0 ${(daysUntil(t.due_date) ?? 1) < 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtDate(t.due_date)}</span>}
+                  {t.assigned_to_name && <span className="text-[10px] flex-shrink-0 text-zinc-400 max-w-[80px] truncate">{t.assigned_to_name.split(" ")[0]}</span>}
+                </div>
+                {/* Description */}
+                {editingDescId === t.task_id ? (
+                  <AutoTextarea autoFocus value={descDraft} onChange={e => setDescDraft(e.target.value)}
+                    onBlur={() => saveDesc(t.task_id, descDraft)}
+                    onKeyDown={e => { if (e.key === "Escape") { setEditingDescId(null); } if (e.key === "Enter" && e.metaKey) saveDesc(t.task_id, descDraft); }}
+                    rows={2} placeholder="Add description…"
+                    className="ml-5 mt-1 w-full text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none" />
+                ) : t.description ? (
+                  <p onClick={() => { setEditingDescId(t.task_id); setDescDraft(t.description ?? ""); }}
+                    className="ml-5 mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500 leading-relaxed cursor-text hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors whitespace-pre-wrap">
+                    {t.description}
+                  </p>
+                ) : (
+                  <button onClick={() => { setEditingDescId(t.task_id); setDescDraft(""); }}
+                    className="ml-5 mt-0.5 text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors">
+                    + description
+                  </button>
+                )}
+                {!hasFollowUp && !isFollowUp && followUpTarget !== t.task_id && (
+                  <button
+                    onClick={() => { setFollowUpTarget(t.task_id); setFollowUpTitle(""); setFollowUpDays("7"); }}
+                    className="ml-5 mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
+                  >+ if no reply…</button>
+                )}
+                {(t.milestone_title || milestones.length > 0) && (
+                  <div className="flex items-center gap-1.5 mt-0.5 pl-5">
+                    {t.milestone_title && <span className="text-[10px] text-zinc-400 truncate">{t.milestone_title}</span>}
+                    {milestones.length > 0 && (
+                      <select onChange={e => { if (e.target.value) assignToMilestone(t.task_id, e.target.value); }} defaultValue=""
+                        className={`hidden group-hover:inline-block ${SEL_XS} py-0 text-[10px]`} onClick={e => e.stopPropagation()}>
+                        <option value="">Move…</option>
+                        {milestones.map(m => <option key={m.milestone_id} value={m.milestone_id}>{m.title}</option>)}
+                      </select>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        ))}
+              {/* Inline follow-up form */}
+              {followUpTarget === t.task_id && (
+                <div className="ml-4 mt-1 mb-1 pl-2 border-l-2 border-amber-300 dark:border-amber-700">
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mb-1">If no reply after this task is done:</p>
+                  <div className="flex gap-1.5 items-center">
+                    <input autoFocus value={followUpTitle} onChange={e => setFollowUpTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") addFollowUp(t.task_id); if (e.key === "Escape") setFollowUpTarget(null); }}
+                      placeholder="Follow-up task title…"
+                      className="flex-1 px-2 py-1 text-xs border border-amber-200 dark:border-amber-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-400/50" />
+                    <span className="text-[10px] text-zinc-400 flex-shrink-0">after</span>
+                    <input type="number" min={1} max={90} value={followUpDays} onChange={e => setFollowUpDays(e.target.value)}
+                      className="w-10 px-1 py-1 text-xs border border-amber-200 dark:border-amber-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-center focus:outline-none focus:ring-1 focus:ring-amber-400/50" />
+                    <span className="text-[10px] text-zinc-400 flex-shrink-0">days</span>
+                    <button onClick={() => addFollowUp(t.task_id)} className="text-xs px-2 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 flex-shrink-0">Add</button>
+                    <button onClick={() => setFollowUpTarget(null)} className="text-xs text-zinc-400 hover:text-zinc-600 flex-shrink-0">✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
         {activeTasks.length === 0 && (
           <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">No active tasks — activate an objective in the Plan to get started.</p>
         )}
       </div>
 
       {adding && (
-        <div className="flex gap-1.5 mt-2">
-          <input autoFocus value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addTask(); if (e.key === "Escape") { setAdding(false); setAddingTitle(""); }}}
-            placeholder="Task title…"
-            className="flex-1 px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <button onClick={addTask} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
-          <button onClick={() => { setAdding(false); setAddingTitle(""); }} className="text-xs text-zinc-400 hover:text-zinc-600">Cancel</button>
+        <div className="flex flex-col gap-1.5 mt-2">
+          <div className="flex gap-1.5">
+            <input autoFocus value={addingTitle} onChange={e => setAddingTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addTask(); if (e.key === "Escape") { setAdding(false); setAddingTitle(""); setAddingDue(""); }}}
+              placeholder="Task title…"
+              className="flex-1 px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="date" value={addingDue} onChange={e => setAddingDue(e.target.value)}
+              className="px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button onClick={addTask} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
+            <button onClick={() => { setAdding(false); setAddingTitle(""); setAddingDue(""); }} className="text-xs text-zinc-400 hover:text-zinc-600">Cancel</button>
+          </div>
         </div>
       )}
     </div>
@@ -202,7 +294,6 @@ export function ResourcesSection({ projectId }: { projectId: string }) {
     (acc[r.resource_type] = acc[r.resource_type] ?? []).push(r); return acc;
   }, {});
   const totalCost = resources.reduce((s, r) => s + (r.cost_estimate ?? 0), 0);
-  const TYPE_ICON: Record<string, string> = { labor: "👤", capital: "💰", equipment: "⚙", lab_space: "🔬", consumables: "🧪", external: "🌐" };
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
@@ -216,7 +307,7 @@ export function ResourcesSection({ projectId }: { projectId: string }) {
       {Object.entries(grouped).map(([type, items]) => (
         <div key={type} className="mb-3">
           <div className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-1">
-            {TYPE_ICON[type] ?? "▸"} {type.replace("_", " ")}
+            {type.replace("_", " ")}
           </div>
           <div className="space-y-1">
             {items.map(r => (
@@ -418,7 +509,7 @@ export function FundingAgentSection({ projectId, noCard }: { projectId: string; 
       <SectionHeader title="Funding" action={
         <button onClick={searchFunding} disabled={searching}
           className="text-xs bg-violet-600 text-white px-3 py-1 rounded-lg hover:bg-violet-700 disabled:opacity-40 flex items-center gap-1.5">
-          {searching ? "Searching…" : "🔍 Find Funding"}
+          {searching ? "Searching…" : "Find Funding"}
         </button>
       } />
       <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
@@ -463,7 +554,7 @@ export function FundingAgentSection({ projectId, noCard }: { projectId: string; 
   );
 }
 
-// ── Shared helpers for Notebooks / Drive / Portal ─────────────────────────────
+// ── Shared helpers for Drive / Portal ─────────────────────────────────────────
 
 function timeAgo(iso: string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -497,149 +588,6 @@ function DriveIcon({ className }: { className?: string }) {
       <path d="M76.85 24.85L66.5 6.95C65.7 5.55 64.55 4.45 63.2 3.65L43.65 0 49.3 67.55l27.55-42.7z" fill="#2684fc"/>
       <path d="M43.65 0L19.15 42.45 38 33.35 43.65 0z" fill="#00ac47"/>
     </svg>
-  );
-}
-
-// ── Notebooks Section ─────────────────────────────────────────────────────────
-
-interface NotebookMeta { notebook_id: string; name: string; description: string | null; updated_at: string; project_name?: string | null; }
-
-export function NotebooksSection({ projectId }: { projectId: string }) {
-  const router = useRouter();
-  const [notebooks, setNotebooks] = useState<NotebookMeta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [linking, setLinking] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState("");
-  const [allNotebooks, setAllNotebooks] = useState<NotebookMeta[]>([]);
-  const [loadingAll, setLoadingAll] = useState(false);
-
-  const load = () => {
-    setLoading(true);
-    fetch(`/api/proxy/notebook/by-project/${projectId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setNotebooks(Array.isArray(d) ? d : []))
-      .catch(() => setNotebooks([]))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, [projectId]);
-
-  async function openLinkPanel() {
-    setLinking(true);
-    setSearch("");
-    setLoadingAll(true);
-    const r = await fetch("/api/proxy/notebook/notebooks");
-    const data = r.ok ? await r.json() : [];
-    const linkedIds = new Set(notebooks.map(n => n.notebook_id));
-    setAllNotebooks((Array.isArray(data) ? data : []).filter((n: NotebookMeta) => !linkedIds.has(n.notebook_id)));
-    setLoadingAll(false);
-  }
-
-  async function linkNotebook(notebookId: string) {
-    await fetch(`/api/proxy/notebook/notebooks/${notebookId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: projectId }),
-    });
-    setLinking(false);
-    load();
-  }
-
-  async function unlinkNotebook(notebookId: string) {
-    await fetch(`/api/proxy/notebook/notebooks/${notebookId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: null }),
-    });
-    load();
-  }
-
-  async function createNotebook() {
-    setCreating(true);
-    const r = await fetch("/api/proxy/notebook/notebooks", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "New Notebook", project_id: projectId, is_shared: false }),
-    });
-    if (r.ok) {
-      const nb = await r.json();
-      load();
-      router.push(`/notebook?tab=lab&notebook=${nb.notebook_id}`);
-    }
-    setCreating(false);
-  }
-
-  const filtered = allNotebooks.filter(n =>
-    !search || n.name.toLowerCase().includes(search.toLowerCase()) || (n.project_name ?? "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-        <h2 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Lab Notebooks</h2>
-        <div className="flex items-center gap-1.5">
-          <button onClick={openLinkPanel}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
-            Link existing
-          </button>
-          <button onClick={createNotebook} disabled={creating}
-            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium transition-colors">
-            {creating ? "Creating…" : "+ New"}
-          </button>
-        </div>
-      </div>
-
-      {linking && (
-        <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 space-y-2">
-          <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search notebooks…"
-            className="w-full text-xs px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 placeholder-zinc-400" />
-          {loadingAll ? (
-            <p className="text-xs text-zinc-400 py-1">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-xs text-zinc-400 italic py-1">{search ? "No matches" : "No other notebooks found"}</p>
-          ) : (
-            <div className="max-h-48 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-              {filtered.map(n => (
-                <button key={n.notebook_id} onClick={() => linkNotebook(n.notebook_id)}
-                  className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors">
-                  <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{n.name}</p>
-                  {n.project_name && <p className="text-[10px] text-zinc-400">Currently: {n.project_name}</p>}
-                  {!n.project_name && <p className="text-[10px] text-zinc-400">Not linked to a project</p>}
-                </button>
-              ))}
-            </div>
-          )}
-          <button onClick={() => setLinking(false)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">Cancel</button>
-        </div>
-      )}
-
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {loading ? (
-          <p className="px-4 py-6 text-sm text-zinc-400 text-center">Loading…</p>
-        ) : notebooks.length === 0 ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-sm text-zinc-400 mb-1">No notebooks linked.</p>
-            <button onClick={createNotebook} className="text-xs text-indigo-600 hover:underline">Create one →</button>
-          </div>
-        ) : notebooks.map(nb => (
-          <div key={nb.notebook_id} className="flex items-start gap-3 px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors group">
-            <Link href={`/notebook?tab=lab&notebook=${nb.notebook_id}`} className="flex items-start gap-3 flex-1 min-w-0">
-              <svg className="w-4 h-4 mt-0.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 truncate">{nb.name}</p>
-                {nb.description && <p className="text-xs text-zinc-400 truncate mt-0.5">{nb.description}</p>}
-                <p className="text-[10px] text-zinc-400 mt-0.5">Updated {timeAgo(nb.updated_at)}</p>
-              </div>
-            </Link>
-            <button onClick={() => unlinkNotebook(nb.notebook_id)}
-              className="opacity-0 group-hover:opacity-100 text-[10px] text-zinc-300 hover:text-red-400 dark:text-zinc-600 dark:hover:text-red-400 transition-all shrink-0 mt-0.5">
-              Unlink
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -843,31 +791,28 @@ export function DriveSection({ projectId }: { projectId: string }) {
   );
 }
 
-// ── Workspace Bar (Drive + Notebooks + Resources + Portal) ───────────────────
+// ── Workspace Bar (Drive + Resources + Portal) ───────────────────────────────
 
-type WorkspaceTab = "drive" | "notebooks" | "resources" | "portal";
+type WorkspaceTab = "drive" | "resources" | "portal";
 
 interface WorkspaceSummary {
   driveLinked: boolean | null;   // null = loading
-  notebookCount: number | null;
   resourceCount: number | null;
   portalActive: boolean | null;
 }
 
 export function WorkspaceBar({ projectId }: { projectId: string }) {
-  const [summary, setSummary] = useState<WorkspaceSummary>({ driveLinked: null, notebookCount: null, resourceCount: null, portalActive: null });
+  const [summary, setSummary] = useState<WorkspaceSummary>({ driveLinked: null, resourceCount: null, portalActive: null });
   const [expanded, setExpanded] = useState<WorkspaceTab | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/proxy/projects/${projectId}/drive`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/proxy/notebook/by-project/${projectId}`).then(r => r.ok ? r.json() : []).catch(() => []),
       fetch(`/api/resources?project_id=${projectId}`).then(r => r.ok ? r.json() : []).catch(() => []),
       fetch(`/api/proxy/projects/${projectId}/portal`).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([drive, notebooks, resources, portal]) => {
+    ]).then(([drive, resources, portal]) => {
       setSummary({
         driveLinked: drive?.drive_folder_id ? true : false,
-        notebookCount: Array.isArray(notebooks) ? notebooks.length : 0,
         resourceCount: Array.isArray(resources) ? resources.length : 0,
         portalActive: portal?.portal != null,
       });
@@ -884,16 +829,6 @@ export function WorkspaceBar({ projectId }: { projectId: string }) {
       label: "Drive",
       status: summary.driveLinked === null ? "…" : summary.driveLinked ? "Linked" : "Not linked",
       icon: <DriveIcon className="w-4 h-4" />,
-    },
-    {
-      key: "notebooks",
-      label: "Notebooks",
-      status: summary.notebookCount === null ? "…" : summary.notebookCount === 0 ? "None" : `${summary.notebookCount}`,
-      icon: (
-        <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
     },
     {
       key: "resources",
@@ -920,7 +855,7 @@ export function WorkspaceBar({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-0">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-        <div className="grid grid-cols-4 divide-x divide-zinc-100 dark:divide-zinc-800">
+        <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800">
           {tiles.map(tile => {
             const isActive = expanded === tile.key;
             const isEmpty = tile.status === "None" || tile.status === "Not linked" || tile.status === "No link";
@@ -944,9 +879,6 @@ export function WorkspaceBar({ projectId }: { projectId: string }) {
 
       {expanded === "drive" && (
         <div className="pt-2"><DriveSection projectId={projectId} /></div>
-      )}
-      {expanded === "notebooks" && (
-        <div className="pt-2"><NotebooksSection projectId={projectId} /></div>
       )}
       {expanded === "resources" && (
         <div className="pt-2"><ResourcesSection projectId={projectId} /></div>

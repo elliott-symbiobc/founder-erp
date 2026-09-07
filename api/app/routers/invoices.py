@@ -19,11 +19,13 @@ import io
 import json
 import logging
 import os
+import secrets
+from pathlib import Path
 from typing import Any, List, Optional
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 STATUSES = ["draft", "sent", "paid", "overdue", "cancelled"]
+
+DOCUMENT_DIR = Path("/app/uploads/invoices")
+DOCUMENT_MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+
+DOCUMENT_DDL = """
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS document_name  TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS document_path  TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS document_token TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_document_token
+    ON invoices (document_token) WHERE document_token IS NOT NULL;
+"""
+
+_document_schema_ready = False
+
+
+def _ensure_document_schema() -> None:
+    global _document_schema_ready
+    if _document_schema_ready:
+        return
+    conn = _conn()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(DOCUMENT_DDL)
+        _document_schema_ready = True
+    finally:
+        conn.close()
 
 
 def _conn():
@@ -54,6 +82,8 @@ def _serialize(row: dict) -> dict:
     # line_items comes back as a dict/list already via RealDictCursor + psycopg2 json
     if isinstance(d.get("line_items"), str):
         d["line_items"] = json.loads(d["line_items"])
+    if d.get("document_token"):
+        d["document_url"] = document_public_url(d["document_token"])
     return d
 
 
@@ -74,7 +104,15 @@ def get_stats(request: Request):
             GROUP BY status
         """)
         rows = cur.fetchall()
-        cur.execute("SELECT COALESCE(SUM(total),0) AS grand_total FROM invoices WHERE status NOT IN ('cancelled')")
+        # Outstanding is money still owed to us: issued but not yet settled.
+        # Paid and cancelled invoices are settled; drafts have not been issued.
+        cur.execute("""
+            SELECT
+                COALESCE(SUM(total) FILTER (WHERE status IN ('sent','overdue')), 0) AS outstanding,
+                COALESCE(SUM(total) FILTER (WHERE status = 'overdue'), 0)           AS overdue_value,
+                COALESCE(SUM(total) FILTER (WHERE status <> 'cancelled'), 0)        AS grand_total
+            FROM invoices
+        """)
         gt = cur.fetchone()
     finally:
         conn.close()
@@ -86,6 +124,9 @@ def get_stats(request: Request):
 
     return {
         "by_status": by_status,
+        "outstanding": float(gt["outstanding"]),
+        "overdue_value": float(gt["overdue_value"]),
+        # Retained for callers that want everything ever billed, minus cancellations.
         "grand_total": float(gt["grand_total"]),
     }
 
@@ -156,6 +197,147 @@ def list_invoices(
     }
 
 
+# ── Catalog list ───────────────────────────────────────────────────────────────
+#
+# Declared above /{invoice_id}: FastAPI matches in declaration order, so with
+# this below the parameterized route "catalog" is read as an invoice id and the
+# request dies on a uuid cast. The rest of the catalog routes live at the bottom
+# of the file — their paths cannot collide.
+
+@router.get("/catalog")
+def list_catalog(request: Request):
+    _require_user(request)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM invoice_catalog ORDER BY category NULLS LAST, name")
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    return {"items": [_serialize(r) for r in rows]}
+
+
+# ── Attached document ──────────────────────────────────────────────────────────
+#
+# Some invoices are really a quotation or SOW that already exists as a PDF, and
+# retyping it as line items is wasted work. An uploaded document rides along
+# with the invoice: it is downloadable here, and the Stripe invoice footer
+# carries a public link to it so the payer can read what they are paying for.
+#
+# The public link is unguessable-token based rather than authenticated, because
+# the recipient is a customer with no platform login. The token is the only
+# secret, so it is generated fresh per upload and dropped when the document is
+# replaced or deleted.
+
+def _public_base() -> str:
+    return os.environ.get("PUBLIC_BASE_URL", "https://erp.example.com").rstrip("/")
+
+
+def document_public_url(token: Optional[str]) -> Optional[str]:
+    return f"{_public_base()}/api/invoices/document/{token}" if token else None
+
+
+@router.get("/document/{token}")
+def get_public_document(token: str):
+    """Serve an attached document by token. Deliberately unauthenticated."""
+    from fastapi.responses import FileResponse
+
+    _ensure_document_schema()
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT document_name, document_path FROM invoices WHERE document_token = %s",
+            [token],
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row or not row["document_path"] or not Path(row["document_path"]).exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return FileResponse(
+        row["document_path"],
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{row["document_name"] or "document.pdf"}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.post("/{invoice_id}/document")
+async def upload_document(invoice_id: str, request: Request, file: UploadFile = File(...)):
+    _require_user(request)
+    _ensure_document_schema()
+
+    if (file.content_type or "") != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+
+    data = await file.read()
+    if len(data) > DOCUMENT_MAX_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 20 MB)")
+    if not data[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="That file is not a PDF")
+
+    DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
+    path = DOCUMENT_DIR / f"{invoice_id}.pdf"
+    path.write_bytes(data)
+
+    token = secrets.token_urlsafe(24)
+    conn = _conn()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                """UPDATE invoices
+                   SET document_name = %s, document_path = %s, document_token = %s,
+                       updated_at = now()
+                   WHERE invoice_id = %s
+                   RETURNING invoice_id, document_name, document_token""",
+                [file.filename or "document.pdf", str(path), token, invoice_id],
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        path.unlink(missing_ok=True)
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    return {
+        "ok": True,
+        "document_name": row["document_name"],
+        "document_url": document_public_url(row["document_token"]),
+        "size": len(data),
+    }
+
+
+@router.delete("/{invoice_id}/document")
+def delete_document(invoice_id: str, request: Request):
+    _require_user(request)
+    _ensure_document_schema()
+    conn = _conn()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT document_path FROM invoices WHERE invoice_id = %s", [invoice_id]
+            )
+            row = cur.fetchone()
+            if row and row["document_path"]:
+                Path(row["document_path"]).unlink(missing_ok=True)
+            cur.execute(
+                """UPDATE invoices
+                   SET document_name = NULL, document_path = NULL, document_token = NULL,
+                       updated_at = now()
+                   WHERE invoice_id = %s""",
+                [invoice_id],
+            )
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
 # ── Single ─────────────────────────────────────────────────────────────────────
 
 @router.get("/{invoice_id}")
@@ -195,11 +377,11 @@ def get_invoice(invoice_id: str, request: Request):
 def download_invoice_pdf(
     invoice_id: str,
     request: Request,
-    company_name: str = "Collective ERP",
+    company_name: str = "Open ERP",
     company_tagline: str = "",
     company_address: str = "",
     company_email: str = "",
-    company_website: str = "platform.collectiveerp.io",
+    company_website: str = "erp.example.com",
 ):
     from fpdf import FPDF
     from fastapi.responses import Response
@@ -235,9 +417,43 @@ def download_invoice_pdf(
 
     # ── Build PDF ──────────────────────────────────────────────────────────────
 
+    # Map common Unicode punctuation to latin-1 equivalents so the built-in
+    # Helvetica font (latin-1 only) doesn't choke on em-dashes, smart quotes, etc.
+    _UNICODE_MAP = {
+        "—": "-", "–": "-", "‒": "-", "−": "-",
+        "‘": "'", "’": "'", "“": '"', "”": '"',
+        "•": "-", "·": "-", "…": "...", " ": " ",
+    }
+
+    def _s(text):
+        if text is None:
+            return ""
+        text = str(text)
+        for uni, repl in _UNICODE_MAP.items():
+            text = text.replace(uni, repl)
+        return text.encode("latin-1", "replace").decode("latin-1")
+
     class InvoicePDF(FPDF):
         def header(self):
             pass  # custom header drawn below
+
+        def cell(self, *args, **kwargs):
+            if len(args) >= 3:
+                args = (*args[:2], _s(args[2]), *args[3:])
+            elif "text" in kwargs:
+                kwargs["text"] = _s(kwargs["text"])
+            elif "txt" in kwargs:
+                kwargs["txt"] = _s(kwargs["txt"])
+            return super().cell(*args, **kwargs)
+
+        def multi_cell(self, *args, **kwargs):
+            if len(args) >= 3:
+                args = (*args[:2], _s(args[2]), *args[3:])
+            elif "text" in kwargs:
+                kwargs["text"] = _s(kwargs["text"])
+            elif "txt" in kwargs:
+                kwargs["txt"] = _s(kwargs["txt"])
+            return super().multi_cell(*args, **kwargs)
 
     pdf = InvoicePDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
@@ -716,19 +932,6 @@ def delete_invoice(invoice_id: str, request: Request):
 
 
 # ── Catalog ────────────────────────────────────────────────────────────────────
-
-@router.get("/catalog")
-def list_catalog(request: Request):
-    _require_user(request)
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM invoice_catalog ORDER BY category NULLS LAST, name")
-        rows = cur.fetchall()
-    finally:
-        conn.close()
-    return {"items": [_serialize(r) for r in rows]}
-
 
 class CatalogItemCreate(BaseModel):
     name: str

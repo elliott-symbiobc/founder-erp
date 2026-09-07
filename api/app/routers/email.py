@@ -224,6 +224,96 @@ def list_sent(
     return list_inbox(request, page_token=page_token, max_results=max_results, label="SENT")
 
 
+@router.get("/search")
+def search_email(
+    request: Request,
+    q: str = Query(..., min_length=1),
+    max_results: int = Query(15, ge=1, le=50),
+):
+    """Search the user's Gmail with a free-text query. Returns lightweight
+    message metadata (id, subject, from, date, snippet) for attaching as a
+    substrate data source."""
+    import httpx as _httpx
+
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    access_token = _get_user_google_token(user_id)
+
+    r = _httpx.get(
+        f"{GMAIL_BASE}/messages",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"q": q, "maxResults": max_results},
+        timeout=20,
+    )
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Gmail API error: {r.text[:200]}")
+
+    results = []
+    for m in r.json().get("messages", []):
+        resp = _httpx.get(
+            f"{GMAIL_BASE}/messages/{m['id']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"format": "metadata", "metadataHeaders": ["Subject", "From", "Date"]},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            meta = _parse_message_metadata(resp.json())
+            results.append({
+                "id": m["id"],
+                "title": meta.get("subject") or "(no subject)",
+                "subtitle": meta.get("from"),
+                "snippet": meta.get("snippet"),
+                "url": f"https://mail.google.com/mail/u/0/#all/{m['id']}",
+            })
+    return {"results": results}
+
+
+@router.get("/drive-search")
+def search_drive(
+    request: Request,
+    q: str = Query(..., min_length=1),
+    max_results: int = Query(15, ge=1, le=50),
+):
+    """Search the user's Google Drive by file name. Returns file metadata for
+    attaching as a substrate data source."""
+    import httpx as _httpx
+
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    access_token = _get_user_google_token(user_id)
+
+    # Escape single quotes for the Drive query grammar.
+    safe = q.replace("'", "\\'")
+    r = _httpx.get(
+        "https://www.googleapis.com/drive/v3/files",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={
+            "q": f"name contains '{safe}' and trashed = false",
+            "pageSize": max_results,
+            "fields": "files(id,name,mimeType,webViewLink,modifiedTime)",
+            "orderBy": "modifiedTime desc",
+        },
+        timeout=20,
+    )
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Drive API error: {r.text[:200]}")
+
+    results = []
+    for f in r.json().get("files", []):
+        results.append({
+            "id": f["id"],
+            "title": f.get("name") or "(untitled)",
+            "subtitle": (f.get("mimeType") or "").split(".")[-1],
+            "snippet": None,
+            "url": f.get("webViewLink"),
+        })
+    return {"results": results}
+
+
 @router.get("/message/{message_id}")
 def get_message(message_id: str, request: Request):
     """Fetch full message content from Gmail."""
@@ -342,6 +432,12 @@ def get_followup_suggestions():
                 SELECT scan_batch_id FROM email_followup_suggestions
                 ORDER BY created_at DESC LIMIT 1
             )
+              -- The docstring has always claimed non-dismissed and non-accepted;
+              -- the query never filtered on status, so accepting a suggestion
+              -- created the task and then handed the suggestion straight back on
+              -- the next load. It reads as the finished work returning to the
+              -- Inbox, because a suggestion and the task it made look alike.
+              AND s.status = 'pending'
             ORDER BY created_at ASC
             """,
         )
@@ -595,16 +691,37 @@ def accept_followup(body: AcceptFollowupRequest, request: Request):
         )
         next_order = cur.fetchone()["next"]
 
+        # A task off an email belongs to whoever owns the mailbox it arrived in,
+        # not necessarily whoever happened to clear the suggestion list. Falls
+        # back to the acting user when the message predates mailbox tracking.
+        # message_id is compared as text so a non-uuid value cannot error the
+        # lookup.
+        cur.execute(
+            """
+            SELECT mailbox_user_id::text AS uid
+              FROM comm_message_mailboxes
+             WHERE gmail_message_id = %s OR message_id::text = %s
+             LIMIT 1
+            """,
+            (body.message_id, body.message_id),
+        )
+        mailbox = cur.fetchone()
+        assignee = (mailbox or {}).get("uid") or uid
+
+        # Lands in Inbox, not To Do. Accepting a suggestion says "this is
+        # real", not "this is next" -- it still needs a due date, a priority
+        # and a place in the queue, which is what Inbox is for.
         cur.execute(
             """
             INSERT INTO tasks
-                (user_id, title, description, due_date, status, kanban_status,
+                (user_id, assigned_to, title, description, due_date, status, kanban_status,
                  activity_type, priority, sort_order, contact_id, source_ref)
-            VALUES (%s::uuid, %s, %s, %s::date, 'open', 'todo', %s, %s, %s, %s, 'email_suggestion')
+            VALUES (%s::uuid, %s::uuid, %s, %s, %s::date, 'open', 'inbox', %s, %s, %s, %s, 'email_suggestion')
             RETURNING *
             """,
             (
                 uid,
+                assignee,
                 task_title,
                 f"From: {body.from_name} <{body.from_email}> · Re: {body.subject}",
                 body.suggested_due_date or None,

@@ -1,27 +1,27 @@
 services:
 
   api:
-    container_name: symbio_api_dev
+    container_name: openerp_api_dev
     volumes:
       - ./api/app:/app/app          # live source — changes reload instantly
       - ./reports:/app/reports
       - uploads_data:/app/uploads
-      - ./models:/opt/symbio/models
+      - ./models:/opt/openerp/models
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8001:8000"
     labels: []                      # keep traefik routing prod-only
 
   worker:
-    container_name: symbio_worker_dev
+    container_name: openerp_worker_dev
     volumes:
       - ./api/app:/app/app
       - ./reports:/app/reports
-      - ./scripts:/opt/symbio/scripts
-      - ./models:/opt/symbio/models
+      - ./scripts:/opt/openerp/scripts
+      - ./models:/opt/openerp/models
 
   frontend:
-    container_name: symbio_frontend_dev
+    container_name: openerp_frontend_dev
     build:
       context: ./frontend
       target: dev                   # stops at the dev stage (no prod build)

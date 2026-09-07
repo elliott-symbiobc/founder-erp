@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback, useRef } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface Advisor {
@@ -482,7 +483,7 @@ function EditModal({
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">Duties / Responsibilities</label>
-                <textarea
+                <AutoTextarea
                   rows={2}
                   value={form.duties}
                   onChange={(e) => setForm({ ...form, duties: e.target.value })}
@@ -495,7 +496,7 @@ function EditModal({
           {/* Notes */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Notes</h3>
-            <textarea
+            <AutoTextarea
               rows={3}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -536,7 +537,7 @@ function DocLink({ url, label }: { url: string | null; label: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors font-medium"
+      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors font-medium"
     >
       <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
         <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6zm7 1.5L18.5 9H13V3.5zM8 13h8v1.5H8V13zm0 3h8v1.5H8V16zm0-6h5v1.5H8V10z"/>
@@ -764,17 +765,17 @@ function SendUpdateModal({
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Collective ERP — Advisor Update, May 2026"
+                    placeholder="Open ERP — Advisor Update, May 2026"
                     className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Body</label>
-                  <textarea
+                  <AutoTextarea
                     rows={9}
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
-                    placeholder={"Hi {name},\n\nHere's a quick update on Collective ERP…\n\nBest,\nElliott"}
+                    placeholder={"Hi {name},\n\nHere's a quick update on Open ERP…\n\nBest,\nElliott"}
                     className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none font-mono"
                   />
                 </div>
@@ -876,7 +877,7 @@ function SendUpdateModal({
 
 // ── Advisor card ──────────────────────────────────────────────────────────────
 
-function AdvisorCard({ advisor, onEdit }: { advisor: Advisor; onEdit: () => void }) {
+function AdvisorCard({ advisor, onEdit, onChanged }: { advisor: Advisor; onEdit: () => void; onChanged: () => void }) {
   const progress = vestingProgress(advisor);
   const piiaOverdue = !advisor.piia_issued && isOverdue(advisor.piia_due_date);
   const piiaColor = advisor.piia_issued
@@ -940,7 +941,7 @@ function AdvisorCard({ advisor, onEdit }: { advisor: Advisor; onEdit: () => void
             <span className="text-xs text-gray-500">{progress.label}</span>
             <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{progress.percent}%</span>
           </div>
-          <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
                 progress.percent >= 100 ? "bg-green-500" : "bg-purple-500"
@@ -955,20 +956,20 @@ function AdvisorCard({ advisor, onEdit }: { advisor: Advisor; onEdit: () => void
       <div className="px-4 pb-3 flex flex-wrap gap-2">
         {/* FAA */}
         {advisor.faa_sign_date ? (
-          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             FAA signed {fmt(advisor.faa_sign_date)}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             FAA not signed
           </span>
         )}
 
         {/* PIIA */}
-        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${piiaColor}`}>
+        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${piiaColor}`}>
           {advisor.piia_issued ? (
             <>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1039,7 +1040,7 @@ function AdvisorCard({ advisor, onEdit }: { advisor: Advisor; onEdit: () => void
             })}
           </p>
           {advisor.last_open_at ? (
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -1051,6 +1052,7 @@ function AdvisorCard({ advisor, onEdit }: { advisor: Advisor; onEdit: () => void
           )}
         </div>
       )}
+
     </div>
   );
 }
@@ -1066,8 +1068,8 @@ export default function AdvisorsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/proxy/advisors");
-      if (res.ok) setAdvisors(await res.json());
+      const advisorRes = await fetch("/api/proxy/advisors");
+      if (advisorRes.ok) setAdvisors(await advisorRes.json());
     } finally {
       setLoading(false);
     }
@@ -1135,7 +1137,7 @@ export default function AdvisorsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {advisors.map((a) => (
-              <AdvisorCard key={a.advisor_id} advisor={a} onEdit={() => setEditAdvisor(a)} />
+              <AdvisorCard key={a.advisor_id} advisor={a} onEdit={() => setEditAdvisor(a)} onChanged={load} />
             ))}
           </div>
         )}

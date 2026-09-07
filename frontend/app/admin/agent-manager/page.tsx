@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Agent {
@@ -84,8 +85,23 @@ interface UsageSummary {
   }[];
 }
 
-type Tab = "agents" | "jobs" | "usage";
+type Tab = "agents" | "jobs" | "prompts" | "usage";
 type DetailTab = "prompt" | "context" | "tools";
+
+interface PipelinePrompt {
+  agent_module: string;
+  prompt_key: string;
+  description: string;
+  variables: string[];
+  default_text: string;
+  override_text: string | null;
+  is_overridden: boolean;
+  override_description: string | null;
+  updated_at: string | null;
+  created_by: string | null;
+  last_rendered_text: string | null;
+  last_rendered_at: string | null;
+}
 
 // ── Model options ─────────────────────────────────────────────────────────────
 
@@ -427,7 +443,7 @@ function AgentEditModal({
               System Prompt Override
               <span className="ml-2 text-gray-400 font-normal">prepended to the agent's base prompt</span>
             </label>
-            <textarea
+            <AutoTextarea
               value={systemPrompt}
               onChange={e => setSystemPrompt(e.target.value)}
               rows={6}
@@ -439,7 +455,7 @@ function AgentEditModal({
           {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Admin Notes</label>
-            <textarea
+            <AutoTextarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={2}
@@ -566,7 +582,7 @@ function JobEditModal({
 
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Admin Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Internal notes…"
+            <AutoTextarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Internal notes…"
               className="w-full text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none" />
           </div>
         </div>
@@ -586,11 +602,20 @@ function JobEditModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AgentManagerPage() {
-  const [tab, setTab] = useState<Tab>("agents");
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const [tab, setTab] = useState<Tab>((searchParams?.get("tab") as Tab) ?? "agents");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [usage, setUsage] = useState<{ total: number; rows: UsageRow[] } | null>(null);
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const [prompts, setPrompts] = useState<PipelinePrompt[]>([]);
+  const [promptsLoading, setPromptsLoading] = useState(false);
+  const [editPrompt, setEditPrompt] = useState<PipelinePrompt | null>(null);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [promptDescDraft, setPromptDescDraft] = useState("");
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [promptRenderedExpanded, setPromptRenderedExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [editJob, setEditJob] = useState<Job | null>(null);
@@ -619,6 +644,19 @@ export default function AgentManagerPage() {
     if (r2.ok) setUsageSummary(await r2.json());
   }, []);
 
+  const loadPrompts = useCallback(async () => {
+    setPromptsLoading(true);
+    try {
+      const r = await fetch("/api/proxy/dev/prompts");
+      if (r.ok) {
+        const d = await r.json();
+        setPrompts(d.prompts ?? []);
+      }
+    } finally {
+      setPromptsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     Promise.all([loadAgents(), loadJobs()]).finally(() => setLoading(false));
@@ -626,7 +664,45 @@ export default function AgentManagerPage() {
 
   useEffect(() => {
     if (tab === "usage") loadUsage();
-  }, [tab, loadUsage]);
+    if (tab === "prompts") loadPrompts();
+  }, [tab, loadUsage, loadPrompts]);
+
+  function openPromptEdit(p: PipelinePrompt) {
+    setEditPrompt(p);
+    setPromptDraft(p.override_text ?? p.default_text);
+    setPromptDescDraft(p.override_description ?? "");
+    setPromptError(null);
+  }
+
+  async function savePromptOverride() {
+    if (!editPrompt) return;
+    setPromptSaving(true);
+    setPromptError(null);
+    try {
+      const res = await fetch(
+        `/api/proxy/dev/prompts/${editPrompt.agent_module}/${editPrompt.prompt_key}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt_text: promptDraft, description: promptDescDraft }),
+        }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setPromptError(d.detail ?? "Save failed");
+        return;
+      }
+      setEditPrompt(null);
+      await loadPrompts();
+    } finally {
+      setPromptSaving(false);
+    }
+  }
+
+  async function deletePromptOverride(p: PipelinePrompt) {
+    await fetch(`/api/proxy/dev/prompts/${p.agent_module}/${p.prompt_key}`, { method: "DELETE" });
+    await loadPrompts();
+  }
 
   async function saveAgent(agent_id: string, patch: Partial<Agent>) {
     await fetch(`/api/proxy/agent-manager/agents/${agent_id}`, {
@@ -695,14 +771,17 @@ export default function AgentManagerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-fit">
-        {(["agents", "jobs", "usage"] as Tab[]).map(t => (
+        {(["agents", "jobs", "prompts", "usage"] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
               tab === t
                 ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
                 : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}>
-            {t === "agents" ? `Agents (${agents.length})` : t === "jobs" ? `Scheduled Jobs (${jobs.length})` : "Usage & Cost"}
+            {t === "agents" ? `Agents (${agents.length})`
+             : t === "jobs" ? `Scheduled Jobs (${jobs.length})`
+             : t === "prompts" ? `Pipeline Prompts${prompts.filter(p => p.is_overridden).length ? ` (${prompts.filter(p => p.is_overridden).length} overridden)` : ""}`
+             : "Usage & Cost"}
           </button>
         ))}
       </div>
@@ -888,7 +967,7 @@ export default function AgentManagerPage() {
                   <p className="text-[11px] text-gray-400 font-mono">{job.cron_minute} {job.cron_hour} * * {job.cron_day_of_week}</p>
                 </div>
                 <div>
-                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded ${
                     job.enabled
                       ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
                       : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
@@ -917,6 +996,107 @@ export default function AgentManagerPage() {
               </div>
             ))}
           </div>
+        </div>
+      ) : tab === "prompts" ? (
+        /* ── Pipeline Prompts Tab ── */
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            These prompts are used internally by data pipeline agents (composition research, TEA, etc.).
+            Overrides are applied globally — they affect all substrates.
+          </p>
+          {promptsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : prompts.length === 0 ? (
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center py-16">
+              <p className="text-sm text-gray-400">No pipeline prompts registered yet.</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {prompts.map((p, i) => (
+                <div key={`${p.agent_module}/${p.prompt_key}`}
+                  className={`px-4 py-4 ${i < prompts.length - 1 ? "border-b border-gray-100 dark:border-gray-800" : ""}`}>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{p.prompt_key}</span>
+                        {p.is_overridden && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                            overridden
+                          </span>
+                        )}
+                        {p.variables.length > 0 && (
+                          <span className="text-[10px] text-gray-400 font-mono">{`{${p.variables.join("}, {")}}`}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{p.agent_module}</p>
+                      {p.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{p.description}</p>}
+                      {p.is_overridden && p.updated_at && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                          Overridden {fmtDt(p.updated_at)}{p.created_by ? ` by ${p.created_by}` : ""}
+                          {p.override_description ? ` — ${p.override_description}` : ""}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {p.is_overridden && (
+                        <button onClick={() => deletePromptOverride(p)}
+                          className="px-2.5 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors border border-red-200 dark:border-red-800">
+                          Reset to default
+                        </button>
+                      )}
+                      <button onClick={() => openPromptEdit(p)}
+                        className="px-2.5 py-1.5 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors">
+                        {p.is_overridden ? "Edit override" : "Add override"}
+                      </button>
+                    </div>
+                  </div>
+                  {/* Active template preview */}
+                  <div className="mb-2">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                      {p.is_overridden ? "Override template" : "Default template"}
+                    </p>
+                    <pre className={`text-[11px] font-mono whitespace-pre-wrap rounded-lg p-3 max-h-40 overflow-y-auto leading-relaxed ${
+                      p.is_overridden
+                        ? "bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                        : "bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+                    }`}>
+                      {(p.override_text ?? p.default_text).slice(0, 600)}{(p.override_text ?? p.default_text).length > 600 ? "\n…" : ""}
+                    </pre>
+                  </div>
+                  {/* Last rendered call */}
+                  {p.last_rendered_text ? (
+                    <div>
+                      <button
+                        onClick={() => {
+                          const key = `${p.agent_module}/${p.prompt_key}`;
+                          setPromptRenderedExpanded(prev => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key); else next.add(key);
+                            return next;
+                          });
+                        }}
+                        className="flex items-center gap-1.5 text-[10px] font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 mb-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        Last sent to Claude
+                        {p.last_rendered_at && <span className="font-normal text-gray-400 ml-1">— {fmtDt(p.last_rendered_at)}</span>}
+                        <span className="ml-1 text-gray-400">{promptRenderedExpanded.has(`${p.agent_module}/${p.prompt_key}`) ? "▲" : "▼"}</span>
+                      </button>
+                      {promptRenderedExpanded.has(`${p.agent_module}/${p.prompt_key}`) && (
+                        <pre className="text-[11px] font-mono whitespace-pre-wrap rounded-lg p-3 max-h-64 overflow-y-auto leading-relaxed bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200">
+                          {p.last_rendered_text}
+                        </pre>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 italic">No pipeline run yet this session — run a composition analysis to see the rendered prompt.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         /* ── Usage Tab ── */
@@ -1017,6 +1197,95 @@ export default function AgentManagerPage() {
           onSave={async (patch) => saveJob(editJob.job_name, patch)}
           onClose={() => setEditJob(null)}
         />
+      )}
+
+      {/* Prompt edit modal */}
+      {editPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditPrompt(null)} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{editPrompt.prompt_key}</h3>
+                  {editPrompt.is_overridden && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                      override active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 font-mono">{editPrompt.agent_module}</p>
+                {editPrompt.variables.length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Variables: <span className="font-mono text-blue-600 dark:text-blue-400">{`{${editPrompt.variables.join("}, {")}}`}</span>
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setEditPrompt(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {promptError && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
+                  {promptError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                  Prompt text
+                  <span className="ml-2 font-normal text-gray-400">use {`{variable_name}`} placeholders</span>
+                </label>
+                <AutoTextarea
+                  value={promptDraft}
+                  onChange={e => setPromptDraft(e.target.value)}
+                  spellCheck={false}
+                  rows={18}
+                  className="w-full font-mono text-xs bg-gray-950 text-green-300 border border-gray-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-y"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                  Description / change note <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  value={promptDescDraft}
+                  onChange={e => setPromptDescDraft(e.target.value)}
+                  placeholder="Why did you change this prompt?"
+                  className="w-full text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                />
+              </div>
+              {!editPrompt.is_overridden && (
+                <div className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                  Currently using <strong>default prompt</strong>. Saving will create a global override for all runs.
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+              <button onClick={() => setEditPrompt(null)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                Cancel
+              </button>
+              <div className="flex items-center gap-2">
+                <a href={`data:text/plain;charset=utf-8,${encodeURIComponent(promptDraft)}`}
+                  download={`${editPrompt.prompt_key}.txt`}
+                  className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  Export
+                </a>
+                <button onClick={savePromptOverride} disabled={promptSaving || !promptDraft.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors">
+                  {promptSaving ? "Saving…" : "Save override"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

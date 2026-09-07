@@ -3,6 +3,7 @@
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePlaidLink } from "react-plaid-link";
+import { AutoTextarea } from "@/components/AutoTextarea";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
@@ -179,6 +180,23 @@ interface FpaModel {
   expense_schedule: ExpenseEntry[];
   funding_schedule: FundingEntry[];
   change_summary: string | null;
+  burn_mode: "auto" | "manual";
+  manual_burn_entries: ManualBurnEntry[];
+  pending_liabilities: { label: string; amount: number }[];
+  excluded_burn_categories: string[];
+}
+
+interface ManualEmployee {
+  name: string;
+  annual_salary: number;
+  benefits_pct: number;  // decimal, e.g. 0.25
+}
+
+interface ManualBurnEntry {
+  label: string;
+  type: "simple" | "employees";
+  monthly_amount: number;        // used when type === "simple"
+  employees?: ManualEmployee[];  // used when type === "employees"
 }
 
 interface User {
@@ -2045,7 +2063,7 @@ function DriversTab({ model, onModelUpdate }: { model: FpaModel; onModelUpdate: 
                 )}
                 {allContractTags.map(t => (
                   <button key={t} onClick={() => setSelectedTags(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n; })}
-                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${selectedTags.has(t) ? `${tagColor(t)} border-transparent` : "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-gray-400"}`}>
+                    className={`text-xs px-2 py-0.5 rounded border transition-colors ${selectedTags.has(t) ? `${tagColor(t)} border-transparent` : "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-gray-400"}`}>
                     {t}
                   </button>
                 ))}
@@ -2338,7 +2356,7 @@ function DriversTab({ model, onModelUpdate }: { model: FpaModel; onModelUpdate: 
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contract Timeline</h3>
               {allContractTags.map(t => (
                 <button key={t} onClick={() => setSelectedTags(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n; })}
-                  className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${selectedTags.has(t) ? `${tagColor(t)} border-transparent` : "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-gray-400"}`}>
+                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${selectedTags.has(t) ? `${tagColor(t)} border-transparent` : "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-gray-400"}`}>
                   {t}
                 </button>
               ))}
@@ -3303,7 +3321,7 @@ function HistoryTab({ model, onModelUpdate }: { model: FpaModel; onModelUpdate: 
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notes</label>
             {editingMeta
-              ? <textarea value={metaNotes} onChange={e => setMetaNotes(e.target.value)}
+              ? <AutoTextarea value={metaNotes} onChange={e => setMetaNotes(e.target.value)}
                   placeholder="Internal notes about this model"
                   rows={2}
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:border-blue-400 resize-none" />
@@ -3454,6 +3472,7 @@ interface Actuals {
   monthly_outflow: number;
   net_burn: number;
   capital_adjustment: number;
+  outflow_adjustment: number;
   source: string;
 }
 
@@ -3464,9 +3483,12 @@ interface Kpis {
   run_rate_monthly: number;
   run_rate_daily: number;
   run_rate_hourly: number;
+  net_burn_monthly: number;
   runway_months: number | null;
   zero_date: string | null;
   cash_balance: number;
+  effective_cash: number;
+  pending_liabilities_total: number;
 }
 
 interface PlaidAccount {
@@ -3590,7 +3612,9 @@ function ActualsTab() {
   const [accounts, setAccounts] = useState<PlaidAccount[]>([]);
   const [showAccounts, setShowAccounts] = useState(false);
   const [capitalAdj, setCapitalAdj] = useState<string>("");
+  const [outflowAdj, setOutflowAdj] = useState<string>("");
   const [savingAdj, setSavingAdj] = useState(false);
+  const [savingOutflowAdj, setSavingOutflowAdj] = useState(false);
 
   async function loadData() {
     const [statusRes, actualsRes] = await Promise.all([
@@ -3605,6 +3629,7 @@ function ActualsTab() {
       setActuals(actualsData.actuals);
       setKpis(actualsData.kpis);
       setCapitalAdj(String(actualsData.actuals.capital_adjustment ?? 0));
+      setOutflowAdj(String(actualsData.actuals.outflow_adjustment ?? 0));
     }
   }
 
@@ -3630,6 +3655,7 @@ function ActualsTab() {
         setActuals(data.actuals);
         setKpis(data.kpis);
         setCapitalAdj(String(data.actuals?.capital_adjustment ?? 0));
+        setOutflowAdj(String(data.actuals?.outflow_adjustment ?? 0));
       }
     } finally {
       setSyncing(false);
@@ -3666,6 +3692,26 @@ function ActualsTab() {
       }
     } finally {
       setSavingAdj(false);
+    }
+  }
+
+  async function handleSetOutflowAdj() {
+    const amount = parseFloat(outflowAdj);
+    if (isNaN(amount)) return;
+    setSavingOutflowAdj(true);
+    try {
+      const r = await fetch("/api/proxy/fpa/actuals/outflow-adjustment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setActuals(data.actuals);
+        setKpis(data.kpis);
+      }
+    } finally {
+      setSavingOutflowAdj(false);
     }
   }
 
@@ -3760,38 +3806,47 @@ function ActualsTab() {
         </div>
       )}
 
-      {/* Capital adjustment */}
+      {/* Adjustments */}
       {actuals && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-            Capital Adjustment
-          </p>
-          <p className="text-xs text-gray-400 mb-3">
-            Exclude one-time capital injections (e.g. investments) from burn rate. This amount is subtracted from inflow before calculating net burn.
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">$</span>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={capitalAdj}
-              onChange={(e) => setCapitalAdj(e.target.value)}
-              className="w-40 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="0"
-            />
-            <button
-              onClick={handleSetCapitalAdj}
-              disabled={savingAdj}
-              className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50"
-            >
-              {savingAdj ? "Saving…" : "Apply"}
-            </button>
-            {actuals.capital_adjustment > 0 && (
-              <span className="text-xs text-amber-600 dark:text-amber-400">
-                ${actuals.capital_adjustment.toLocaleString()} excluded from burn
-              </span>
-            )}
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 space-y-4">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Burn Rate Adjustments</p>
+
+          {/* Capital adjustment (inflow) */}
+          <div>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Inflow Adjustment — capital injections</p>
+            <p className="text-xs text-gray-400 mb-2">Exclude one-time deposits (investor wires, loan disbursements) from inflow.</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">$</span>
+              <input type="number" min="0" step="100" value={capitalAdj} onChange={(e) => setCapitalAdj(e.target.value)}
+                className="w-36 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="0" />
+              <button onClick={handleSetCapitalAdj} disabled={savingAdj}
+                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50">
+                {savingAdj ? "Saving…" : "Apply"}
+              </button>
+              {actuals.capital_adjustment > 0 && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">${actuals.capital_adjustment.toLocaleString()} excluded</span>
+              )}
+            </div>
+          </div>
+
+          {/* Outflow adjustment (pass-through) */}
+          <div>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Outflow Adjustment — pass-through payments</p>
+            <p className="text-xs text-gray-400 mb-2">Exclude payments made on behalf of customers (e.g. equipment purchased with customer funds).</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">$</span>
+              <input type="number" min="0" step="100" value={outflowAdj} onChange={(e) => setOutflowAdj(e.target.value)}
+                className="w-36 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="0" />
+              <button onClick={handleSetOutflowAdj} disabled={savingOutflowAdj}
+                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50">
+                {savingOutflowAdj ? "Saving…" : "Apply"}
+              </button>
+              {(actuals.outflow_adjustment ?? 0) > 0 && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">${(actuals.outflow_adjustment ?? 0).toLocaleString()} excluded</span>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -3920,151 +3975,826 @@ interface QboTransaction {
   is_expense: boolean;
 }
 
+// ── Plaid Actuals Breakdown ───────────────────────────────────────────────
+
+interface PlaidSummaryItem {
+  label: string;
+  total: number;
+  count: number;
+  is_expense: boolean;
+}
+
+function PlaidActualsBreakdown({ model }: { model: FpaModel }) {
+  const today = isoToday();
+  const [items, setItems] = useState<PlaidSummaryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 30);
+  const start = startDate.toISOString().slice(0, 10);
+  const excluded = new Set(model.excluded_burn_categories ?? ["Equipment", "Transfers", "Credit Card"]);
+
+  function load() {
+    fetch(`/api/proxy/fpa/plaid/transactions/summary?start_date=${start}&end_date=${today}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setItems(d))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    // Refresh when user returns to this tab
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  if (loading) return null;
+  if (!items.length) return null;
+
+  const expenses  = items.filter(i => i.is_expense);
+  const income    = items.filter(i => !i.is_expense);
+  const included  = expenses.filter(i => !excluded.has(i.label));
+  const totalOut  = included.reduce((s, i) => s + i.total, 0);
+  const totalIn   = income.reduce((s, i) => s + i.total, 0);
+  const maxAmt    = Math.max(...expenses.map(i => i.total), 1);
+
+  const COLORS: Record<string, string> = {
+    "Equipment":               "bg-purple-500",
+    "Payroll":                 "bg-blue-500",
+    "Payroll Tax":             "bg-blue-300",
+    "Rent":                    "bg-orange-500",
+    "Credit Card":             "bg-red-400",
+    "Benefits":                "bg-teal-500",
+    "Software & Subscriptions":"bg-indigo-400",
+    "Supplies":                "bg-yellow-500",
+    "Travel & Meals":          "bg-pink-400",
+    "Bank Fees":               "bg-gray-400",
+    "Transfers":               "bg-gray-300",
+    "Other":                   "bg-gray-400",
+  };
+
+  function barColor(label: string) {
+    return COLORS[label] ?? "bg-gray-400";
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Spending Breakdown · Last 30 Days</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Bank (Plaid) · excluded categories shown greyed out</p>
+        </div>
+        <div className="flex gap-4 text-xs">
+          <span className="text-red-500 font-mono font-medium">Burn: {fmt$(totalOut)}</span>
+          {totalIn > 0 && <span className="text-green-600 font-mono font-medium">In: {fmt$(totalIn)}</span>}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {expenses.map(item => {
+          const isExcluded = excluded.has(item.label);
+          const pct = totalOut > 0 && !isExcluded ? Math.round((item.total / totalOut) * 100) : 0;
+          return (
+          <div key={item.label} className={`flex items-center gap-3 ${isExcluded ? "opacity-40" : ""}`}>
+            <span className="text-xs text-gray-600 dark:text-gray-400 w-44 shrink-0 truncate" title={item.label}>
+              {item.label}
+              <span className="text-gray-400 ml-1">({item.count})</span>
+              {isExcluded && <span className="ml-1 text-gray-400 italic">excluded</span>}
+            </span>
+            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden">
+              <div
+                className={`h-full rounded ${isExcluded ? "bg-gray-300 dark:bg-gray-600" : barColor(item.label)} opacity-80`}
+                style={{ width: `${(item.total / maxAmt) * 100}%` }}
+              />
+            </div>
+            <span className={`text-xs font-mono font-medium w-20 text-right shrink-0 ${isExcluded ? "text-gray-400" : "text-gray-700 dark:text-gray-300"}`}>
+              {fmt$(item.total)}
+            </span>
+            <span className="text-xs text-gray-400 w-10 text-right shrink-0">
+              {isExcluded ? "—" : `${pct}%`}
+            </span>
+          </div>
+          );
+        })}
+        {income.map(item => (
+          <div key={item.label} className="flex items-center gap-3">
+            <span className="text-xs text-gray-600 dark:text-gray-400 w-44 shrink-0 truncate">
+              {item.label} <span className="text-gray-400">({item.count})</span>
+            </span>
+            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden">
+              <div className="h-full rounded bg-green-400 opacity-80"
+                style={{ width: `${(item.total / maxAmt) * 100}%` }} />
+            </div>
+            <span className="text-xs font-mono font-medium text-green-600 dark:text-green-400 w-20 text-right shrink-0">
+              +{fmt$(item.total)}
+            </span>
+            <span className="text-xs text-gray-400 w-10 text-right shrink-0" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Burn Rate Settings Panel ──────────────────────────────────────────────
+
+const DEFAULT_MANUAL_ENTRIES: ManualBurnEntry[] = [
+  { label: "Labor & Payroll", type: "employees", monthly_amount: 0, employees: [] },
+  { label: "Office & Rent", type: "simple", monthly_amount: 0 },
+  { label: "Software & Tools", type: "simple", monthly_amount: 0 },
+  { label: "Legal & Accounting", type: "simple", monthly_amount: 0 },
+  { label: "Other OpEx", type: "simple", monthly_amount: 0 },
+];
+
+function entryTotal(e: ManualBurnEntry): number {
+  if (e.type === "employees") {
+    return (e.employees ?? []).reduce((s, emp) =>
+      s + (emp.annual_salary || 0) / 12 * (1 + (emp.benefits_pct ?? 0.25)), 0);
+  }
+  return e.monthly_amount || 0;
+}
+
+async function fetchFreshKpis(): Promise<{ actuals: Actuals; kpis: Kpis } | null> {
+  const r = await fetch("/api/proxy/fpa/actuals");
+  if (!r.ok) return null;
+  return r.json();
+}
+
+function BurnRateSettings({ model, onModelUpdate, onKpisUpdate }: {
+  model: FpaModel;
+  onModelUpdate: (m: FpaModel) => void;
+  onKpisUpdate: (actuals: Actuals, kpis: Kpis) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual">(model.burn_mode ?? "auto");
+  const [entries, setEntries] = useState<ManualBurnEntry[]>(
+    model.manual_burn_entries?.length ? model.manual_burn_entries : DEFAULT_MANUAL_ENTRIES
+  );
+  const [capitalAdj, setCapitalAdj] = useState("0");
+  const [outflowAdj, setOutflowAdj] = useState("0");
+  const [actuals, setActuals] = useState<Actuals | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savingAdj, setSavingAdj] = useState<"capital" | "outflow" | null>(null);
+  const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
+  const [liabilities, setLiabilities] = useState<{ label: string; amount: number }[]>(
+    model.pending_liabilities ?? []
+  );
+  const [savingLiabilities, setSavingLiabilities] = useState(false);
+  const [excluded, setExcluded] = useState<string[]>(model.excluded_burn_categories ?? ["Equipment", "Transfers", "Credit Card"]);
+  const [plaidCategories, setPlaidCategories] = useState<PlaidSummaryItem[]>([]);
+  const [savingExcluded, setSavingExcluded] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/proxy/fpa/actuals").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.actuals) {
+        setActuals(d.actuals);
+        setCapitalAdj(String(d.actuals.capital_adjustment ?? 0));
+        setOutflowAdj(String(d.actuals.outflow_adjustment ?? 0));
+      }
+    });
+    const today = isoToday();
+    const start = new Date(today); start.setDate(start.getDate() - 30);
+    fetch(`/api/proxy/fpa/plaid/transactions/summary?start_date=${start.toISOString().slice(0,10)}&end_date=${today}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setPlaidCategories(d.filter((i: PlaidSummaryItem) => i.is_expense)));
+  }, [open]);
+
+  const manualTotal = entries.reduce((s, e) => s + entryTotal(e), 0);
+
+  async function saveMode(newMode: "auto" | "manual") {
+    setMode(newMode);
+    const r = await fetch("/api/proxy/fpa/model", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ burn_mode: newMode }),
+    });
+    if (r.ok) {
+      onModelUpdate(await r.json());
+      const fresh = await fetchFreshKpis();
+      if (fresh?.actuals && fresh?.kpis) onKpisUpdate(fresh.actuals, fresh.kpis);
+    }
+  }
+
+  async function saveEntries() {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/proxy/fpa/model", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual_burn_entries: entries }),
+      });
+      if (r.ok) {
+        onModelUpdate(await r.json());
+        const fresh = await fetchFreshKpis();
+        if (fresh?.actuals && fresh?.kpis) onKpisUpdate(fresh.actuals, fresh.kpis);
+      }
+    } finally { setSaving(false); }
+  }
+
+  async function saveAdj(type: "capital" | "outflow") {
+    const amount = parseFloat(type === "capital" ? capitalAdj : outflowAdj);
+    if (isNaN(amount)) return;
+    setSavingAdj(type);
+    try {
+      const r = await fetch(`/api/proxy/fpa/actuals/${type === "capital" ? "capital" : "outflow"}-adjustment`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      if (r.ok) { const d = await r.json(); if (d.actuals) setActuals(d.actuals); }
+    } finally { setSavingAdj(null); }
+  }
+
+  async function saveExcluded(updated: string[]) {
+    setSavingExcluded(true);
+    try {
+      const r = await fetch("/api/proxy/fpa/model", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excluded_burn_categories: updated }),
+      });
+      if (r.ok) {
+        onModelUpdate(await r.json());
+        const fresh = await fetchFreshKpis();
+        if (fresh?.actuals && fresh?.kpis) onKpisUpdate(fresh.actuals, fresh.kpis);
+      }
+    } finally { setSavingExcluded(false); }
+  }
+
+  async function saveLiabilities(updated: { label: string; amount: number }[]) {
+    setSavingLiabilities(true);
+    try {
+      const r = await fetch("/api/proxy/fpa/model", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pending_liabilities: updated }),
+      });
+      if (r.ok) {
+        onModelUpdate(await r.json());
+        const fresh = await fetchFreshKpis();
+        if (fresh?.actuals && fresh?.kpis) onKpisUpdate(fresh.actuals, fresh.kpis);
+      }
+    } finally { setSavingLiabilities(false); }
+  }
+
+  // Entry-level helpers
+  function updateEntryLabel(i: number, label: string) {
+    setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, label } : e));
+  }
+  function updateEntryAmount(i: number, val: number) {
+    setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, monthly_amount: val } : e));
+  }
+  function toggleEntryType(i: number) {
+    setEntries(prev => prev.map((e, idx) => {
+      if (idx !== i) return e;
+      return e.type === "employees"
+        ? { ...e, type: "simple" as const }
+        : { ...e, type: "employees" as const, employees: e.employees ?? [] };
+    }));
+    setExpandedEntry(i);
+  }
+  function removeEntry(i: number) {
+    setEntries(prev => prev.filter((_, idx) => idx !== i));
+    if (expandedEntry === i) setExpandedEntry(null);
+  }
+  function addSimpleEntry() {
+    setEntries(prev => [...prev, { label: "", type: "simple", monthly_amount: 0 }]);
+  }
+  function addEmployeeEntry() {
+    const idx = entries.length;
+    setEntries(prev => [...prev, { label: "Labor", type: "employees", monthly_amount: 0, employees: [] }]);
+    setExpandedEntry(idx);
+  }
+
+  // Employee helpers
+  function addEmployee(entryIdx: number) {
+    setEntries(prev => prev.map((e, i) => i !== entryIdx ? e : {
+      ...e,
+      employees: [...(e.employees ?? []), { name: "", annual_salary: 0, benefits_pct: 0.25 }],
+    }));
+  }
+  function updateEmployee(entryIdx: number, empIdx: number, field: keyof ManualEmployee, val: string | number) {
+    setEntries(prev => prev.map((e, i) => i !== entryIdx ? e : {
+      ...e,
+      employees: (e.employees ?? []).map((emp, j) => j !== empIdx ? emp : { ...emp, [field]: val }),
+    }));
+  }
+  function removeEmployee(entryIdx: number, empIdx: number) {
+    setEntries(prev => prev.map((e, i) => i !== entryIdx ? e : {
+      ...e, employees: (e.employees ?? []).filter((_, j) => j !== empIdx),
+    }));
+  }
+
+  const ic = "px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const bc = "px-3 py-1 text-xs rounded transition-colors disabled:opacity-50";
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800">
+      {/* Header */}
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Burn Rate Settings</span>
+          <span className={`text-xs px-2 py-0.5 rounded font-medium ${mode === "manual"
+            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+            : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"}`}>
+            {mode === "manual" ? `Manual · ${fmt$(manualTotal)}/mo` : "Auto · Plaid"}
+          </span>
+        </div>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100 dark:border-gray-800 p-4 space-y-5">
+
+          {/* Mode toggle */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Calculation Method</p>
+            <div className="flex gap-2">
+              {(["auto", "manual"] as const).map(m => (
+                <button key={m} onClick={() => saveMode(m)}
+                  className={`${bc} border ${mode === m ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                  {m === "auto" ? "Auto (Plaid)" : "Manual"}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">
+              {mode === "auto"
+                ? "Burn rate pulled from Plaid transactions, minus adjustments below."
+                : "Burn rate calculated from the expense categories you enter below."}
+            </p>
+          </div>
+
+          {/* ── Manual entries ── */}
+          {mode === "manual" && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monthly Expenses</p>
+
+              {entries.map((e, i) => {
+                const total = entryTotal(e);
+                const isExpanded = expandedEntry === i;
+
+                return (
+                  <div key={i} className="border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden">
+                    {/* Entry header row */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50">
+                      <input value={e.label} onChange={ev => updateEntryLabel(i, ev.target.value)}
+                        placeholder="Category" className={`${ic} flex-1 min-w-0`} />
+
+                      {e.type === "simple" ? (
+                        <>
+                          <span className="text-xs text-gray-400">$</span>
+                          <input type="number" min={0} step={100} value={e.monthly_amount}
+                            onChange={ev => updateEntryAmount(i, parseFloat(ev.target.value) || 0)}
+                            className={`${ic} w-28 text-right`} />
+                          <span className="text-xs text-gray-400 w-6">/mo</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs font-mono text-gray-700 dark:text-gray-300 w-28 text-right">
+                            {fmt$(total)}/mo
+                          </span>
+                          <span className="text-xs text-gray-400 w-6" />
+                        </>
+                      )}
+
+                      {/* Toggle type */}
+                      <button onClick={() => toggleEntryType(i)}
+                        title={e.type === "employees" ? "Switch to flat amount" : "Switch to employee list"}
+                        className="text-xs text-gray-400 hover:text-blue-500 px-1.5 py-0.5 border border-gray-200 dark:border-gray-700 rounded whitespace-nowrap">
+                        {e.type === "employees" ? "employees" : "# flat"}
+                      </button>
+
+                      {/* Expand/collapse for employee entries */}
+                      {e.type === "employees" && (
+                        <button onClick={() => setExpandedEntry(isExpanded ? null : i)}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      )}
+
+                      <button onClick={() => removeEntry(i)} className="text-gray-300 dark:text-gray-600 hover:text-red-400 text-base leading-none ml-1">×</button>
+                    </div>
+
+                    {/* Employee sub-table */}
+                    {e.type === "employees" && isExpanded && (
+                      <div className="px-3 py-2 space-y-1.5">
+                        {(e.employees ?? []).length > 0 && (
+                          <div className="grid gap-x-2 gap-y-1" style={{ gridTemplateColumns: "1fr 7rem 5rem 6rem auto" }}>
+                            <span className="text-xs text-gray-400 pb-0.5">Name / Role</span>
+                            <span className="text-xs text-gray-400 pb-0.5 text-right">Annual Salary</span>
+                            <span className="text-xs text-gray-400 pb-0.5 text-right">Benefits</span>
+                            <span className="text-xs text-gray-400 pb-0.5 text-right">Monthly Cost</span>
+                            <span />
+
+                            {(e.employees ?? []).map((emp, j) => {
+                              const monthlyCost = (emp.annual_salary || 0) / 12 * (1 + (emp.benefits_pct ?? 0.25));
+                              return (
+                                <Fragment key={j}>
+                                  <input value={emp.name} onChange={ev => updateEmployee(i, j, "name", ev.target.value)}
+                                    placeholder="Name or role" className={ic} />
+                                  <input type="number" min={0} step={1000} value={emp.annual_salary}
+                                    onChange={ev => updateEmployee(i, j, "annual_salary", parseFloat(ev.target.value) || 0)}
+                                    className={`${ic} text-right`} />
+                                  <input type="number" min={0} max={1} step={0.01} value={emp.benefits_pct ?? 0.25}
+                                    onChange={ev => updateEmployee(i, j, "benefits_pct", parseFloat(ev.target.value) || 0)}
+                                    className={`${ic} text-right`} title="Benefits as decimal (e.g. 0.25 = 25%)" />
+                                  <span className="text-xs font-mono text-gray-700 dark:text-gray-300 text-right self-center">
+                                    {fmt$(monthlyCost)}/mo
+                                  </span>
+                                  <button onClick={() => removeEmployee(i, j)}
+                                    className="text-gray-300 dark:text-gray-600 hover:text-red-400 text-base leading-none self-center">×</button>
+                                </Fragment>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-1">
+                          <button onClick={() => addEmployee(i)}
+                            className={`${bc} border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400`}>
+                            + Add employee
+                          </button>
+                          {(e.employees ?? []).length > 0 && (
+                            <span className="text-xs font-mono font-medium text-gray-700 dark:text-gray-300">
+                              Subtotal: {fmt$(total)}/mo
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Add entry buttons + save */}
+              <div className="flex items-center gap-2 pt-1">
+                <button onClick={addSimpleEntry}
+                  className={`${bc} border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400`}>
+                  + Add expense line
+                </button>
+                <button onClick={addEmployeeEntry}
+                  className={`${bc} border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400`}>
+                  + Add employee group
+                </button>
+                <button onClick={saveEntries} disabled={saving}
+                  className={`${bc} bg-blue-600 hover:bg-blue-700 text-white ml-auto`}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <span className="text-xs font-mono font-semibold text-gray-800 dark:text-gray-200">
+                  {fmt$(manualTotal)}/mo
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Auto-mode: category toggles + inflow adj ── */}
+          {mode === "auto" && (
+            <div className="space-y-4">
+              {/* Category inclusions */}
+              {plaidCategories.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Include in Burn Rate</p>
+                  <p className="text-xs text-gray-400 mb-2">Toggle off categories that aren't real operating expenses.</p>
+                  <div className="space-y-1">
+                    {plaidCategories.map(cat => {
+                      const isExcluded = excluded.includes(cat.label);
+                      return (
+                        <div key={cat.label} className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              const next = isExcluded
+                                ? excluded.filter(e => e !== cat.label)
+                                : [...excluded, cat.label];
+                              setExcluded(next);
+                              saveExcluded(next);
+                            }}
+                            className={`relative w-8 h-4 rounded-full transition-colors ${isExcluded ? "bg-gray-200 dark:bg-gray-700" : "bg-blue-500"}`}
+                          >
+                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isExcluded ? "left-0.5" : "left-4.5"}`} />
+                          </button>
+                          <span className={`text-xs flex-1 ${isExcluded ? "line-through text-gray-400" : "text-gray-700 dark:text-gray-300"}`}>
+                            {cat.label}
+                          </span>
+                          <span className={`text-xs font-mono ${isExcluded ? "text-gray-400 line-through" : "text-gray-600 dark:text-gray-400"}`}>
+                            {fmt$(cat.total)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {savingExcluded && <p className="text-xs text-gray-400 mt-1">Saving…</p>}
+                </div>
+              )}
+
+              {/* Inflow adjustment */}
+              {actuals && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Inflow Adjustment</p>
+                  <p className="text-xs text-gray-400 mb-2">Exclude capital injections (investor wires, loan disbursements) from inflow.</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">$</span>
+                    <input type="number" min={0} step={100} value={capitalAdj} onChange={ev => setCapitalAdj(ev.target.value)}
+                      className={`${ic} w-32 text-right`} placeholder="0" />
+                    <button onClick={() => saveAdj("capital")} disabled={savingAdj === "capital"}
+                      className={`${bc} bg-blue-600 hover:bg-blue-700 text-white`}>
+                      {savingAdj === "capital" ? "…" : "Apply"}
+                    </button>
+                    {(actuals.capital_adjustment ?? 0) > 0 && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">{fmt$(actuals.capital_adjustment)} excluded</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Pending liabilities ── */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">One-Time Obligations</p>
+            <p className="text-xs text-gray-400 mb-2">Amounts you owe that reduce available cash for runway calculation.</p>
+            <div className="space-y-1.5 mb-2">
+              {liabilities.map((l, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input value={l.label} onChange={ev => setLiabilities(prev => prev.map((x, j) => j === i ? { ...x, label: ev.target.value } : x))}
+                    placeholder="Description" className={`${ic} flex-1 min-w-0`} />
+                  <span className="text-xs text-gray-400">$</span>
+                  <input type="number" min={0} step={100} value={l.amount}
+                    onChange={ev => setLiabilities(prev => prev.map((x, j) => j === i ? { ...x, amount: parseFloat(ev.target.value) || 0 } : x))}
+                    className={`${ic} w-28 text-right`} />
+                  <button onClick={() => { const u = liabilities.filter((_, j) => j !== i); setLiabilities(u); saveLiabilities(u); }}
+                    className="text-gray-300 dark:text-gray-600 hover:text-red-400 text-base leading-none">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setLiabilities(prev => [...prev, { label: "", amount: 0 }])}
+                className={`${bc} border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400`}>
+                + Add obligation
+              </button>
+              {liabilities.length > 0 && (
+                <button onClick={() => saveLiabilities(liabilities)} disabled={savingLiabilities}
+                  className={`${bc} bg-blue-600 hover:bg-blue-700 text-white`}>
+                  {savingLiabilities ? "Saving…" : "Save"}
+                </button>
+              )}
+              {liabilities.length > 0 && (
+                <span className="text-xs font-mono text-amber-600 dark:text-amber-400 ml-auto">
+                  {fmt$(liabilities.reduce((s, l) => s + (l.amount || 0), 0))} owed
+                </span>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Transactions Panel ────────────────────────────────────────────────────
+
+interface PlaidTxn {
+  transaction_id: string;
+  txn_date: string;
+  name: string;
+  amount: number;
+  is_expense: boolean;
+  category: string | null;
+  account_name: string;
+  pending: boolean;
+}
+
+interface ReconcileRow {
+  plaid: PlaidTxn | null;
+  qbo: QboTransaction | null;
+  delta_days: number | null;
+}
+
+function TxnTable({ rows, amtKey = "amount" }: {
+  rows: Array<{ txn_date: string; name?: string; memo?: string; category?: string | null; account?: string; account_name?: string; amount: number; is_expense: boolean; pending?: boolean }>;
+  amtKey?: string;
+}) {
+  return (
+    <div className="overflow-x-auto max-h-80 overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900">
+            <th className="pr-3 pb-1.5 font-medium">Date</th>
+            <th className="pr-3 pb-1.5 font-medium">Name</th>
+            <th className="pr-3 pb-1.5 font-medium">Category</th>
+            <th className="pr-3 pb-1.5 font-medium">Account</th>
+            <th className="pb-1.5 font-medium text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t, i) => (
+            <tr key={i} className={`border-t border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${(t as PlaidTxn).pending ? "opacity-50" : ""}`}>
+              <td className="pr-3 py-1.5 text-gray-500 whitespace-nowrap">{t.txn_date}{(t as PlaidTxn).pending ? " ·" : ""}</td>
+              <td className="pr-3 py-1.5 text-gray-800 dark:text-gray-200 max-w-[200px] truncate" title={t.name || t.memo}>{t.name || t.memo || "—"}</td>
+              <td className="pr-3 py-1.5 text-gray-500 max-w-[150px] truncate" title={t.category ?? ""}>{t.category || "—"}</td>
+              <td className="pr-3 py-1.5 text-gray-400 max-w-[120px] truncate">{t.account_name || t.account || "—"}</td>
+              <td className={`py-1.5 text-right font-mono font-medium whitespace-nowrap ${t.is_expense ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                {t.is_expense ? "-" : "+"}{fmt$(Math.abs(t.amount))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TransactionsPanel() {
+  const today = isoToday();
+  const curY = new Date().getFullYear();
+  const [startDate, setStartDate] = useState(isoYearStart(curY));
+  const [endDate, setEndDate] = useState(today);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useState<"plaid" | "qbo" | "reconcile">("reconcile");
+  const [open, setOpen] = useState(false);
+
+  const [plaidTxns, setPlaidTxns] = useState<PlaidTxn[]>([]);
+  const [qboTxns, setQboTxns] = useState<QboTransaction[]>([]);
+  const [reconcile, setReconcile] = useState<{ matched: ReconcileRow[]; unmatched_qbo: QboTransaction[]; summary: Record<string, number> } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const p = new URLSearchParams({ start_date: startDate, end_date: endDate });
+      if (search) p.set("search", search);
+      const [pr, qr, rr] = await Promise.all([
+        fetch(`/api/proxy/fpa/plaid/transactions?${p}`),
+        fetch(`/api/proxy/fpa/qbo/transactions?${p}`),
+        fetch(`/api/proxy/fpa/transactions/reconcile?${new URLSearchParams({ start_date: startDate, end_date: endDate })}`),
+      ]);
+      if (pr.ok) setPlaidTxns((await pr.json()).transactions ?? []);
+      if (qr.ok) setQboTxns((await qr.json()).transactions ?? []);
+      if (rr.ok) setReconcile(await rr.json());
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (open) load(); }, [open, startDate, endDate, search]);
+
+  const dateCls = "text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200";
+  const tabCls = (active: boolean) => `px-3 py-1 text-xs rounded border transition-colors ${active ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"}`;
+
+  const plaidOut = plaidTxns.filter(t => t.is_expense && !t.pending).reduce((s, t) => s + t.amount, 0);
+  const plaidIn  = plaidTxns.filter(t => !t.is_expense && !t.pending).reduce((s, t) => s + Math.abs(t.amount), 0);
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Transactions</span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100 dark:border-gray-800 p-4 space-y-3">
+
+          {/* Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="date" value={startDate} max={endDate} onChange={e => setStartDate(e.target.value)} className={dateCls} />
+            <span className="text-xs text-gray-400">to</span>
+            <input type="date" value={endDate} min={startDate} max={today} onChange={e => setEndDate(e.target.value)} className={dateCls} />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+              className={`${dateCls} w-36`} />
+            <div className="flex gap-1 ml-auto">
+              {(["reconcile", "plaid", "qbo"] as const).map(v => (
+                <button key={v} onClick={() => setView(v)} className={tabCls(view === v)}>
+                  {v === "reconcile" ? "Reconcile" : v === "plaid" ? "Bank (Plaid)" : "Books (QBO)"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {loading && <p className="text-xs text-gray-400 py-6 text-center">Loading…</p>}
+
+          {/* Plaid view */}
+          {!loading && view === "plaid" && (
+            <>
+              <div className="flex gap-4 text-xs text-gray-500">
+                <span>{plaidTxns.length} transactions</span>
+                <span className="text-red-500">Out: {fmt$(plaidOut)}</span>
+                <span className="text-green-600">In: {fmt$(plaidIn)}</span>
+              </div>
+              {plaidTxns.length === 0
+                ? <p className="text-xs text-gray-400 py-4 text-center">No Plaid transactions — sync your bank account first</p>
+                : <TxnTable rows={plaidTxns} />}
+            </>
+          )}
+
+          {/* QBO view */}
+          {!loading && view === "qbo" && (
+            <>
+              <div className="flex gap-4 text-xs text-gray-500">
+                <span>{qboTxns.length} transactions</span>
+                <span className="text-red-500">Out: {fmt$(qboTxns.filter(t => t.is_expense).reduce((s, t) => s + t.amount, 0))}</span>
+              </div>
+              {qboTxns.length === 0
+                ? <p className="text-xs text-gray-400 py-4 text-center">No QBO transactions for this period</p>
+                : <TxnTable rows={qboTxns} />}
+            </>
+          )}
+
+          {/* Reconciliation view */}
+          {!loading && view === "reconcile" && reconcile && (
+            <div className="space-y-3">
+              {/* Summary chips */}
+              <div className="flex gap-3 flex-wrap text-xs">
+                <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                  {reconcile.summary.matched_count} matched
+                </span>
+                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                  {reconcile.summary.plaid_only_count} bank only — not in books
+                </span>
+                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                  {reconcile.summary.qbo_only_count} books only — no bank entry
+                </span>
+              </div>
+
+              {/* Reconciliation table */}
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900">
+                      <th className="pb-1.5 pr-2 font-medium w-4" />
+                      <th className="pb-1.5 pr-3 font-medium">Date</th>
+                      <th className="pb-1.5 pr-3 font-medium">Bank (Plaid)</th>
+                      <th className="pb-1.5 pr-3 font-medium">Books (QBO)</th>
+                      <th className="pb-1.5 pr-3 font-medium">Category</th>
+                      <th className="pb-1.5 font-medium text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconcile.matched.map((row, i) => {
+                      const hasMatch = !!row.qbo;
+                      const t = row.plaid!;
+                      return (
+                        <tr key={i} className={`border-t border-gray-50 dark:border-gray-800 ${!hasMatch ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}>
+                          <td className="pr-2 py-1.5 text-center">
+                            {hasMatch
+                              ? <span className="text-green-500" title="Matched">✓</span>
+                              : <span className="text-amber-500" title="Bank only — not in QBO">!</span>}
+                          </td>
+                          <td className="pr-3 py-1.5 text-gray-500 whitespace-nowrap">{t.txn_date}</td>
+                          <td className="pr-3 py-1.5 text-gray-800 dark:text-gray-200 max-w-[160px] truncate" title={t.name}>{t.name || "—"}</td>
+                          <td className="pr-3 py-1.5 text-gray-500 max-w-[160px] truncate" title={row.qbo?.name ?? ""}>
+                            {row.qbo ? row.qbo.name || row.qbo.memo || "—" : <span className="text-amber-500 italic">not in QBO</span>}
+                          </td>
+                          <td className="pr-3 py-1.5 text-gray-400 max-w-[140px] truncate">{row.qbo?.category || t.category || "—"}</td>
+                          <td className={`py-1.5 text-right font-mono font-medium whitespace-nowrap ${t.is_expense ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                            {t.is_expense ? "-" : "+"}{fmt$(Math.abs(t.amount))}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {reconcile.unmatched_qbo.map((q, i) => (
+                      <tr key={`qbo-${i}`} className="border-t border-gray-50 dark:border-gray-800 bg-blue-50 dark:bg-blue-950/20">
+                        <td className="pr-2 py-1.5 text-center"><span className="text-blue-400" title="QBO only — no bank transaction">≈</span></td>
+                        <td className="pr-3 py-1.5 text-gray-500 whitespace-nowrap">{q.txn_date}</td>
+                        <td className="pr-3 py-1.5 text-blue-400 italic">not in bank</td>
+                        <td className="pr-3 py-1.5 text-gray-500 max-w-[160px] truncate">{q.name || q.memo || "—"}</td>
+                        <td className="pr-3 py-1.5 text-gray-400 max-w-[140px] truncate">{q.category || "—"}</td>
+                        <td className={`py-1.5 text-right font-mono font-medium whitespace-nowrap ${q.is_expense ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                          {q.is_expense ? "-" : "+"}{fmt$(Math.abs(q.amount))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {!loading && view === "reconcile" && !reconcile && (
+            <p className="text-xs text-gray-400 py-4 text-center">Sync your bank account and QBO to see reconciliation</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Overview Tab ──────────────────────────────────────────────────────────
 
-function OverviewTab({ model }: { model: FpaModel }) {
+function OverviewTab({ model, onModelUpdate }: { model: FpaModel; onModelUpdate: (m: FpaModel) => void }) {
   const [plaidActuals, setPlaidActuals] = useState<{ actuals: Actuals | null; kpis: Kpis | null }>({ actuals: null, kpis: null });
-  const [qboStatus, setQboStatus] = useState<QboStatus>({ connected: false });
-  const [qboMonthly, setQboMonthly] = useState<QboPeriod[]>([]);
-  const [qboWeekly, setQboWeekly] = useState<QboPeriod[]>([]);
-  const [qboQuarterly, setQboQuarterly] = useState<QboPeriod[]>([]);
-  const [qboYearly, setQboYearly] = useState<QboPeriod[]>([]);
-  const [periodType, setPeriodType] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
-  const [pageIndex, setPageIndex] = useState(0); // 0 = most recent
-  const [qboCategories, setQboCategories] = useState<{ categories: QboCategory[]; period_start?: string; period_end?: string }>({ categories: [] });
-  const [syncing, setSyncing] = useState(false);
-  const [connectingQbo, setConnectingQbo] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  async function loadAll() {
-    const [plaidRes, qboStatusRes, qboMonthlyRes, qboWeeklyRes, qboQuarterlyRes, qboYearlyRes, qboCatRes] = await Promise.all([
-      fetch("/api/proxy/fpa/actuals"),
-      fetch("/api/proxy/fpa/qbo/status"),
-      fetch("/api/proxy/fpa/qbo/actuals?period_type=monthly"),
-      fetch("/api/proxy/fpa/qbo/actuals?period_type=weekly"),
-      fetch("/api/proxy/fpa/qbo/actuals?period_type=quarterly"),
-      fetch("/api/proxy/fpa/qbo/actuals?period_type=yearly"),
-      fetch("/api/proxy/fpa/qbo/categories"),
-    ]);
-    if (plaidRes.ok) setPlaidActuals(await plaidRes.json());
-    if (qboStatusRes.ok) setQboStatus(await qboStatusRes.json());
-    if (qboMonthlyRes.ok) setQboMonthly(await qboMonthlyRes.json());
-    if (qboWeeklyRes.ok) setQboWeekly(await qboWeeklyRes.json());
-    if (qboQuarterlyRes.ok) setQboQuarterly(await qboQuarterlyRes.json());
-    if (qboYearlyRes.ok) setQboYearly(await qboYearlyRes.json());
-    if (qboCatRes.ok) setQboCategories(await qboCatRes.json());
-  }
-
-  useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
-
-  async function handleQboSync() {
-    setSyncing(true);
-    try {
-      await fetch("/api/proxy/fpa/qbo/sync", { method: "POST" });
-      const [monthly, weekly, quarterly, yearly, status, cats] = await Promise.all([
-        fetch("/api/proxy/fpa/qbo/actuals?period_type=monthly").then(r => r.json()),
-        fetch("/api/proxy/fpa/qbo/actuals?period_type=weekly").then(r => r.json()),
-        fetch("/api/proxy/fpa/qbo/actuals?period_type=quarterly").then(r => r.json()),
-        fetch("/api/proxy/fpa/qbo/actuals?period_type=yearly").then(r => r.json()),
-        fetch("/api/proxy/fpa/qbo/status").then(r => r.json()),
-        fetch("/api/proxy/fpa/qbo/categories").then(r => r.json()),
-      ]);
-      setQboMonthly(monthly);
-      setQboWeekly(weekly);
-      setQboQuarterly(quarterly);
-      setQboYearly(yearly);
-      setQboStatus(status);
-      setQboCategories(cats);
-    } finally { setSyncing(false); }
-  }
-
-  async function connectQbo() {
-    setConnectingQbo(true);
-    try {
-      const r = await fetch("/api/proxy/fpa/qbo/auth-url");
-      const data = await r.json();
-      window.location.href = data.auth_url;
-    } catch { setConnectingQbo(false); }
-  }
-
-  const currentYear = new Date().getFullYear();
-  const modelYear = model.annual_data.find(d => d.year === currentYear) ?? model.annual_data[0];
-
-  // Build a map from "year-month" → monthly model row for fast lookup
-  const monthlyMap = new Map<string, MonthlyData>();
-  for (const m of model.monthly_data ?? []) {
-    monthlyMap.set(`${m.year}-${m.month}`, m);
-  }
-
-  // Get model projection for a QBO period based on its date range
-  function getModelProj(p: QboPeriod): { revenue: number; expenses: number } {
-    if (!p.period_start) return { revenue: modelYear?.revenue ?? 0, expenses: modelYear?.total_opex ?? 0 };
-    const start = new Date(p.period_start);
-    const end = new Date(p.period_end);
-    const startY = start.getUTCFullYear(), startM = start.getUTCMonth() + 1;
-    const endY = end.getUTCFullYear(), endM = end.getUTCMonth() + 1;
-
-    if (periodType === "monthly") {
-      const row = monthlyMap.get(`${startY}-${startM}`);
-      return { revenue: row?.total_revenue ?? 0, expenses: row?.total_opex ?? 0 };
-    }
-    if (periodType === "yearly") {
-      const yr = model.annual_data.find(d => d.year === startY);
-      return { revenue: yr?.revenue ?? 0, expenses: yr?.total_opex ?? 0 };
-    }
-    // Weekly or quarterly: sum monthly rows that overlap the period
-    let rev = 0, exp = 0, covered = 0;
-    let y = startY, m = startM;
-    while (y < endY || (y === endY && m <= endM)) {
-      const row = monthlyMap.get(`${y}-${m}`);
-      if (row) {
-        if (periodType === "weekly") {
-          // Prorate: count days of this month that fall within [start, end]
-          const monthStart = new Date(Date.UTC(y, m - 1, 1));
-          const monthEnd = new Date(Date.UTC(y, m, 0)); // last day
-          const overlapStart = start > monthStart ? start : monthStart;
-          const overlapEnd = end < monthEnd ? end : monthEnd;
-          const days = Math.max(0, (overlapEnd.getTime() - overlapStart.getTime()) / 86400000 + 1);
-          const daysInMonth = monthEnd.getUTCDate();
-          const frac = days / daysInMonth;
-          rev += row.total_revenue * frac;
-          exp += row.total_opex * frac;
-          covered += frac;
-        } else {
-          // Quarterly: sum full months
-          rev += row.total_revenue;
-          exp += row.total_opex;
-        }
-      }
-      m++;
-      if (m > 12) { m = 1; y++; }
-    }
-    return { revenue: Math.round(rev), expenses: Math.round(exp) };
-  }
-
-  const allPeriods = periodType === "weekly" ? qboWeekly
-    : periodType === "quarterly" ? qboQuarterly
-    : periodType === "yearly" ? qboYearly
-    : qboMonthly;
-
-  const PAGE_SIZE = periodType === "yearly" ? 4 : periodType === "quarterly" ? 4 : periodType === "weekly" ? 4 : 6;
-  const totalPages = Math.max(1, Math.ceil(allPeriods.length / PAGE_SIZE));
-  // pageIndex 0 = most recent; clamp on data change
-  const clampedPage = Math.min(pageIndex, totalPages - 1);
-  // Show most recent at pageIndex=0: slice from the end
-  const pageStart = allPeriods.length - (clampedPage + 1) * PAGE_SIZE;
-  const periods = allPeriods.slice(Math.max(0, pageStart), allPeriods.length - clampedPage * PAGE_SIZE);
-
-  const chartData = periods.map(p => {
-    const proj = getModelProj(p);
-    return {
-      period: p.period_label,
-      "Revenue (Projected)": Math.round(proj.revenue),
-      "Revenue (Actual)": Math.round(Math.max(0, p.revenue)),
-      "Expenses (Projected)": Math.round(proj.expenses),
-      "Expenses (Actual)": Math.round(Math.max(0, p.expenses)),
-    };
-  });
+  useEffect(() => {
+    fetch("/api/proxy/fpa/actuals")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPlaidActuals(d); })
+      .finally(() => setLoading(false));
+    const onFocus = () => fetch("/api/proxy/fpa/actuals").then(r => r.ok ? r.json() : null).then(d => { if (d) setPlaidActuals(d); });
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const kpis = plaidActuals.kpis;
 
@@ -4078,7 +4808,11 @@ function OverviewTab({ model }: { model: FpaModel }) {
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Cash Balance</p>
             <p className="text-2xl font-bold font-mono text-gray-900 dark:text-gray-100">{fmt$(kpis.cash_balance)}</p>
-            <p className="text-xs text-gray-400 mt-1">Live · Axos Bank</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {kpis.pending_liabilities_total > 0
+                ? <>{fmt$(kpis.effective_cash)} available · <span className="text-amber-500">{fmt$(kpis.pending_liabilities_total)} owed</span></>
+                : "Live · Axos Bank"}
+            </p>
           </div>
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Runway</p>
@@ -4086,13 +4820,17 @@ function OverviewTab({ model }: { model: FpaModel }) {
               {kpis.runway_months !== null ? `${kpis.runway_months.toFixed(1)} mo` : "∞"}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              {kpis.runway_months !== null ? `${Math.round(kpis.runway_months * 30)} days` : "Cash flow positive"}
+              {kpis.runway_months !== null ? `${Math.round(kpis.runway_months * 30)} days` : kpis.net_burn_monthly <= 0 ? "Based on gross spend" : "Cash flow positive"}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Burn Rate</p>
             <p className="text-2xl font-bold font-mono text-red-600 dark:text-red-400">{fmt$(kpis.burn_rate_monthly)}<span className="text-sm font-normal text-gray-400">/mo</span></p>
-            <p className="text-xs text-gray-400 mt-1">{fmtRate(kpis.burn_rate_daily)}/day · {fmtRate(kpis.burn_rate_hourly)}/hr</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {kpis.net_burn_monthly > 0
+                ? `Net ${fmtRate(kpis.net_burn_monthly)}/mo after inflow`
+                : `Inflow exceeds spend · set capital adj`}
+            </p>
           </div>
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Zero Date</p>
@@ -4108,11 +4846,149 @@ function OverviewTab({ model }: { model: FpaModel }) {
         </div>
       ) : (
         <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-          No bank actuals yet — go to the <span className="font-medium">Actuals</span> tab to connect your bank account.
+          No bank actuals — connect your bank account in the Accounts tab.
         </div>
       )}
 
-      {/* Projected vs Actual */}
+      {/* Plaid spending breakdown */}
+      {kpis && <PlaidActualsBreakdown model={model} />}
+
+      {/* Burn Rate Settings + Transactions side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BurnRateSettings model={model} onModelUpdate={onModelUpdate}
+          onKpisUpdate={(a, k) => setPlaidActuals({ actuals: a, kpis: k })} />
+        <TransactionsPanel />
+      </div>
+    </div>
+  );
+}
+
+
+// ── vs Model Tab ──────────────────────────────────────────────────────────
+
+function VsModelTab({ model }: { model: FpaModel }) {
+  const [qboStatus, setQboStatus] = useState<QboStatus>({ connected: false });
+  const [qboMonthly, setQboMonthly] = useState<QboPeriod[]>([]);
+  const [qboWeekly, setQboWeekly] = useState<QboPeriod[]>([]);
+  const [qboQuarterly, setQboQuarterly] = useState<QboPeriod[]>([]);
+  const [qboYearly, setQboYearly] = useState<QboPeriod[]>([]);
+  const [periodType, setPeriodType] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [connectingQbo, setConnectingQbo] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/proxy/fpa/qbo/status").then(r => r.ok ? r.json() : {}),
+      fetch("/api/proxy/fpa/qbo/actuals?period_type=monthly").then(r => r.ok ? r.json() : []),
+      fetch("/api/proxy/fpa/qbo/actuals?period_type=weekly").then(r => r.ok ? r.json() : []),
+      fetch("/api/proxy/fpa/qbo/actuals?period_type=quarterly").then(r => r.ok ? r.json() : []),
+      fetch("/api/proxy/fpa/qbo/actuals?period_type=yearly").then(r => r.ok ? r.json() : []),
+    ]).then(([status, monthly, weekly, quarterly, yearly]) => {
+      setQboStatus(status);
+      setQboMonthly(monthly); setQboWeekly(weekly);
+      setQboQuarterly(quarterly); setQboYearly(yearly);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  async function handleQboSync() {
+    setSyncing(true);
+    try {
+      await fetch("/api/proxy/fpa/qbo/sync", { method: "POST" });
+      const [monthly, weekly, quarterly, yearly, status] = await Promise.all([
+        fetch("/api/proxy/fpa/qbo/actuals?period_type=monthly").then(r => r.json()),
+        fetch("/api/proxy/fpa/qbo/actuals?period_type=weekly").then(r => r.json()),
+        fetch("/api/proxy/fpa/qbo/actuals?period_type=quarterly").then(r => r.json()),
+        fetch("/api/proxy/fpa/qbo/actuals?period_type=yearly").then(r => r.json()),
+        fetch("/api/proxy/fpa/qbo/status").then(r => r.json()),
+      ]);
+      setQboMonthly(monthly); setQboWeekly(weekly);
+      setQboQuarterly(quarterly); setQboYearly(yearly);
+      setQboStatus(status);
+    } finally { setSyncing(false); }
+  }
+
+  async function connectQbo() {
+    setConnectingQbo(true);
+    try {
+      const r = await fetch("/api/proxy/fpa/qbo/auth-url");
+      window.location.href = (await r.json()).auth_url;
+    } catch { setConnectingQbo(false); }
+  }
+
+  const currentYear = new Date().getFullYear();
+  const modelYear = model.annual_data.find(d => d.year === currentYear) ?? model.annual_data[0];
+  const monthlyMap = new Map<string, MonthlyData>();
+  for (const m of model.monthly_data ?? []) monthlyMap.set(`${m.year}-${m.month}`, m);
+
+  function getModelProj(p: QboPeriod): { revenue: number; expenses: number } {
+    if (!p.period_start) return { revenue: modelYear?.revenue ?? 0, expenses: modelYear?.total_opex ?? 0 };
+    const start = new Date(p.period_start), end = new Date(p.period_end);
+    const startY = start.getUTCFullYear(), startM = start.getUTCMonth() + 1;
+    const endY = end.getUTCFullYear(), endM = end.getUTCMonth() + 1;
+    if (periodType === "monthly") {
+      const row = monthlyMap.get(`${startY}-${startM}`);
+      return { revenue: row?.total_revenue ?? 0, expenses: row?.total_opex ?? 0 };
+    }
+    if (periodType === "yearly") {
+      const yr = model.annual_data.find(d => d.year === startY);
+      return { revenue: yr?.revenue ?? 0, expenses: yr?.total_opex ?? 0 };
+    }
+    let rev = 0, exp = 0, y = startY, m = startM;
+    while (y < endY || (y === endY && m <= endM)) {
+      const row = monthlyMap.get(`${y}-${m}`);
+      if (row) {
+        if (periodType === "weekly") {
+          const monthStart = new Date(Date.UTC(y, m - 1, 1));
+          const monthEnd = new Date(Date.UTC(y, m, 0));
+          const overlapStart = start > monthStart ? start : monthStart;
+          const overlapEnd = end < monthEnd ? end : monthEnd;
+          const frac = Math.max(0, (overlapEnd.getTime() - overlapStart.getTime()) / 86400000 + 1) / monthEnd.getUTCDate();
+          rev += row.total_revenue * frac; exp += row.total_opex * frac;
+        } else { rev += row.total_revenue; exp += row.total_opex; }
+      }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return { revenue: Math.round(rev), expenses: Math.round(exp) };
+  }
+
+  const allPeriods = periodType === "weekly" ? qboWeekly : periodType === "quarterly" ? qboQuarterly
+    : periodType === "yearly" ? qboYearly : qboMonthly;
+  const PAGE_SIZE = periodType === "yearly" || periodType === "quarterly" ? 4 : periodType === "weekly" ? 4 : 6;
+  const totalPages = Math.max(1, Math.ceil(allPeriods.length / PAGE_SIZE));
+  const clampedPage = Math.min(pageIndex, totalPages - 1);
+  const pageStart = allPeriods.length - (clampedPage + 1) * PAGE_SIZE;
+  const periods = allPeriods.slice(Math.max(0, pageStart), allPeriods.length - clampedPage * PAGE_SIZE);
+  const chartData = periods.map(p => {
+    const proj = getModelProj(p);
+    return {
+      period: p.period_label,
+      "Revenue (Projected)": Math.round(proj.revenue),
+      "Revenue (Actual)": Math.round(Math.max(0, p.revenue)),
+      "Expenses (Projected)": Math.round(proj.expenses),
+      "Expenses (Actual)": Math.round(Math.max(0, p.expenses)),
+    };
+  });
+
+  if (loading) return <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Loading…</div>;
+
+  if (!qboStatus.connected) return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-sm">
+        Connect QuickBooks Online to compare actual revenue and expenses against your financial model.
+      </p>
+      <button onClick={connectQbo} disabled={connectingQbo}
+        className="px-5 py-2.5 bg-[#2CA01C] hover:bg-[#248016] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+        {connectingQbo ? "Redirecting…" : "Connect QuickBooks"}
+      </button>
+      <p className="text-xs text-gray-400">You'll be redirected to Intuit to authorize access.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Projected vs Actual chart */}
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -4122,65 +4998,34 @@ function OverviewTab({ model }: { model: FpaModel }) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {qboStatus.connected && (
-              <>
-                <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-                  {(["weekly", "monthly", "quarterly", "yearly"] as const).map(pt => (
-                    <button key={pt} onClick={() => { setPeriodType(pt); setPageIndex(0); }}
-                      className={`px-3 py-1.5 capitalize transition-colors ${periodType === pt ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
-                      {pt}
-                    </button>
-                  ))}
-                </div>
-                {/* Period navigation arrows */}
-                <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-                  <button
-                    onClick={() => setPageIndex(p => Math.min(p + 1, totalPages - 1))}
-                    disabled={clampedPage >= totalPages - 1}
-                    className="px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
-                    title="Older"
-                  >
-                    ‹
-                  </button>
-                  <span className="px-1 text-gray-400 select-none tabular-nums">
-                    {clampedPage > 0 ? `−${clampedPage}` : "Now"}
-                  </span>
-                  <button
-                    onClick={() => setPageIndex(p => Math.max(p - 1, 0))}
-                    disabled={clampedPage === 0}
-                    className="px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
-                    title="Newer"
-                  >
-                    ›
-                  </button>
-                </div>
-                <button onClick={handleQboSync} disabled={syncing}
-                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 disabled:opacity-50 transition-colors">
-                  {syncing ? "Syncing…" : "Sync QBO"}
+            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+              {(["weekly", "monthly", "quarterly", "yearly"] as const).map(pt => (
+                <button key={pt} onClick={() => { setPeriodType(pt); setPageIndex(0); }}
+                  className={`px-3 py-1.5 capitalize transition-colors ${periodType === pt ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                  {pt}
                 </button>
-              </>
-            )}
+              ))}
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+              <button onClick={() => setPageIndex(p => Math.min(p + 1, totalPages - 1))} disabled={clampedPage >= totalPages - 1}
+                className="px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors">‹</button>
+              <span className="px-1 text-gray-400 select-none tabular-nums">{clampedPage > 0 ? `−${clampedPage}` : "Now"}</span>
+              <button onClick={() => setPageIndex(p => Math.max(p - 1, 0))} disabled={clampedPage === 0}
+                className="px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors">›</button>
+            </div>
+            <button onClick={handleQboSync} disabled={syncing}
+              className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 disabled:opacity-50 transition-colors">
+              {syncing ? "Syncing…" : "Sync QBO"}
+            </button>
           </div>
         </div>
 
-        {!qboStatus.connected ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-sm">
-              Connect QuickBooks Online to see actual revenue and expenses compared to your financial model.
-            </p>
-            <button onClick={connectQbo} disabled={connectingQbo}
-              className="px-5 py-2.5 bg-[#2CA01C] hover:bg-[#248016] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-              {connectingQbo ? "Redirecting…" : "Connect QuickBooks"}
-            </button>
-            <p className="text-xs text-gray-400">You&apos;ll be redirected to Intuit to authorize access.</p>
-          </div>
-        ) : chartData.length === 0 ? (
+        {chartData.length === 0 ? (
           <div className="flex items-center justify-center py-10 text-gray-400 text-sm">
-            No period data yet — click &quot;Sync QBO&quot; to pull your P&amp;L.
+            No data yet — click "Sync QBO" to pull your P&L.
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Revenue chart */}
             <div>
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Revenue</p>
               <ResponsiveContainer width="100%" height={200}>
@@ -4195,7 +5040,6 @@ function OverviewTab({ model }: { model: FpaModel }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            {/* Expenses chart */}
             <div>
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Expenses</p>
               <ResponsiveContainer width="100%" height={200}>
@@ -4210,7 +5054,6 @@ function OverviewTab({ model }: { model: FpaModel }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            {/* Summary table */}
             <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
               <table className="w-full text-xs">
                 <thead>
@@ -4251,10 +5094,7 @@ function OverviewTab({ model }: { model: FpaModel }) {
         )}
       </div>
 
-      {/* Spending Breakdown */}
-      {qboStatus.connected && (
-        <SpendingBreakdown model={model} />
-      )}
+      <SpendingBreakdown model={model} />
     </div>
   );
 }
@@ -4628,7 +5468,7 @@ function SpendingBreakdown({ model }: { model: FpaModel }) {
 
 function StatusPill({ connected }: { connected: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium ${
       connected
         ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
         : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
@@ -4858,9 +5698,9 @@ function AccountsTab() {
   );
 }
 
-type Tab = "overview" | "model" | "drivers" | "history" | "excel" | "accounts";
+type Tab = "overview" | "vsmodel" | "model" | "drivers" | "history" | "excel" | "accounts";
 
-const ALL_TABS: Tab[] = ["overview", "model", "drivers", "history", "excel", "accounts"];
+const ALL_TABS: Tab[] = ["overview", "vsmodel", "model", "drivers", "history", "excel", "accounts"];
 
 function FpaPageInner() {
   const searchParams = useSearchParams();
@@ -4913,7 +5753,7 @@ function FpaPageInner() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Symbio_Financial_Model.xlsx";
+      a.download = "OpenERP_Financial_Model.xlsx";
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -4940,6 +5780,7 @@ function FpaPageInner() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "Real Time" },
+    { id: "vsmodel", label: "vs Model" },
     { id: "model", label: "Model" },
     { id: "accounts", label: "Accounts" },
   ];
@@ -5004,7 +5845,8 @@ function FpaPageInner() {
       </div>
 
       {/* Tab content */}
-      {tab === "overview" && <OverviewTab model={model} />}
+      {tab === "overview" && <OverviewTab model={model} onModelUpdate={setModel} />}
+      {tab === "vsmodel" && <VsModelTab model={model} />}
       {tab === "model" && (
         <div className="space-y-5">
           {/* Model sub-tab bar */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Avatar } from "@/components/Avatar";
 
 interface Task {
   task_id: string;
@@ -18,13 +19,6 @@ interface User {
   name: string | null;
   email: string;
   user_type?: string;
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  const parts = name.trim().split(" ");
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function fmtDate(d: string | null): string {
@@ -111,9 +105,7 @@ export default function TeamPanel() {
                 {byUser.map(({ user, tasks: userTasks }) => (
                   <div key={user.user_id}>
                     <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gray-50/60 dark:bg-gray-800/40">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                        {getInitials(user.name)}
-                      </div>
+                      <Avatar name={user.name} size={7} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{user.name || user.email}</p>
                       </div>
@@ -154,7 +146,7 @@ export default function TeamPanel() {
                     <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gray-50/60 dark:bg-gray-800/40">
                       <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">?</div>
                       <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex-1">Unassigned</span>
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500">{unassigned.length}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500">{unassigned.length}</span>
                     </div>
                     <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
                       {unassigned.map(t => (

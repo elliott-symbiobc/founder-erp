@@ -2,47 +2,47 @@ services:
 
   traefik:
     image: traefik:v3.0
-    container_name: collective_traefik
+    container_name: openerp_traefik
     restart: unless-stopped
     command:
-      - "--api.dashboard=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
-      - "${TRAEFIK_PORT:-8080}:80"
+      - "8080:80"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
-      - collective_net
+      - openerp_net
 
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: collective_postgres
+    container_name: openerp_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: collective
+      POSTGRES_USER: openerp
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: collective_erp
+      POSTGRES_DB: openerp
+      TZ: America/Chicago
+      PGTZ: America/Chicago
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
       - ./sql/views.sql:/docker-entrypoint-initdb.d/02_views.sql
-      - ./sql/seed_market_prices.sql:/docker-entrypoint-initdb.d/03_seed.sql
     networks:
-      - collective_net
+      - openerp_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U collective -d collective_erp"]
+      test: ["CMD-SHELL", "pg_isready -U openerp -d openerp"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: collective_redis
+    container_name: openerp_redis
     restart: unless-stopped
     networks:
-      - collective_net
+      - openerp_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -51,105 +51,183 @@ services:
 
   api:
     build: ./api
-    container_name: collective_api
+    container_name: openerp_api
     restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      DATABASE_URL: postgresql://collective:${DB_PASSWORD}@postgres:5432/collective_erp
+      TZ: America/Chicago
+      # running its first cell, and that kernel needs the same path the Jupyter
+      # kernels use.
+      # into the same import namespace as this repository's own.
+      DATABASE_URL: postgresql://openerp:${DB_PASSWORD}@postgres:5432/openerp
       REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SIDESTREAM_KEY_SECRET: ${SIDESTREAM_KEY_SECRET}
       SECRET_KEY: ${SECRET_KEY}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
-      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
-      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET:-}
-      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET:-}
+      # Shared with the frontend proxy: identity headers are only honoured when
+      # accompanied by this, so the API cannot be driven directly.
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      S2_API_KEY: ${S2_API_KEY:-}
+      CORE_API_KEY: ${CORE_API_KEY:-}
+      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
+      USDA_API_KEY: ${USDA_API_KEY:-DEMO_KEY}
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET}
+      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET}
       PLAID_ENV: ${PLAID_ENV:-sandbox}
       QBO_CLIENT_ID: ${QBO_CLIENT_ID:-}
       QBO_CLIENT_SECRET: ${QBO_CLIENT_SECRET:-}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      GRANOLA_API_KEY: ${GRANOLA_API_KEY:-}
+      GRANOLA_SYNC_USER_EMAIL: ${GRANOLA_SYNC_USER_EMAIL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       RAG_ENABLED: ${RAG_ENABLED:-true}
+      ATCC_API_KEY: ${ATCC_API_KEY:-}
+      ELSEVIER_API_KEY: ${ELSEVIER_API_KEY:-}
+      WILEY_TDM_TOKEN: ${WILEY_TDM_TOKEN:-}
+      TDM_API_TOKEN: ${WILEY_TDM_TOKEN:-}
+      SPRINGER_API_KEY: ${SPRINGER_API_KEY:-}
+      WP_BASE_URL: ${WP_BASE_URL:-http://wordpress-production}
+      WP_APP_USER: ${WP_APP_USER:-admin}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-}
+      EIA_API_KEY: ${EIA_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      OPENEI_API_KEY: ${OPENEI_API_KEY:-DEMO_KEY}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      GOOSEWORKS_API_KEY: ${GOOSEWORKS_API_KEY:-}
+      GOOSEWORKS_API_BASE: ${GOOSEWORKS_API_BASE:-https://api.gooseworks.ai}
     volumes:
       - ./reports:/app/reports
       - uploads_data:/app/uploads
+      - ./models:/opt/openerp/models
+      - /root/.gooseworks:/root/.gooseworks:ro
+      # Whole package, not a per-file list: mounting only some paths meant edits
+      # to unmounted ones (app/tasks/) silently ran stale image code.
+      - ./api/app:/app/app
+      - ./.git/config:/app/.git/config:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "127.0.0.1:8001:8000"
     networks:
-      - collective_net
+      - openerp_net
+      - wordpress_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${APP_DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.rule=Host(`erp.example.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.services.api.loadbalancer.server.port=8000"
 
   worker:
     build: ./api
-    container_name: collective_worker
+    container_name: openerp_worker
     restart: unless-stopped
     command: celery -A app.worker worker --loglevel=info --beat --max-tasks-per-child=50
     environment:
-      DATABASE_URL: postgresql://collective:${DB_PASSWORD}@postgres:5432/collective_erp
+      TZ: America/Chicago
+      DATABASE_URL: postgresql://openerp:${DB_PASSWORD}@postgres:5432/openerp
       REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SECRET_KEY: ${SECRET_KEY}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
-      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET:-}
-      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET:-}
+      S2_API_KEY: ${S2_API_KEY:-}
+      CORE_API_KEY: ${CORE_API_KEY:-}
+      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
+      USDA_API_KEY: ${USDA_API_KEY:-DEMO_KEY}
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET}
+      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET}
       PLAID_ENV: ${PLAID_ENV:-sandbox}
       QBO_CLIENT_ID: ${QBO_CLIENT_ID:-}
       QBO_CLIENT_SECRET: ${QBO_CLIENT_SECRET:-}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      GRANOLA_API_KEY: ${GRANOLA_API_KEY:-}
+      GRANOLA_SYNC_USER_EMAIL: ${GRANOLA_SYNC_USER_EMAIL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       RAG_ENABLED: ${RAG_ENABLED:-true}
+      ATCC_API_KEY: ${ATCC_API_KEY:-}
+      ELSEVIER_API_KEY: ${ELSEVIER_API_KEY:-}
+      WILEY_TDM_TOKEN: ${WILEY_TDM_TOKEN:-}
+      TDM_API_TOKEN: ${WILEY_TDM_TOKEN:-}
+      SPRINGER_API_KEY: ${SPRINGER_API_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      GOOSEWORKS_API_KEY: ${GOOSEWORKS_API_KEY:-}
+      GOOSEWORKS_API_BASE: ${GOOSEWORKS_API_BASE:-https://api.gooseworks.ai}
     volumes:
       - ./reports:/app/reports
+      - ./scripts:/opt/openerp/scripts
+      - ./models:/opt/openerp/models
+      # Scheduled emails are sent from here, so the worker needs the same
+      # uploaded attachments the API wrote.
+      - uploads_data:/app/uploads
+      - ./api/app:/app/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - collective_net
+      - openerp_net
 
   frontend:
     build:
       context: ./frontend
       target: dev
-    container_name: collective_frontend
+    container_name: openerp_frontend
     restart: unless-stopped
     command: node_modules/.bin/next dev
     environment:
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      TZ: America/Chicago
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       API_URL: http://api:8000/api
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api}
+      NEXT_PUBLIC_API_URL: https://erp.example.com/api
+      # Proves a request carrying X-User-Id really came from this proxy.
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
     volumes:
       - ./frontend:/app
+      # into a Next.js route group: a folder in parentheses is excluded from the
+      # Components resolve through a tsconfig path alias rather than being
+      # mounted file by file: bind-mounting individual files into a
+      # bind-mounted directory makes Docker create empty placeholders on the
+      # host, which land in this repo as untracked junk on every deploy.
       - frontend_node_modules:/app/node_modules
     depends_on:
       - api
     networks:
-      - collective_net
+      - openerp_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${APP_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.frontend.rule=Host(`erp.example.com`)"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-      - "traefik.http.routers.frontend-proxy.rule=Host(`${APP_DOMAIN:-localhost}`) && (PathPrefix(`/api/proxy`) || PathPrefix(`/api/auth`) || PathPrefix(`/api/logo`))"
+      - "traefik.http.routers.frontend-proxy.rule=Host(`erp.example.com`) && (PathPrefix(`/api/proxy`) || PathPrefix(`/api/auth`) || PathPrefix(`/api/logo`))"
       - "traefik.http.routers.frontend-proxy.entrypoints=web"
       - "traefik.http.routers.frontend-proxy.service=frontend"
+      # The investor room is served under the marketing domain; route the page,
+      # its Next assets and its API calls to this same service.
+      - "traefik.http.routers.investors.rule=Host(`example.com`) && (PathPrefix(`/investors`) || PathPrefix(`/_next`) || PathPrefix(`/api/proxy`) || PathPrefix(`/api/logo`))"
+      - "traefik.http.routers.investors.entrypoints=web"
+      - "traefik.http.routers.investors.service=frontend"
 
 networks:
-  collective_net:
+  openerp_net:
     driver: bridge
+  wordpress_net:
+    external: true
+    name: root_wordpress-production-network
 
 volumes:
   postgres_data:

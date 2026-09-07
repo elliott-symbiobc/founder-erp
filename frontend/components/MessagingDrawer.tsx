@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Avatar } from "@/components/Avatar";
 
 export interface Channel {
   channel_id: string;
@@ -278,7 +279,7 @@ export default function MessagingDrawer({ open, onClose, onUnreadChange }: {
                   {newMode === "group" && selectedUsers.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {selectedUsers.map(u => (
-                        <span key={u.user_id} className="flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-full">
+                        <span key={u.user_id} className="flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
                           {u.name || u.email}
                           <button onClick={() => toggleUser(u)} className="text-blue-400 hover:text-blue-600">✕</button>
                         </span>
@@ -296,9 +297,7 @@ export default function MessagingDrawer({ open, onClose, onUnreadChange }: {
                           onClick={() => newMode === "dm" ? startDM(u) : toggleUser(u)}
                           disabled={creating}
                           className={`w-full text-left px-2 py-1.5 rounded flex items-center gap-2 transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-950/30" : "hover:bg-white dark:hover:bg-gray-700"}`}>
-                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
-                            {(u.name || u.email)[0].toUpperCase()}
-                          </div>
+                          <Avatar name={u.name || u.email} size={5} />
                           <div className="flex-1 min-w-0">
                             <p className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">{u.name || u.email}</p>
                             {u.name && <p className="text-[9px] text-gray-400 truncate">{u.email}</p>}
@@ -337,7 +336,7 @@ export default function MessagingDrawer({ open, onClose, onUnreadChange }: {
                           {ch.channel_type === "direct" ? "@ " : ""}{channelDisplayName(ch)}
                         </span>
                         {ch.unread_count > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-600 text-white flex-shrink-0">{ch.unread_count}</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white flex-shrink-0">{ch.unread_count}</span>
                         )}
                       </div>
                       {ch.last_message && (
@@ -403,9 +402,7 @@ export default function MessagingDrawer({ open, onClose, onUnreadChange }: {
                   ) : (
                     messages.map(msg => (
                       <div key={msg.message_id} className={`flex gap-2.5 ${msg.is_announcement ? "bg-amber-50/60 dark:bg-amber-950/10 rounded-lg px-3 py-2 border border-amber-100 dark:border-amber-900/40" : ""}`}>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-                          {(msg.sender_display_name || msg.sender_name || "?")[0].toUpperCase()}
-                        </div>
+                        <Avatar name={msg.sender_display_name || msg.sender_name} size={7} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-2">
                             <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">

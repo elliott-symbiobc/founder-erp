@@ -77,7 +77,7 @@ def _conn():
 
 
 def _google_redirect_uri() -> str:
-    base = os.environ.get("NEXTAUTH_URL", "https://platform.collectiveerp.io")
+    base = os.environ.get("NEXTAUTH_URL", "https://erp.example.com")
     return f"{base}/api/contacts/google/callback"
 
 
@@ -204,12 +204,6 @@ class RelationshipCreate(BaseModel):
     strength: int = 3
 
 
-class SubstrateLinkCreate(BaseModel):
-    substrate_id: str
-    role: str = "partner"
-    notes: Optional[str] = None
-
-
 class SendEmailRequest(BaseModel):
     subject: str
     body: str                          # plain text body
@@ -330,7 +324,10 @@ def list_contacts(
 
         sort_col = {
             "last_interaction": "c.last_interaction_at DESC NULLS LAST",
-            "name": "c.name ASC",
+            # "name" sorts by COMPANY name: the contacts view groups rows into
+            # company cards, so ordering by contact name scattered the groups.
+            # Fall back to the org text column when a contact has no company row.
+            "name": "LOWER(COALESCE(co.name, c.organization)) ASC NULLS LAST, c.name ASC",
             "organization": "c.organization ASC NULLS LAST, c.name ASC",
             "created_at": "c.created_at DESC",
             "tag": "array_to_string(c.tags, ',') ASC NULLS LAST, c.name ASC",
@@ -552,7 +549,7 @@ def google_auth_start(request: Request):
 @router.get("/google/callback")
 def google_callback(code: str = None, state: str = None, error: str = None):
     """Handle Google OAuth callback. Exchanges code for tokens and stores them."""
-    base_url = os.environ.get("NEXTAUTH_URL", "https://platform.collectiveerp.io")
+    base_url = os.environ.get("NEXTAUTH_URL", "https://erp.example.com")
 
     if error:
         return RedirectResponse(url=f"{base_url}/settings?google_error={error}")
@@ -906,25 +903,39 @@ def update_tag_color(name: str, body: dict):
 
 @router.get("/suggestions")
 def list_suggestions():
-    """Return all pending suggestions from the most recent scan batch."""
+    """Return all pending suggestions across all scan batches."""
     conn = _conn()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT s.*, c.name AS target_name, c.email AS target_email,
                    c.organization AS target_org, c.title AS target_title,
-                   c.avatar_url AS target_avatar
+                   c.avatar_url AS target_avatar,
+                   -- Flag suggestions whose email already belongs to a live
+                   -- contact. Approving one silently minted a duplicate; the
+                   -- approve path now merges instead, and the UI warns first.
+                   dup.contact_id::text AS duplicate_of_contact_id,
+                   dup.name             AS duplicate_of_name
             FROM contact_suggestions s
             LEFT JOIN contacts c ON c.contact_id = s.target_contact_id
-            WHERE s.scan_batch_id = (
-                SELECT scan_batch_id FROM contact_suggestions
-                ORDER BY created_at DESC LIMIT 1
-            )
-            ORDER BY s.suggestion_type DESC, s.created_at ASC
+            LEFT JOIN LATERAL (
+                SELECT c2.contact_id, c2.name FROM contacts c2
+                WHERE s.suggestion_type = 'new_contact'
+                  AND s.suggested_email IS NOT NULL
+                  AND LOWER(c2.email) = LOWER(s.suggested_email)
+                  AND c2.archived = false
+                LIMIT 1
+            ) dup ON true
+            WHERE s.status = 'pending'
+            -- Newest batch first. created_at ASC buried every fresh scan under
+            -- the un-reviewed backlog, so the list read as stale even though
+            -- scans were running. suggestion_type is the tiebreak: a scan
+            -- stamps one created_at per batch, so new_contact still sorts above
+            -- enrichment within a batch, preserving the original intent.
+            ORDER BY s.created_at DESC, s.suggestion_type DESC
         """)
         rows = [dict(r) for r in cur.fetchall()]
-        pending = [r for r in rows if r["status"] == "pending"]
-        return {"suggestions": rows, "pending_count": len(pending)}
+        return {"suggestions": rows, "pending_count": len(rows)}
     finally:
         conn.close()
 
@@ -1103,17 +1114,52 @@ Rules:
 
         inserted = []
 
+        # Load already-pending suggestion emails to avoid re-inserting duplicates
+        cur.execute("SELECT LOWER(suggested_email) AS email FROM contact_suggestions WHERE status = 'pending' AND suggested_email IS NOT NULL")
+        pending_emails_set = {r["email"] for r in cur.fetchall() if r["email"]}
+
+        # Enrichment dedup. The new_contact path above dedups; the enrichment
+        # path had no guard at all, so every scan re-proposed the same fields:
+        # Elliott Notrica's title was suggested 11 times while his contact
+        # already read Founder/CEO, and one contact accumulated 5 identical
+        # pending rows. Reviewing it did nothing — the next scan just re-added it.
+        #
+        #   pending  -> already queued for review, don't duplicate it
+        #   rejected -> the user declined this field, don't resurrect it
+        #
+        # Keyed by field name, so a genuinely new field on the same contact
+        # still gets through.
+        cur.execute("""
+            SELECT target_contact_id::text AS cid, enrichment_fields
+            FROM contact_suggestions
+            WHERE suggestion_type = 'enrichment'
+              AND status IN ('pending', 'rejected')
+              AND target_contact_id IS NOT NULL
+              AND enrichment_fields IS NOT NULL
+        """)
+        suppressed_fields: dict[str, set] = {}
+        for r in cur.fetchall():
+            suppressed_fields.setdefault(r["cid"], set()).update((r["enrichment_fields"] or {}).keys())
+
+        contacts_by_id = {str(c["contact_id"]): c for c in existing_contacts}
+
+        # Names already proposed during THIS scan (see the new_contact loop).
+        claimed_names: set = set()
+
         # Insert new contact suggestions
         for nc in parsed.get("new_contacts", [])[:15]:
             email = (nc.get("email") or "").strip().lower() or None
             name = (nc.get("name") or "").strip()
             if not name:
                 continue
-            # Hard dedup: skip if email already in contacts
-            if email and email in existing_emails_set:
+            # Hard dedup: skip if email already in contacts or already pending review
+            if email and (email in existing_emails_set or email in pending_emails_set):
                 continue
-            # Skip if name is extremely similar to existing
+            # Skip if name is extremely similar to existing, or already proposed
+            # earlier in this same batch.
             if name.lower() in existing_names_lower and not email:
+                continue
+            if name.lower() in claimed_names:
                 continue
 
             cur.execute("""
@@ -1131,6 +1177,17 @@ Rules:
                 nc.get("reason"), batch_id,
             ))
             inserted.append(dict(cur.fetchone()))
+
+            # Claim the email within this scan too. pending_emails_set was loaded
+            # once before the loop, so without this a single batch could insert
+            # the same person repeatedly — Brandon Sullivan landed 4x in one scan
+            # (16:14:14/19/33/37), and each copy was a latent duplicate contact.
+            # Names claimed this batch are tracked separately from
+            # existing_names_lower: that map holds real contact rows and the
+            # enrichment pass below dereferences match["contact_id"] from it.
+            if email:
+                pending_emails_set.add(email)
+            claimed_names.add(name.lower())
 
         # Insert enrichment suggestions
         for en in parsed.get("enrichments", [])[:10]:
@@ -1153,6 +1210,27 @@ Rules:
             if not target_contact_id:
                 continue  # Can't find the contact to enrich
 
+            # Only propose fields that are genuinely absent and not already
+            # queued or declined. The prompt asks Claude for this ("only suggest
+            # fields the contact is actually missing") but it can't be trusted to
+            # hold — the contact whose title kept reappearing is stored under the
+            # name "elliott@example.com", so the signature name never matched
+            # and the model re-derived the title from the email every scan.
+            # Enforcing it here makes it deterministic.
+            target = contacts_by_id.get(target_contact_id) or {}
+            suppressed = suppressed_fields.get(target_contact_id, set())
+            fields = {
+                k: v for k, v in fields.items()
+                if v
+                and k not in suppressed
+                and not str(target.get(k) or "").strip()
+            }
+            if not fields:
+                continue
+
+            # Keep this scan from proposing the same field twice in one pass.
+            suppressed_fields.setdefault(target_contact_id, set()).update(fields.keys())
+
             cur.execute("""
                 INSERT INTO contact_suggestions
                   (suggestion_type, target_contact_id, target_contact_name,
@@ -1174,12 +1252,30 @@ Rules:
         cur.execute("""
             SELECT s.*, c.name AS target_name, c.email AS target_email,
                    c.organization AS target_org, c.title AS target_title,
-                   c.avatar_url AS target_avatar
+                   c.avatar_url AS target_avatar,
+                   -- Flag suggestions whose email already belongs to a live
+                   -- contact. Approving one silently minted a duplicate; the
+                   -- approve path now merges instead, and the UI warns first.
+                   dup.contact_id::text AS duplicate_of_contact_id,
+                   dup.name             AS duplicate_of_name
             FROM contact_suggestions s
             LEFT JOIN contacts c ON c.contact_id = s.target_contact_id
-            WHERE s.scan_batch_id = %s
-            ORDER BY s.suggestion_type DESC, s.created_at ASC
-        """, (batch_id,))
+            LEFT JOIN LATERAL (
+                SELECT c2.contact_id, c2.name FROM contacts c2
+                WHERE s.suggestion_type = 'new_contact'
+                  AND s.suggested_email IS NOT NULL
+                  AND LOWER(c2.email) = LOWER(s.suggested_email)
+                  AND c2.archived = false
+                LIMIT 1
+            ) dup ON true
+            WHERE s.status = 'pending'
+            -- Newest batch first. created_at ASC buried every fresh scan under
+            -- the un-reviewed backlog, so the list read as stale even though
+            -- scans were running. suggestion_type is the tiebreak: a scan
+            -- stamps one created_at per batch, so new_contact still sorts above
+            -- enrichment within a batch, preserving the original intent.
+            ORDER BY s.created_at DESC, s.suggestion_type DESC
+        """)
         suggestions = [dict(r) for r in cur.fetchall()]
         return {"suggestions": suggestions, "scan_batch_id": batch_id, "emails_scanned": len(emails)}
     finally:
@@ -1209,18 +1305,57 @@ def review_suggestion(suggestion_id: str, body: dict, request: Request):
 
         if action == "approve":
             if sug["suggestion_type"] == "new_contact":
-                cur.execute("""
-                    INSERT INTO contacts (name, email, organization, title, phone, linkedin_url, tags, subject_areas)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING contact_id
-                """, (
-                    sug["suggested_name"], sug["suggested_email"],
-                    sug["suggested_org"], sug["suggested_title"],
-                    sug["suggested_phone"], sug["suggested_linkedin"],
-                    [], [],
-                ))
-                new_id = cur.fetchone()["contact_id"]
-                result["contact_id"] = str(new_id)
+                # Dedup at suggestion-creation time is not enough: a suggestion
+                # can sit pending for weeks while the same person is added by a
+                # later scan, an approval of a sibling suggestion, or a Google
+                # sync. Approving the stale one then blind-INSERTs a duplicate.
+                # That is exactly how the 21 duplicate contacts accumulated —
+                # e.g. Brandon Sullivan was suggested 4x in one batch; one was
+                # approved in June, another 6 weeks later, yielding two rows.
+                # So re-check against live contacts at approval time.
+                existing = None
+                if sug["suggested_email"]:
+                    cur.execute(
+                        "SELECT contact_id FROM contacts "
+                        "WHERE LOWER(email) = LOWER(%s) AND archived = false LIMIT 1",
+                        (sug["suggested_email"],),
+                    )
+                    existing = cur.fetchone()
+
+                if existing:
+                    # Fold the suggestion into the contact that already exists
+                    # rather than creating a second one. Only fills blanks —
+                    # never overwrites a value a human already curated.
+                    merge = {
+                        "organization": sug["suggested_org"],
+                        "title": sug["suggested_title"],
+                        "phone": sug["suggested_phone"],
+                        "linkedin_url": sug["suggested_linkedin"],
+                    }
+                    merge = {k: v for k, v in merge.items() if v}
+                    if merge:
+                        set_clause = ", ".join(
+                            f"{k} = COALESCE(NULLIF({k}, ''), %s)" for k in merge
+                        )
+                        cur.execute(
+                            f"UPDATE contacts SET {set_clause} WHERE contact_id = %s::uuid",
+                            list(merge.values()) + [str(existing["contact_id"])],
+                        )
+                    result["contact_id"] = str(existing["contact_id"])
+                    result["merged_into_existing"] = True
+                else:
+                    cur.execute("""
+                        INSERT INTO contacts (name, email, organization, title, phone, linkedin_url, tags, subject_areas)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING contact_id
+                    """, (
+                        sug["suggested_name"], sug["suggested_email"],
+                        sug["suggested_org"], sug["suggested_title"],
+                        sug["suggested_phone"], sug["suggested_linkedin"],
+                        [], [],
+                    ))
+                    new_id = cur.fetchone()["contact_id"]
+                    result["contact_id"] = str(new_id)
 
             elif sug["suggestion_type"] == "enrichment" and sug["target_contact_id"]:
                 import json as _j
@@ -1235,43 +1370,41 @@ def review_suggestion(suggestion_id: str, body: dict, request: Request):
                     )
                 result["contact_id"] = str(sug["target_contact_id"])
 
+        # Not action + "d": that yields "rejectd", which fails the status CHECK
+        # constraint ('pending'|'approved'|'rejected'), so every reject 500'd and
+        # the row stayed pending. Approve slipped through because it spells out.
+        new_status = "approved" if action == "approve" else "rejected"
         cur.execute("""
             UPDATE contact_suggestions
             SET status = %s, reviewed_at = NOW(), reviewed_by = %s::uuid
             WHERE suggestion_id = %s::uuid
-        """, (action + "d", user_id, suggestion_id))
+        """, (new_status, user_id, suggestion_id))
+
+        # Also dismiss all other pending duplicates with the same email / target contact
+        if action == "reject":
+            if sug.get("suggested_email"):
+                cur.execute("""
+                    UPDATE contact_suggestions
+                    SET status = 'rejected', reviewed_at = NOW(), reviewed_by = %s::uuid
+                    WHERE status = 'pending'
+                      AND suggestion_id != %s::uuid
+                      AND LOWER(suggested_email) = LOWER(%s)
+                """, (user_id, suggestion_id, sug["suggested_email"]))
+            if sug.get("target_contact_id"):
+                cur.execute("""
+                    UPDATE contact_suggestions
+                    SET status = 'rejected', reviewed_at = NOW(), reviewed_by = %s::uuid
+                    WHERE status = 'pending'
+                      AND suggestion_id != %s::uuid
+                      AND target_contact_id = %s::uuid
+                      AND suggestion_type = 'enrichment'
+                """, (user_id, suggestion_id, sug["target_contact_id"]))
+
         conn.commit()
-        return {"status": action + "d", **result}
+        return {"status": new_status, **result}
     finally:
         conn.close()
 
-
-# ---------------------------------------------------------------------------
-# Substrate link management (static routes)
-# ---------------------------------------------------------------------------
-
-@router.delete("/substrate-links/{link_id}")
-def delete_substrate_link(link_id: str):
-    conn = _conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM contact_substrate_links WHERE link_id = %s RETURNING link_id", (link_id,))
-        if cur.rowcount == 0:
-            conn.rollback()
-            raise HTTPException(status_code=404, detail="Link not found")
-        conn.commit()
-        return {"status": "deleted"}
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Create contact
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Pending contacts (Google import / Gmail activity — require human approval)
-# ---------------------------------------------------------------------------
 
 @router.get("/pending")
 def list_pending_contacts(
@@ -1657,6 +1790,217 @@ def generate_company_description(company_id: str, request: Request):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Enrich a company via Brand.dev (logo, description, industry, socials, colors)
+# ---------------------------------------------------------------------------
+
+def _brand_dev_retrieve(domain: str) -> Optional[dict]:
+    """Call Brand.dev through the GooseWorks Orthogonal proxy. Returns the
+    `brand` object or None. Network/credential problems raise; a clean 'no data'
+    returns None so callers can distinguish 'nothing found' from 'call failed'."""
+    import os
+    import httpx as _httpx
+
+    key = os.environ.get("GOOSEWORKS_API_KEY")
+    base = os.environ.get("GOOSEWORKS_API_BASE", "https://api.gooseworks.ai")
+    if not key:
+        raise HTTPException(status_code=503, detail="Enrichment not configured (GOOSEWORKS_API_KEY missing)")
+
+    try:
+        resp = _httpx.post(
+            f"{base}/v1/proxy/orthogonal/run",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"api": "brand-dev", "path": "/v1/brand/retrieve", "query": {"domain": domain}},
+            timeout=60.0,
+        )
+    except _httpx.RequestError:
+        # Network/timeout - transient. Signal 'nothing found' rather than 500.
+        return None
+
+    # Auth/config problems are worth surfacing; everything else (a 4xx because
+    # brand.dev doesn't recognize the domain, a 5xx, a proxy-level error body)
+    # just means 'no brand data for this domain' - return None, don't 500.
+    if resp.status_code in (401, 403):
+        raise HTTPException(status_code=502, detail="Enrichment auth failed (check GOOSEWORKS_API_KEY)")
+    if resp.status_code >= 400:
+        return None
+
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None
+    if (payload.get("status") or "").lower() == "error":
+        return None
+    # Proxy wraps the provider response: {status, data:{status, brand:{...}}}
+    brand = (payload.get("data") or {}).get("brand")
+    return brand or None
+
+
+def _domain_from(*candidates: Optional[str]) -> Optional[str]:
+    """Best-effort domain from a website URL or an email address."""
+    import re
+    for c in candidates:
+        if not c:
+            continue
+        c = c.strip()
+        m = re.search(r"@([^@/]+)$", c)          # email
+        if m:
+            return m.group(1).lower()
+        m = re.search(r"^(?:https?://)?(?:www\.)?([^/]+)", c)  # url
+        if m and "." in m.group(1):
+            return m.group(1).lower()
+    return None
+
+
+# Brand.dev's industry text -> your existing tag vocabulary. Only maps onto tags
+# that already exist in contact_tags; the endpoint never invents new ones.
+_INDUSTRY_TAG_HINTS = {
+    "food": ["Ingred. Sales/Distribution", "Flavor and Fragrance"],
+    "flavor": ["Flavor and Fragrance"],
+    "fragrance": ["Flavor and Fragrance"],
+    "dairy": ["Dairy"],
+    "cocoa": ["Cocoa"],
+    "chocolate": ["Cocoa"],
+    "baking": ["Baking"],
+    "bakery": ["Baking"],
+    "fruit": ["Fruit"],
+    "education": ["Academic"],
+    "university": ["Academic"],
+    "research": ["Academic"],
+    "media": ["Media"],
+    "consult": ["Consulting"],
+    "government": ["Government"],
+    "public administration": ["Government"],
+    "venture": ["Investor"],
+    "capital": ["Investor"],
+    "accelerat": ["Accelerator"],
+}
+
+
+@router.post("/companies/{company_id}/enrich")
+def enrich_company(company_id: str):
+    """Pull brand data for a company from its domain and fill in blank fields.
+    Never overwrites values already present — only fills empties — and stores the
+    full raw payload in enrichment_data. Tags are drawn strictly from the
+    existing contact_tags vocabulary."""
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM companies WHERE company_id = %s", (company_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Company not found")
+        company = dict(row)
+
+        # Derive a domain: prefer the stored website, else any linked contact email.
+        domain = _domain_from(company.get("website_url"))
+        if not domain:
+            cur.execute(
+                "SELECT email FROM contacts WHERE company_id = %s AND email <> '' "
+                "AND email IS NOT NULL AND archived = false ORDER BY email LIMIT 1",
+                (company_id,),
+            )
+            er = cur.fetchone()
+            domain = _domain_from(er["email"] if er else None)
+        if not domain:
+            raise HTTPException(status_code=422, detail="No domain — add a website or a contact email first")
+
+        brand = _brand_dev_retrieve(domain)
+        if not brand:
+            return {"status": "no_data", "domain": domain, "filled": []}
+
+        # --- pick the square icon for the badge (aspect ratio ~1), not a wordmark
+        logo = None
+        icons = sorted(
+            (l for l in (brand.get("logos") or []) if l.get("url")),
+            key=lambda l: abs((l.get("resolution") or {}).get("aspect_ratio", 99) - 1.0),
+        )
+        if icons:
+            logo = icons[0]["url"]
+
+        # --- industry / location / linkedin, all defensively parsed
+        eic = ((brand.get("industries") or {}).get("eic") or [])
+        industry = None
+        if eic:
+            i0 = eic[0]
+            industry = i0.get("subindustry") or i0.get("industry")
+
+        linkedin = None
+        for s in (brand.get("socials") or []):
+            if s.get("type") == "linkedin" and "linkedin.com" in (s.get("url") or ""):
+                linkedin = s["url"]
+                break
+
+        # --- fill BLANKS ONLY -------------------------------------------------
+        proposed = {
+            "logo_url":     logo,
+            "description":  brand.get("description"),
+            "industry":     industry,
+            "linkedin_url": linkedin,
+            "website_url":  f"https://{domain}",
+        }
+        sets, params, filled = [], [], []
+        for col, val in proposed.items():
+            if val and not str(company.get(col) or "").strip():
+                sets.append(f"{col} = %s")
+                params.append(val)
+                filled.append(col)
+
+        # --- tags: existing vocabulary only, matched case-insensitively -------
+        # Match ONLY against the classified industry/subindustry, NOT the prose
+        # description. Matching the description tagged Kerry with Dairy+Baking+
+        # Academic just because the blurb mentioned them — noise, not a category.
+        cur.execute("SELECT name FROM contact_tags")
+        vocab = {r["name"].lower(): r["name"] for r in cur.fetchall()}
+        haystack = " ".join(filter(None, [
+            industry,
+            (brand.get("industries") or {}).get("eic", [{}])[0].get("industry") if eic else None,
+        ])).lower()
+        current_tags = {t.lower() for t in (company.get("tags") or [])}
+        new_tags = list(company.get("tags") or [])
+        added_tags = []
+        for hint, tag_names in _INDUSTRY_TAG_HINTS.items():
+            if hint in haystack:
+                for tn in tag_names:
+                    if tn.lower() in vocab and tn.lower() not in current_tags:
+                        canonical = vocab[tn.lower()]
+                        new_tags.append(canonical)
+                        current_tags.add(tn.lower())
+                        added_tags.append(canonical)
+        if added_tags:
+            sets.append("tags = %s")
+            params.append(new_tags)
+            filled.append("tags")
+
+        # --- always refresh the raw payload + timestamp -----------------------
+        sets.append("enrichment_data = COALESCE(enrichment_data,'{}'::jsonb) || jsonb_build_object('brand_dev', %s::jsonb)")
+        params.append(json.dumps(brand))
+        sets.append("last_enriched_at = NOW()")
+        sets.append("updated_at = NOW()")
+
+        params.append(company_id)
+        cur.execute(f"UPDATE companies SET {', '.join(sets)} WHERE company_id = %s RETURNING *", params)
+        updated = dict(cur.fetchone())
+        conn.commit()
+        return {
+            "status": "enriched",
+            "domain": domain,
+            "filled": filled,
+            "added_tags": added_tags,
+            "company": {
+                "company_id": str(updated["company_id"]),
+                "logo_url": updated.get("logo_url"),
+                "description": updated.get("description"),
+                "industry": updated.get("industry"),
+                "linkedin_url": updated.get("linkedin_url"),
+                "website_url": updated.get("website_url"),
+                "tags": updated.get("tags"),
+            },
+        }
+    finally:
+        conn.close()
+
+
 @router.delete("/companies/{company_id}/permanent")
 def delete_company_permanent(company_id: str):
     """Hard delete a company record and detach all linked contacts (sets their company_id to NULL)."""
@@ -1738,6 +2082,103 @@ def convert_contact_to_company(contact_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Attachable projects search (CRM projects + funding opportunities)
+# Declared BEFORE /{contact_id} so the static path isn't captured as an id.
+# ---------------------------------------------------------------------------
+
+@router.get("/attachables")
+def search_attachables(q: str = Query("", description="search text"), limit: int = Query(20, ge=1, le=50)):
+    """Unified search over CRM projects and funding opportunities, for the
+    contacts view's attach flow. Returns a flat list tagged by `source`."""
+    like = f"%{q.strip()}%"
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        results = []
+
+        cur.execute(
+            """
+            SELECT project_id::text AS id, name AS title, project_type AS kind, stage
+            FROM projects
+            WHERE status <> 'archived' AND (%s = '' OR name ILIKE %s)
+            ORDER BY name ASC
+            LIMIT %s
+            """,
+            (q.strip(), like, limit),
+        )
+        for r in cur.fetchall():
+            results.append({
+                "source": "project", "id": r["id"], "title": r["title"],
+                "subtitle": " · ".join(filter(None, [r.get("kind"), r.get("stage")])),
+            })
+
+        cur.execute(
+            """
+            SELECT opportunity_id::text AS id, title, funding_type AS kind, stage
+            FROM funding_opportunities
+            WHERE (%s = '' OR title ILIKE %s)
+            ORDER BY title ASC
+            LIMIT %s
+            """,
+            (q.strip(), like, limit),
+        )
+        for r in cur.fetchall():
+            results.append({
+                "source": "funding", "id": r["id"], "title": r["title"],
+                "subtitle": " · ".join(filter(None, ["Funding", r.get("kind"), r.get("stage")])),
+            })
+
+        return {"results": results}
+    finally:
+        conn.close()
+
+
+@router.post("/{contact_id}/attach")
+def attach_to_contact(contact_id: str, body: dict):
+    """Attach a CRM project or funding opportunity to a contact. Idempotent —
+    re-attaching the same pair is a no-op via ON CONFLICT."""
+    source = body.get("source")
+    target_id = body.get("id")
+    if source not in ("project", "funding") or not target_id:
+        raise HTTPException(status_code=400, detail="source ('project'|'funding') and id required")
+
+    conn = _conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT 1 FROM contacts WHERE contact_id = %s::uuid", (contact_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Contact not found")
+
+        if source == "project":
+            cur.execute(
+                """
+                INSERT INTO project_contacts (project_id, contact_id, role)
+                VALUES (%s::uuid, %s::uuid, 'contact')
+                ON CONFLICT (project_id, contact_id) DO NOTHING
+                """,
+                (target_id, contact_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO funding_opportunity_contacts (opportunity_id, contact_id, role)
+                VALUES (%s::uuid, %s::uuid, 'contact')
+                ON CONFLICT (opportunity_id, contact_id) DO NOTHING
+                """,
+                (target_id, contact_id),
+            )
+        conn.commit()
+        return {"status": "attached", "source": source, "id": target_id, "contact_id": contact_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=f"Attach failed: {e}")
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Get contact detail
 # ---------------------------------------------------------------------------
 
@@ -1785,21 +2226,6 @@ def get_contact(contact_id: str):
             (contact_id,),
         )
         contact["reminders"] = [dict(r) for r in cur.fetchall()]
-
-        # Substrate links
-        cur.execute(
-            """
-            SELECT csl.link_id, csl.substrate_id, s.name AS substrate_name,
-                   csl.role, csl.notes,
-                   s.substrate_purpose, s.partner_name
-            FROM contact_substrate_links csl
-            JOIN substrates s ON s.substrate_id = csl.substrate_id
-            WHERE csl.contact_id = %s
-            ORDER BY s.name
-            """,
-            (contact_id,),
-        )
-        contact["substrate_links"] = [dict(r) for r in cur.fetchall()]
 
         # Relationships
         cur.execute(
@@ -1944,7 +2370,6 @@ def delete_contact_permanently(contact_id: str):
         cur.execute("DELETE FROM contact_interactions WHERE contact_id = %s", (contact_id,))
         cur.execute("DELETE FROM contact_reminders WHERE contact_id = %s", (contact_id,))
         cur.execute("DELETE FROM contact_relationships WHERE contact_a_id = %s OR contact_b_id = %s", (contact_id, contact_id))
-        cur.execute("DELETE FROM contact_substrate_links WHERE contact_id = %s", (contact_id,))
         cur.execute("DELETE FROM project_contacts WHERE contact_id = %s", (contact_id,))
         cur.execute(
             "DELETE FROM contacts WHERE contact_id = %s RETURNING contact_id",
@@ -2143,11 +2568,12 @@ def create_reminder(contact_id: str, body: ReminderCreate, request: Request):
             }.get(body.reminder_type, body.reminder_type.replace("_", " ").title())
             cur.execute(
                 """
-                INSERT INTO tasks (user_id, title, description, due_date, contact_id, source)
-                VALUES (%s::uuid, %s, %s, %s::date, %s::uuid, 'reminder')
+                INSERT INTO tasks (user_id, assigned_to, title, description, due_date, contact_id, source)
+                VALUES (%s::uuid, %s::uuid, %s, %s, %s::date, %s::uuid, 'reminder')
                 RETURNING task_id
                 """,
                 (
+                    user["user_id"],
                     user["user_id"],
                     f"[{type_label}] {body.title}",
                     body.description,
@@ -2165,32 +2591,6 @@ def create_reminder(contact_id: str, body: ReminderCreate, request: Request):
             RETURNING *
             """,
             (contact_id, body.reminder_type, body.title, body.description, body.due_date, task_id),
-        )
-        row = cur.fetchone()
-        conn.commit()
-        return dict(row)
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Substrate links
-# ---------------------------------------------------------------------------
-
-@router.post("/{contact_id}/substrate-links", status_code=201)
-def add_substrate_link(contact_id: str, body: SubstrateLinkCreate):
-    conn = _conn()
-    try:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(
-            """
-            INSERT INTO contact_substrate_links (contact_id, substrate_id, role, notes)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (contact_id, substrate_id) DO UPDATE
-                SET role = EXCLUDED.role, notes = EXCLUDED.notes
-            RETURNING *
-            """,
-            (contact_id, body.substrate_id, body.role, body.notes),
         )
         row = cur.fetchone()
         conn.commit()

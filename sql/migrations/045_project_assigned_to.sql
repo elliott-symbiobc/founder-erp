@@ -1,2 +1,0 @@
-ALTER TABLE projects
-    ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES users(user_id) ON DELETE SET NULL;

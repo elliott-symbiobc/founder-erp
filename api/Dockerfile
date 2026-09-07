@@ -1,8 +1,10 @@
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y \
-    gcc g++ curl \
+    gcc g++ curl nodejs npm \
     && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g docx pg
 
 WORKDIR /app
 
@@ -10,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
-COPY schema.sql ./schema.sql
+COPY backfill_papers.py ./backfill_papers.py
 
 EXPOSE 8000
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

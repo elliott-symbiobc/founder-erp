@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 interface TextAreaProps {
   label: string;
   value: string;
@@ -30,7 +31,7 @@ export default function TextArea({
         {label}
         {required && <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>}
       </label>
-      <textarea
+      <AutoTextarea
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}

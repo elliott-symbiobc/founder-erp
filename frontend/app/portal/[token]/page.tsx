@@ -135,6 +135,8 @@ export default function PortalPage() {
   const [viewerLoading, setViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
 
+  const [downloading, setDownloading] = useState<string | null>(null);
+
   const trackedOnce = useRef(false);
 
   const getSessionHeaders = useCallback((): HeadersInit => {
@@ -266,6 +268,38 @@ export default function PortalPage() {
     } finally { setFolderLoading(false); }
   }, [token, folderStack, getSessionHeaders]);
 
+  /** Save a file through an authenticated fetch.
+   *
+   * A password-protected portal gates the download endpoint on the session
+   * header, which a link click cannot send: navigating straight to the URL is
+   * unauthenticated and returns 401. Fetching it and saving the blob keeps the
+   * session attached.
+   */
+  const saveFile = useCallback(async (file: PortalFile) => {
+    setDownloading(file.file_id);
+    try {
+      const r = await fetch(
+        `/api/proxy/portal/${token}/files/${file.file_id}/download`,
+        { headers: getSessionHeaders() }
+      );
+      if (!r.ok) throw new Error(String(r.status));
+      const blob = await r.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      track("file_download", { file_id: file.file_id, file_name: file.name });
+    } catch {
+      alert(`Could not download ${file.name}. Please try again.`);
+    } finally {
+      setDownloading(null);
+    }
+  }, [token, getSessionHeaders, track]);
+
   const openViewer = useCallback(async (file: PortalFile) => {
     if (viewer?.blobUrl) URL.revokeObjectURL(viewer.blobUrl);
     setViewer(null); setViewerError(null); setViewerLoading(true);
@@ -365,7 +399,7 @@ export default function PortalPage() {
                 {portalData.contacts.length > 0 && (
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                      Your Symbio team
+                      Your Open ERP team
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {portalData.contacts.map(c => <ContactChip key={c.id} contact={c} />)}
@@ -501,7 +535,7 @@ export default function PortalPage() {
                           viewer={viewer}
                           onView={openViewer}
                           onClose={closeViewer}
-                          onTrack={(f) => track("file_download", { file_id: f.file_id, file_name: f.name })}
+                          onDownload={saveFile}
                         />
                       )}
                     </>
@@ -562,7 +596,7 @@ export default function PortalPage() {
                         {/* File count + chevron */}
                         <div className="flex items-center gap-3 shrink-0">
                           {!isLoading && files.length > 0 && (
-                            <span className="text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-0.5 font-medium">
+                            <span className="text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded px-2 py-0.5 font-medium">
                               {files.length} {files.length === 1 ? "item" : "items"}
                             </span>
                           )}
@@ -607,7 +641,7 @@ export default function PortalPage() {
                                   viewer={viewer}
                                   onView={openViewer}
                                   onClose={closeViewer}
-                                  onTrack={(f) => track("file_download", { file_id: f.file_id, file_name: f.name })}
+                                  onDownload={saveFile}
                                 />
                               )}
                             </div>
@@ -625,7 +659,7 @@ export default function PortalPage() {
                       <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
                         Additional Files
                       </span>
-                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-1.5 py-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 rounded px-1.5 py-0.5">
                         {rootOnlyFiles.length}
                       </span>
                     </div>
@@ -636,7 +670,7 @@ export default function PortalPage() {
                         viewer={viewer}
                         onView={openViewer}
                         onClose={closeViewer}
-                        onTrack={(f) => track("file_download", { file_id: f.file_id, file_name: f.name })}
+                        onDownload={saveFile}
                       />
                     </div>
                   </div>
@@ -655,7 +689,7 @@ export default function PortalPage() {
                   </svg>
                 </div>
                 <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Project Updates</h2>
-                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-0.5">
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded px-2 py-0.5">
                   {portalData.updates.length}
                 </span>
               </div>
@@ -697,7 +731,7 @@ export default function PortalPage() {
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-4 px-6 shrink-0">
         <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center">
-          Shared via Collective ERP Platform
+          Shared via Open ERP Bioculinary Platform
         </p>
       </footer>
 
@@ -717,15 +751,14 @@ export default function PortalPage() {
               </span>
               <div className="flex items-center gap-2">
                 {viewer && (
-                  <a
-                    href={`/api/proxy/portal/${token}/files/${viewer.file.file_id}/download`}
-                    download={viewer.file.name}
-                    className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 hover:text-gray-900 dark:hover:text-white transition-colors"
-                    onClick={() => track("file_download", { file_id: viewer.file.file_id, file_name: viewer.file.name })}
+                  <button
+                    onClick={() => saveFile(viewer.file)}
+                    disabled={downloading === viewer.file.file_id}
+                    className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 hover:text-gray-900 dark:hover:text-white transition-colors disabled:opacity-50"
                   >
                     <DownloadIcon />
-                    Download
-                  </a>
+                    {downloading === viewer.file.file_id ? "Preparing…" : "Download"}
+                  </button>
                 )}
                 <button
                   className="flex items-center justify-center w-8 h-8 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -847,7 +880,7 @@ function PortalMessaging({ token, sessionToken }: { token: string; sessionToken:
                 const displayName = msg.sender_display_name || msg.sender_name || (isPortalSender ? "You" : "Team");
                 return (
                   <div key={msg.message_id} className={`flex gap-2 ${isPortalSender ? "flex-row-reverse" : ""}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${isPortalSender ? "bg-blue-500" : "bg-gradient-to-br from-gray-400 to-gray-600"}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${isPortalSender ? "bg-blue-500" : "bg-gray-700 dark:bg-gray-600"}`}>
                       {displayName[0].toUpperCase()}
                     </div>
                     <div className={`max-w-xs ${isPortalSender ? "items-end" : "items-start"} flex flex-col`}>
@@ -893,14 +926,14 @@ function FileTable({
   viewer,
   onView,
   onClose,
-  onTrack,
+  onDownload,
 }: {
   files: PortalFile[];
   token: string;
   viewer: { file: PortalFile; blobUrl: string } | null;
   onView: (f: PortalFile) => void;
   onClose: () => void;
-  onTrack: (f: PortalFile) => void;
+  onDownload: (f: PortalFile) => void;
 }) {
   return (
     <div className="divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -949,14 +982,12 @@ function FileTable({
                 </button>
               )}
               {canDl && (
-                <a
-                  href={`/api/proxy/portal/${token}/files/${f.file_id}/download`}
-                  download={f.name}
+                <button
+                  onClick={() => onDownload(f)}
                   className="flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1.5 transition-colors hover:border-gray-300"
-                  onClick={() => onTrack(f)}
                 >
                   <DownloadIcon />
-                </a>
+                </button>
               )}
             </div>
           </div>
@@ -1025,7 +1056,7 @@ function LogoMark() {
   return (
     <img
       src="/api/logo"
-      alt="Collective ERP"
+      alt="Open ERP Bioculinary"
       style={{ height: 24, width: "auto" }}
       onError={(e) => {
         const i = e.currentTarget;
@@ -1128,7 +1159,7 @@ function PasswordGate({
             </form>
           </div>
           <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center mt-5">
-            Shared via Collective ERP Platform
+            Shared via Open ERP Bioculinary Platform
           </p>
         </div>
       </div>

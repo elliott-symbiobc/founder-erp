@@ -119,17 +119,40 @@ def my_modules(request: Request):
                 "SELECT module_key FROM module_owners WHERE user_email = %s",
                 (user["email"],),
             )
-            rows = cur.fetchall()
+            module_rows = cur.fetchall()
+
+            projects = []
+            if user.get("user_id"):
+                cur.execute(
+                    """
+                    SELECT project_id, name
+                    FROM projects
+                    WHERE assigned_to = %s::uuid AND status != 'archived'
+                    ORDER BY name
+                    """,
+                    (user["user_id"],),
+                )
+                projects = cur.fetchall()
     finally:
         conn.close()
 
-    return [
+    result = [
         {
             "module_key": r["module_key"],
             "module_label": MODULES.get(r["module_key"], r["module_key"]),
         }
-        for r in rows
+        for r in module_rows
     ]
+    result += [
+        {
+            "module_key": f"project:{p['project_id']}",
+            "module_label": p["name"],
+            "project_id": str(p["project_id"]),
+            "is_project_lead": True,
+        }
+        for p in projects
+    ]
+    return result
 
 
 @router.put("/{module_key}")

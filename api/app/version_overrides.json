@@ -1,0 +1,11 @@
+{
+ "_README": "Map a commit (short or full sha) to a manual version and a reason. Shown ALONGSIDE the computed version, never instead of it \u2014 the disagreement between a human's judgement and the rule's is worth seeing. Reason is required: an override without one cannot later be told apart from a mistake.",
+ "_EXAMPLE": {
+  "abc1234": {
+   "version": "1.0.0",
+   "reason": "changed the enzyme loading assumption; every prior MPSP is superseded",
+   "by": "who approved it",
+   "date": "YYYY-MM-DD"
+  }
+ }
+}

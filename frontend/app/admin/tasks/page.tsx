@@ -1,7 +1,9 @@
 "use client";
 
+import { Avatar } from "@/components/Avatar";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Task {
@@ -76,13 +78,6 @@ function inferPriority(task: Task): Priority {
     if (days <= 7) return "medium";
   }
   return "low";
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  const parts = name.trim().split(" ");
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 // ─── Priority Badge ───────────────────────────────────────────────────────────
@@ -176,7 +171,7 @@ function EditTaskModal({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Description</label>
-            <textarea value={description} onChange={e => setDesc(e.target.value)} rows={3}
+            <AutoTextarea value={description} onChange={e => setDesc(e.target.value)} rows={3}
               className="w-full text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 text-gray-900 dark:text-gray-100 resize-none transition-all" />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -435,9 +430,7 @@ function GanttView({
                           className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-colors ${isDone ? "bg-green-500 border-green-500" : "border-gray-300 hover:border-green-400"}`} />
                   <span className={`text-xs truncate flex-1 ${isDone ? "line-through text-gray-400" : "text-gray-800 dark:text-gray-100"}`}>{task.title}</span>
                   {showOwner && task.owner_name && (
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0" title={task.owner_name}>
-                      {getInitials(task.owner_name)}
-                    </div>
+                    <Avatar name={task.owner_name} title={task.owner_name} />
                   )}
                   <button onClick={() => onDelete(task.task_id)}
                           className="ml-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 flex-shrink-0">
@@ -479,9 +472,7 @@ function GanttView({
                             className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${task.status === "done" ? "bg-green-500 border-green-500" : "border-gray-300 hover:border-green-400"}`} />
                     <span className={`text-xs truncate flex-1 ${task.status === "done" ? "line-through text-gray-400" : "text-gray-700 dark:text-gray-300"}`}>{task.title}</span>
                     {showOwner && task.owner_name && (
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0" title={task.owner_name}>
-                        {getInitials(task.owner_name)}
-                      </div>
+                      <Avatar name={task.owner_name} title={task.owner_name} />
                     )}
                   </div>
                   <div style={{ width: timelineW }} className="flex items-center px-4">
@@ -614,7 +605,7 @@ function KanbanView({
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${col.dot}`} />
                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{col.label}</span>
-                <span className="text-[10px] font-bold text-gray-500 bg-gray-200 dark:bg-gray-600 rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{colTasks.length}</span>
+                <span className="text-[10px] font-bold text-gray-500 bg-gray-200 dark:bg-gray-600 rounded px-1.5 py-0.5 min-w-[18px] text-center">{colTasks.length}</span>
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => setColSort(prev => { const order = ["none", "priority", "due_date"] as const; return { ...prev, [col.id]: order[(order.indexOf(prev[col.id]) + 1) % order.length] }; })}
@@ -683,14 +674,10 @@ function KanbanView({
                         )}
                         <div className="ml-auto flex items-center gap-1">
                           {showOwner && task.owner_name && (
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0" title={`Owner: ${task.owner_name}`}>
-                              {getInitials(task.owner_name)}
-                            </div>
+                            <Avatar name={task.owner_name} title={`Owner: ${task.owner_name}`} />
                           )}
                           {task.assigned_to_name && (
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0" title={`Assigned: ${task.assigned_to_name}`}>
-                              {getInitials(task.assigned_to_name)}
-                            </div>
+                            <Avatar name={task.assigned_to_name} title={`Assigned: ${task.assigned_to_name}`} />
                           )}
                         </div>
                       </div>
@@ -822,15 +809,15 @@ export default function AdminTasksPage() {
           </div>
           {/* Stats */}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />{openCount} open
             </span>
             {overdueCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-medium border border-red-200 dark:border-red-800">
+              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-medium border border-red-200 dark:border-red-800">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500" />{overdueCount} overdue
               </span>
             )}
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 font-medium border border-green-200 dark:border-green-800">
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 font-medium border border-green-200 dark:border-green-800">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{doneCount} done
             </span>
           </div>
@@ -899,11 +886,12 @@ export default function AdminTasksPage() {
       {scope === "all" && (
         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-[8px] font-bold text-white">O</div>
+            {/* Same component as the badges it explains, so the swatch can't drift. */}
+            <Avatar name="Owner" size={4} />
             <span>Owner</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-[8px] font-bold text-white">A</div>
+            <Avatar name="Assignee" size={4} />
             <span>Assignee</span>
           </div>
         </div>

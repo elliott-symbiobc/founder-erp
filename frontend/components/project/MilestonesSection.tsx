@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { Avatar } from "@/components/Avatar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ const MILESTONE_TYPE_ICON: Record<string, string> = {
   checkpoint:    "◆",
   deliverable:   "▣",
   approval:      "✓",
-  external_wait: "⏳",
+  external_wait: "⧗",
   repeating:     "↺",
 };
 
@@ -92,23 +93,13 @@ function daysUntil(d: string | null) {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000);
 }
 
-function Avatar({ name, url, size = 5 }: { name: string | null; url?: string | null; size?: number }) {
-  if (url) return <img src={url} className={`w-${size} h-${size} rounded-full object-cover flex-shrink-0`} />;
-  const initials = (name ?? "?").split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
-  return (
-    <div className={`w-${size} h-${size} rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300 flex-shrink-0`}>
-      {initials}
-    </div>
-  );
-}
-
 function SectionHeader({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
         {title}
         {count !== undefined && (
-          <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full">{count}</span>
+          <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded">{count}</span>
         )}
       </h3>
       {action}
@@ -202,18 +193,18 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
   const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch(`/api/projects/${projectId}/milestones`);
+    const r = await fetch(`/api/proxy/projects/${projectId}/milestones`);
     if (r.ok) setMilestones(await r.json());
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch("/api/tasks/users").then(r => r.ok ? r.json() : []).then(setUsers);
+    fetch("/api/proxy/tasks/users").then(r => r.ok ? r.json() : []).then(setUsers);
   }, []);
 
   async function loadTasks(mid: string) {
     if (tasks[mid]) return;
-    const r = await fetch(`/api/tasks?milestone_id=${mid}`);
+    const r = await fetch(`/api/proxy/tasks?milestone_id=${mid}`);
     if (r.ok) { const data = await r.json(); setTasks(prev => ({ ...prev, [mid]: data })); }
   }
 
@@ -228,7 +219,7 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
 
   async function addMilestone() {
     if (!newTitle.trim()) return;
-    await fetch(`/api/projects/${projectId}/milestones`, {
+    await fetch(`/api/proxy/projects/${projectId}/milestones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: newTitle.trim(), milestone_type: newType }),
@@ -238,12 +229,12 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
   }
 
   async function completeM(mid: string) {
-    await fetch(`/api/projects/${projectId}/milestones/${mid}/complete`, { method: "POST" });
+    await fetch(`/api/proxy/projects/${projectId}/milestones/${mid}/complete`, { method: "POST" });
     load();
   }
 
   async function updateStatus(mid: string, status: string) {
-    await fetch(`/api/projects/${projectId}/milestones/${mid}`, {
+    await fetch(`/api/proxy/projects/${projectId}/milestones/${mid}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -253,12 +244,12 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
 
   async function deleteM(mid: string) {
     if (!confirm("Delete this milestone and unlink its tasks?")) return;
-    await fetch(`/api/projects/${projectId}/milestones/${mid}`, { method: "DELETE" });
+    await fetch(`/api/proxy/projects/${projectId}/milestones/${mid}`, { method: "DELETE" });
     load();
   }
 
   async function loadTemplates() {
-    const r = await fetch(`/api/project-templates?project_type=${projectType}`);
+    const r = await fetch(`/api/proxy/project-templates?project_type=${projectType}`);
     if (r.ok) setTemplates(await r.json());
     setShowApplyTemplate(true);
   }
@@ -277,25 +268,25 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
 
   async function addTask(mid: string, title: string) {
     if (!title.trim()) return;
-    await fetch("/api/tasks", {
+    await fetch("/api/proxy/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: title.trim(), project_id: projectId, milestone_id: mid, kanban_status: "todo" }),
     });
-    const r = await fetch(`/api/tasks?milestone_id=${mid}`);
+    const r = await fetch(`/api/proxy/tasks?milestone_id=${mid}`);
     if (r.ok) { const data = await r.json(); setTasks(prev => ({ ...prev, [mid]: data })); }
   }
 
   async function toggleTask(t: Task) {
     const newStatus = t.status === "done" ? "open" : "done";
-    await fetch(`/api/tasks/${t.task_id}`, {
+    await fetch(`/api/proxy/tasks/${t.task_id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
     const mid = t.milestone_id;
     if (mid) {
-      const r = await fetch(`/api/tasks?milestone_id=${mid}`);
+      const r = await fetch(`/api/proxy/tasks?milestone_id=${mid}`);
       if (r.ok) { const data = await r.json(); setTasks(prev => ({ ...prev, [mid]: data })); }
     }
     load();
@@ -323,9 +314,9 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
 
       {/* Progress bar */}
       {milestones.length > 0 && (
-        <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-4 overflow-hidden">
+        <div className="h-1.5 rounded bg-zinc-100 dark:bg-zinc-800 mb-4 overflow-hidden">
           <div
-            className="h-full bg-blue-500 rounded-full transition-all"
+            className="h-full bg-blue-500 rounded transition-all"
             style={{ width: `${milestones.length > 0 ? (completedCount / milestones.length) * 100 : 0}%` }}
           />
         </div>
@@ -422,7 +413,7 @@ export function MilestonesSection({ projectId, projectType }: { projectId: strin
                       ))}
                     </div>
                   )}
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${MILESTONE_STATUS_COLORS[m.status] ?? ""}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${MILESTONE_STATUS_COLORS[m.status] ?? ""}`}>
                     {m.status.replace("_", " ")}
                   </span>
                   <svg className={`w-3 h-3 text-zinc-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

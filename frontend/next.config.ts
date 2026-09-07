@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  allowedDevOrigins: [process.env.APP_DOMAIN || "localhost"],
+  allowedDevOrigins: ["erp.example.com", "example.com", "example.com"],
   turbopack: {
     resolveAlias: { canvas: "./empty-module.js" },
   },
@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
   experimental: {
     staleTimes: { dynamic: 0, static: 0 },
   },
+  redirects: async () => [
+    // The investor room renders at its own path; the generic portal view would
+    // show a bare file list and ignore every tile. Links already sent out —
+    // and the room's own slug — have to land in the right place.
+    { source: "/portal/investors", destination: "/investors", permanent: false },
+  ],
   headers: async () => [
     {
       source: "/(.*)",

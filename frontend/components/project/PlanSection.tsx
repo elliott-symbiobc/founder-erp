@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 const API = "/api/proxy";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -30,6 +31,10 @@ interface PlanTask {
   assigned_to: string | null;
   assigned_to_name: string | null;
   locked: boolean;
+  description: string | null;
+  follow_up_of: string | null;
+  trigger_days: number | null;
+  condition: string | null;
 }
 
 interface PlanUser {
@@ -49,7 +54,7 @@ function StatusPill({ value, onChange, onClick }: { value: string; onChange: (v:
   const c = cfg[value] ?? cfg.not_started;
   return (
     <div className="relative inline-flex shrink-0" onClick={onClick}>
-      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full tracking-wide ${c.cls}`}>
+      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded tracking-wide ${c.cls}`}>
         {c.label}
         <svg className="w-2 h-2 opacity-50" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </span>
@@ -68,7 +73,7 @@ function TypePill({ value, onChange }: { value: string | null; onChange: (v: str
   };
   return (
     <div className="relative inline-flex shrink-0">
-      <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${tt?.color ?? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+      <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded ${tt?.color ?? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
         {tt && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[value!] ?? "bg-zinc-400"}`} />}
         {tt?.label ?? "Type"}
       </span>
@@ -181,7 +186,12 @@ function ListView({
   const [addingObj, setAddingObj] = useState(false);
   const [newObjTitle, setNewObjTitle] = useState("");
   const [addingTaskFor, setAddingTaskFor] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState({ title: "", task_type: "deliverable", due_date: "", assigned_to: "" });
+  const [newTask, setNewTask] = useState({ title: "", task_type: "deliverable", due_date: "", assigned_to: "", description: "" });
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [descDraft, setDescDraft] = useState("");
+  const [followUpTarget, setFollowUpTarget] = useState<string | null>(null);
+  const [followUpTitle, setFollowUpTitle] = useState("");
+  const [followUpDays, setFollowUpDays] = useState("7");
 
   function toggle(id: string) {
     setCollapsed(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -218,12 +228,30 @@ function ListView({
         task_type: newTask.task_type || null,
         due_date: newTask.due_date || null,
         assigned_to: newTask.assigned_to || null,
+        description: newTask.description || null,
         project_id: projectId,
         milestone_id: milestoneId,
       }),
     });
-    setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "" });
+    setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "", description: "" });
     setAddingTaskFor(null);
+    onRefresh();
+  }
+
+  async function createFollowUp(parentTask: PlanTask) {
+    if (!followUpTitle.trim()) return;
+    await fetch(`${API}/tasks`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: followUpTitle.trim(),
+        project_id: projectId,
+        milestone_id: parentTask.milestone_id,
+        follow_up_of: parentTask.task_id,
+        trigger_days: parseInt(followUpDays) || 7,
+        condition: "no_response",
+      }),
+    });
+    setFollowUpTarget(null); setFollowUpTitle(""); setFollowUpDays("7");
     onRefresh();
   }
 
@@ -311,60 +339,117 @@ function ListView({
               <div>
                 {objTasks.map(task => {
                   const tt = task.task_type ? TASK_TYPE_MAP[task.task_type] : null;
+                  const isFollowUp = !!task.follow_up_of;
+                  const hasFollowUp = objTasks.some(x => x.follow_up_of === task.task_id);
                   return (
-                    <div key={task.task_id} className="flex items-center gap-2 px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 group">
-                      {/* Checkbox */}
-                      {task.locked ? (
-                        <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-zinc-300 dark:text-zinc-600">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
-                        </span>
-                      ) : (
+                    <div key={task.task_id} className={`border-t border-zinc-100 dark:border-zinc-800/60 group ${isFollowUp ? "ml-6 border-l-2 border-amber-200 dark:border-amber-800/40" : ""}`}>
+                      <div className="flex items-center gap-2 px-3 py-2 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20">
+                        {/* Checkbox */}
+                        {task.locked ? (
+                          <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-zinc-300 dark:text-zinc-600">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => toggleTask(task)}
+                            className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${task.status === "done" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-zinc-600 hover:border-blue-400"}`}
+                          >
+                            {task.status === "done" && (
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+
+                        {isFollowUp
+                          ? <span className="text-amber-400 text-xs shrink-0" title={`Follow-up if no reply after ${task.trigger_days ?? 7}d`}>↩</span>
+                          : <TypePill value={task.task_type} onChange={v => patchTask(task.task_id, { task_type: v })} />
+                        }
+
+                        <InlineTitle
+                          value={task.title}
+                          onSave={v => patchTask(task.task_id, { title: v })}
+                          className={`flex-1 text-sm ${task.status === "done" ? "line-through text-zinc-400 dark:text-zinc-600" : "text-zinc-800 dark:text-zinc-200"}`}
+                        />
+
+                        {isFollowUp && (
+                          <span className="text-[10px] text-amber-500 shrink-0 font-medium">if no reply · {task.trigger_days ?? 7}d</span>
+                        )}
+
+                        <input
+                          type="date"
+                          value={fmtDateInput(task.due_date)}
+                          onChange={e => patchTask(task.task_id, { due_date: e.target.value || null })}
+                          className="text-[11px] text-zinc-400 dark:text-zinc-500 bg-transparent border-0 focus:outline-none cursor-pointer w-28 shrink-0"
+                        />
+
+                        <AssigneePill value={task.assigned_to} onChange={v => patchTask(task.task_id, { assigned_to: v })} users={users} />
+
                         <button
-                          onClick={() => toggleTask(task)}
-                          className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${task.status === "done" ? "bg-green-500 border-green-500 text-white" : "border-zinc-300 dark:border-zinc-600 hover:border-blue-400"}`}
+                          onClick={() => patchTask(task.task_id, { locked: !task.locked })}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400 shrink-0 transition-colors"
+                          title={task.locked ? "Unlock task" : "Lock task"}
                         >
-                          {task.status === "done" && (
-                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
                         </button>
+                        <button
+                          onClick={() => deleteTask(task.task_id)}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-400 dark:text-zinc-600 dark:hover:text-red-400 text-xs shrink-0"
+                        >✕</button>
+                      </div>
+
+                      {/* Description + follow-up inline */}
+                      {(editingDescId === task.task_id || task.description || (!hasFollowUp && !isFollowUp) || followUpTarget === task.task_id) && (
+                        <div className="px-3 pb-1 ml-6">
+                          {editingDescId === task.task_id ? (
+                            <AutoTextarea autoFocus value={descDraft} onChange={e => setDescDraft(e.target.value)}
+                              onBlur={() => { patchTask(task.task_id, { description: descDraft || null }); setEditingDescId(null); }}
+                              onKeyDown={e => { if (e.key === "Escape") setEditingDescId(null); if (e.key === "Enter" && e.metaKey) { patchTask(task.task_id, { description: descDraft || null }); setEditingDescId(null); } }}
+                              rows={2} placeholder="Add description…"
+                              className="w-full text-xs px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none" />
+                          ) : task.description ? (
+                            <p onClick={() => { setEditingDescId(task.task_id); setDescDraft(task.description ?? ""); }}
+                              className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-relaxed cursor-text hover:text-zinc-600 dark:hover:text-zinc-300 whitespace-pre-wrap">
+                              {task.description}
+                            </p>
+                          ) : null}
+
+                          {/* Inline action links */}
+                          {editingDescId !== task.task_id && followUpTarget !== task.task_id && (
+                            <div className="flex items-center gap-3 mt-0.5">
+                              {!task.description && (
+                                <button onClick={() => { setEditingDescId(task.task_id); setDescDraft(""); }}
+                                  className="text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors">
+                                  + description
+                                </button>
+                              )}
+                              {!hasFollowUp && !isFollowUp && (
+                                <button onClick={() => { setFollowUpTarget(task.task_id); setFollowUpTitle(""); setFollowUpDays("7"); }}
+                                  className="text-[10px] text-zinc-300 dark:text-zinc-600 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">
+                                  + if no reply…
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Conditional follow-up form */}
+                          {followUpTarget === task.task_id && (
+                            <div className="mt-1 flex gap-1 items-center flex-wrap">
+                              <input autoFocus value={followUpTitle} onChange={e => setFollowUpTitle(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") createFollowUp(task); if (e.key === "Escape") setFollowUpTarget(null); }}
+                                placeholder="Follow-up title…"
+                                className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] border border-amber-200 dark:border-amber-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none" />
+                              <span className="text-[10px] text-zinc-400 shrink-0">after</span>
+                              <input type="number" min={1} max={90} value={followUpDays} onChange={e => setFollowUpDays(e.target.value)}
+                                className="w-8 px-1 py-0.5 text-[11px] border border-amber-200 dark:border-amber-800 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-center focus:outline-none" />
+                              <span className="text-[10px] text-zinc-400 shrink-0">d</span>
+                              <button onClick={() => createFollowUp(task)} className="text-[10px] px-1.5 py-0.5 bg-amber-500 text-white rounded hover:bg-amber-600 shrink-0">Add</button>
+                              <button onClick={() => setFollowUpTarget(null)} className="text-[10px] text-zinc-400 hover:text-zinc-600 shrink-0">✕</button>
+                            </div>
+                          )}
+                        </div>
                       )}
-
-                      {/* Type badge */}
-                      <TypePill value={task.task_type} onChange={v => patchTask(task.task_id, { task_type: v })} />
-
-                      {/* Title */}
-                      <InlineTitle
-                        value={task.title}
-                        onSave={v => patchTask(task.task_id, { title: v })}
-                        className={`flex-1 text-sm ${task.status === "done" ? "line-through text-zinc-400 dark:text-zinc-600" : "text-zinc-800 dark:text-zinc-200"}`}
-                      />
-
-                      {/* Due date */}
-                      <input
-                        type="date"
-                        value={fmtDateInput(task.due_date)}
-                        onChange={e => patchTask(task.task_id, { due_date: e.target.value || null })}
-                        className="text-[11px] text-zinc-400 dark:text-zinc-500 bg-transparent border-0 focus:outline-none cursor-pointer w-28 shrink-0"
-                      />
-
-                      {/* Assignee */}
-                      <AssigneePill value={task.assigned_to} onChange={v => patchTask(task.task_id, { assigned_to: v })} users={users} />
-
-                      {/* Lock/unlock */}
-                      <button
-                        onClick={() => patchTask(task.task_id, { locked: !task.locked })}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400 shrink-0 transition-colors"
-                        title={task.locked ? "Unlock task" : "Lock task"}
-                      >
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
-                      </button>
-                      {/* Delete */}
-                      <button
-                        onClick={() => deleteTask(task.task_id)}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-400 dark:text-zinc-600 dark:hover:text-red-400 text-xs shrink-0"
-                      >✕</button>
                     </div>
                   );
                 })}
@@ -379,7 +464,7 @@ function ListView({
                         autoFocus
                         value={newTask.title}
                         onChange={e => setNewTask(p => ({ ...p, title: e.target.value }))}
-                        onKeyDown={e => { if (e.key === "Enter") createTask(obj.milestone_id); if (e.key === "Escape") { setAddingTaskFor(null); setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "" }); } }}
+                        onKeyDown={e => { if (e.key === "Enter") createTask(obj.milestone_id); if (e.key === "Escape") { setAddingTaskFor(null); setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "", description: "" }); } }}
                         placeholder="Task title…"
                         className="flex-1 text-sm bg-transparent border-b border-blue-400 focus:outline-none text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
                       />
@@ -391,8 +476,11 @@ function ListView({
                       />
                       <AssigneePill value={newTask.assigned_to || null} onChange={v => setNewTask(p => ({ ...p, assigned_to: v ?? "" }))} users={users} />
                       <button onClick={() => createTask(obj.milestone_id)} className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline shrink-0">Add</button>
-                      <button onClick={() => { setAddingTaskFor(null); setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "" }); }} className="text-xs text-zinc-400 hover:text-zinc-600 shrink-0">Cancel</button>
+                      <button onClick={() => { setAddingTaskFor(null); setNewTask({ title: "", task_type: "deliverable", due_date: "", assigned_to: "", description: "" }); }} className="text-xs text-zinc-400 hover:text-zinc-600 shrink-0">Cancel</button>
                     </div>
+                    <input value={newTask.description} onChange={e => setNewTask(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Description (optional)…"
+                      className="w-full mt-1 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-700 focus:outline-none text-zinc-600 dark:text-zinc-400 placeholder-zinc-300 dark:placeholder-zinc-600" />
                   </div>
                 ) : (
                   <button
@@ -730,7 +818,7 @@ export function PlanSection({ projectId, projectName }: { projectId: string; pro
           </svg>
           Plan
           {objectives.length > 0 && (
-            <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full font-normal">
+            <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded font-normal">
               {objectives.length} objective{objectives.length !== 1 ? "s" : ""}
             </span>
           )}

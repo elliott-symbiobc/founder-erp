@@ -3,51 +3,62 @@
 /* Enable class-based dark mode (Tailwind v4 syntax) */
 @variant dark (&:where(.dark, .dark *));
 
-/* ── Google Fonts ───────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Anaheim&display=swap');
-
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 
 :root {
-  /* Surface */
-  --background: #ffffff;
-  --foreground: #000000;
+  /* ── Paper ───────────────────────────────────────────────────────────────
+     Two tiers: the page is a warm paper stock, surfaces sit fractionally
+     lighter on top of it. The tonal step alone separates card from page, so
+     structure reads without a single drop-shadow. Cool greys look dirty
+     against this, so the neutral ramp below is warmed to match.            */
+  /* Three tiers, darkest chrome → lightest card. The bars frame the work; the
+     paper holds it; cards sit on top. Tonal steps alone carry the hierarchy. */
+  --color-chrome: #eae7da;   /* sidebar + header — the frame          */
+  --color-paper:  #faf8f1;   /* main content field                     */
+  /* card surface is --color-white (#fdfbf4), the lightest tier         */
+
+  --background: #faf8f1;   /* matches paper so overscroll doesn't flash */
+  --foreground: #171717;
   color-scheme: light;
 
   /* ReactFlow node handle border */
-  --node-handle-border: #ffffff;
+  --node-handle-border: #fdfbf4;
 
   /* Semantic colors — light mode */
-  --color-surface:         #ffffff;
-  --color-surface-raised:  #f9fafb;   /* gray-50 */
-  --color-surface-overlay: #f3f4f6;   /* gray-100 */
-  --color-border:          #e5e5e5;
-  --color-border-subtle:   #f5f5f5;
+  --color-surface:         #fdfbf4;   /* card — near-white, warm */
+  --color-surface-raised:  #f7f5ea;
+  --color-surface-overlay: #f1efe3;
+  --color-border:          #dedbcb;
+  --color-border-subtle:   #e8e5d7;
 
-  --color-text-primary:    #000000;
-  --color-text-secondary:  #1b1a1a;   /* brand charcoal */
-  --color-text-muted:      #6b7280;
-  --color-text-disabled:   #9ca3af;
+  --color-text-primary:    #111827;   /* gray-900 */
+  --color-text-secondary:  #374151;   /* gray-700 */
+  --color-text-muted:      #6b7280;   /* gray-500 */
+  --color-text-disabled:   #9ca3af;   /* gray-400 */
 
-  --color-primary:         #cef33c;   /* brand lime */
-  --color-primary-hover:   #bfe02a;   /* lime dark */
-  --color-primary-surface: #f7fde8;   /* lime-50 */
-  --color-primary-text:    #3a5c00;   /* lime-900 equivalent */
+  --color-primary:         #c31010;   /* brand red */
+  --color-primary-hover:   #a50e0e;   /* brand red dark */
+  --color-primary-surface: #fef2f2;   /* red-50 */
+  --color-primary-text:    #a50e0e;   /* red-700 */
 
-  --color-success:         #16a34a;
-  --color-success-surface: #f0fdf4;
-  --color-success-text:    #15803d;
+  --color-success:         #16a34a;   /* green-600 */
+  --color-success-surface: #f0fdf4;   /* green-50 */
+  --color-success-text:    #15803d;   /* green-700 */
 
-  --color-warning:         #d97706;
-  --color-warning-surface: #fffbeb;
-  --color-warning-text:    #b45309;
+  --color-warning:         #d97706;   /* amber-600 */
+  --color-warning-surface: #fffbeb;   /* amber-50 */
+  --color-warning-text:    #b45309;   /* amber-700 */
 
-  --color-danger:          #dc2626;
-  --color-danger-surface:  #fef2f2;
-  --color-danger-text:     #b91c1c;
+  --color-danger:          #dc2626;   /* red-600 */
+  --color-danger-surface:  #fef2f2;   /* red-50 */
+  --color-danger-text:     #b91c1c;   /* red-700 */
 
   /* Focus ring */
-  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #cef33c;
+  --focus-ring: 0 0 0 2px #fdfbf4, 0 0 0 4px #c31010;
+
+  /* Hairline used in place of blurred elevation — see @theme shadow remap */
+  --shadow-hairline: rgb(0 0 0 / 0.10);
+  --shadow-cast:     rgb(0 0 0 / 0.10);
 
   /* Animation durations */
   --duration-fast:   150ms;
@@ -57,77 +68,152 @@
 
 /* Dark mode tokens */
 .dark {
-  --background: #1b1a1a;
-  --foreground: #f5f5f5;
+  /* Same three tiers inverted: chrome recedes darkest, cards lift lightest. */
+  --color-chrome: #232323;
+  --color-paper:  #1e1e1e;
+
+  --background: #1e1e1e;
+  --foreground: #c8c8c8;
   color-scheme: dark;
 
-  --node-handle-border: #1b1a1a;
+  --node-handle-border: #2a2a2a;
 
-  --color-surface:         #252525;
-  --color-surface-raised:  #2e2e2e;
-  --color-surface-overlay: #383838;
-  --color-border:          #404040;
-  --color-border-subtle:   #2e2e2e;
+  --color-surface:         #333333;
+  --color-surface-raised:  #3d3d3d;
+  --color-surface-overlay: #474747;
+  --color-border:          #555555;
+  --color-border-subtle:   #3d3d3d;
 
-  --color-text-primary:    #f5f5f5;
-  --color-text-secondary:  #cccccc;
-  --color-text-muted:      #888888;
-  --color-text-disabled:   #555555;
+  --color-text-primary:    #c8c8c8;
+  --color-text-secondary:  #999999;
+  --color-text-muted:      #707070;
+  --color-text-disabled:   #505050;
 
-  --color-primary:         #cef33c;   /* same lime in dark mode */
-  --color-primary-hover:   #d8f55a;
-  --color-primary-surface: #1e2900;
-  --color-primary-text:    #cef33c;
+  --color-primary:         #ef4444;   /* red-500 (lighter for dark mode) */
+  --color-primary-hover:   #f87171;   /* red-400 */
+  --color-primary-surface: #3b0404;   /* red-950 */
+  --color-primary-text:    #fca5a5;   /* red-300 */
 
-  --color-success:         #22c55e;
-  --color-success-surface: #052e16;
-  --color-success-text:    #86efac;
+  --color-success:         #22c55e;   /* green-500 */
+  --color-success-surface: #052e16;   /* green-950 */
+  --color-success-text:    #86efac;   /* green-300 */
 
-  --color-warning:         #f59e0b;
-  --color-warning-surface: #1c1007;
-  --color-warning-text:    #fcd34d;
+  --color-warning:         #f59e0b;   /* amber-400 */
+  --color-warning-surface: #1c1007;   /* amber-950 */
+  --color-warning-text:    #fcd34d;   /* amber-300 */
 
-  --color-danger:          #ef4444;
-  --color-danger-surface:  #3b0404;
-  --color-danger-text:     #fca5a5;
+  --color-danger:          #ef4444;   /* red-500 */
+  --color-danger-surface:  #3b0404;   /* red-950 */
+  --color-danger-text:     #fca5a5;   /* red-300 */
 
-  --focus-ring: 0 0 0 2px #1b1a1a, 0 0 0 4px #cef33c;
+  --focus-ring: 0 0 0 2px #2a2a2a, 0 0 0 4px #ef4444;
+
+  /* Cast shadows read as nothing on dark surfaces; lean on the ring instead. */
+  --shadow-hairline: rgb(255 255 255 / 0.14);
+  --shadow-cast:     rgb(0 0 0 / 0.50);
+}
+
+/* ── Selection & tap highlight ───────────────────────────────────────────
+   Without these, text selection and mobile/click tap highlights fall back to
+   the OS accent colour (pink on some machines). Pin them to a subtle blue that
+   matches the app's accent so selecting or clicking never flashes pink.      */
+::selection {
+  background: rgb(37 99 235 / 0.20);   /* blue-600 @ 20% */
+  color: inherit;
+}
+* {
+  -webkit-tap-highlight-color: rgb(37 99 235 / 0.15);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Anaheim', system-ui, -apple-system, sans-serif;
-  --font-heading: 'Montserrat', system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, monospace;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
 
-  /* ── Pure neutral grays ─────────────────────────────────────────────────── */
-  --color-gray-50:  #fafafa;
-  --color-gray-100: #f5f5f5;
-  --color-gray-200: #e5e5e5;
-  --color-gray-300: #d4d4d4;
-  --color-gray-400: #999999;
-  --color-gray-500: #777777;
-  --color-gray-600: #6e6e6e;
+  /* One typeface. `font-mono` was overwhelmingly used to force digit alignment
+     in numeric columns (80 uses in fpa alone) — body-level tabular-nums now does
+     that better, so the utility resolves to Inter and the UI reads as one voice.
+     Literal code (<pre>/<code>) is exempted below, where mono earns its keep.  */
+  --font-mono: var(--font-inter), system-ui, -apple-system, sans-serif;
+
+  /* ── Type scale: one dense step below text-xs ───────────────────────────
+     Dense data UI genuinely needs a tier under 12px for row metadata and
+     table chrome. Without one, pages invent their own — the analyses module
+     had ~124 arbitrary text-[9px]/[10px]/[11px] values across four files,
+     which is why nothing in it read as a hierarchy. Naming the step makes it
+     reviewable and stops the sprawl. Below this, use text-xs.              */
+  --text-2xs: 0.6875rem;              /* 11px */
+  --text-2xs--line-height: 1.45;
+
+  /* ── Radius: square ─────────────────────────────────────────────────────
+     Instrument, not app. Every `rounded*` utility across the codebase flattens
+     from here — no page files change.
+
+     NOTE: `rounded-full` is NOT remappable (Tailwind hardcodes it to
+     calc(infinity * 1px)) and is deliberately left alone: of its 626 uses,
+     ~45 are animate-spin loaders and ~216 are avatars/status dots that must
+     stay circular. Badge pills are handled per-callsite, not here.          */
+  --radius-xs:  0px;
+  --radius-sm:  0px;
+  --radius-md:  0px;
+  --radius-lg:  0px;
+  --radius-xl:  0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+  --radius:     0px;
+
+  /* ── Elevation: hairline, not blur ──────────────────────────────────────
+     Blurred drop-shadows imply physical cards. Structure is delineated with a
+     1px ring instead. Cards (2xs–md) get the ring only; true overlays
+     (lg–2xl) keep a tight low-blur cast so drawers/modals still detach.      */
+  --shadow-2xs: 0 0 0 1px var(--shadow-hairline);
+  --shadow-xs:  0 0 0 1px var(--shadow-hairline);
+  --shadow-sm:  0 0 0 1px var(--shadow-hairline);
+  --shadow-md:  0 0 0 1px var(--shadow-hairline);
+  --shadow-lg:  0 0 0 1px var(--shadow-hairline), 0 2px 4px -1px var(--shadow-cast);
+  --shadow-xl:  0 0 0 1px var(--shadow-hairline), 0 4px 8px -2px var(--shadow-cast);
+  --shadow-2xl: 0 0 0 1px var(--shadow-hairline), 0 8px 16px -4px var(--shadow-cast);
+  --shadow-inner: inset 0 0 0 1px var(--shadow-hairline);
+
+  /* ── Surface white → warm paper ─────────────────────────────────────────
+     bg-white compiles to var(--color-white), so retoning it here lifts all
+     ~1,349 card surfaces off the page tone at once — no page files change.
+     Stays near-white, so `text-white` on the brand red and on avatar fills
+     is unaffected.                                                         */
+  --color-white: #fdfbf4;
+
+  /* ── Warm neutral grays ─────────────────────────────────────────────────
+     Tailwind's defaults are blue-tinted, which reads as dirty against warm
+     paper. The light end (50–300) is warmed to sit between the page (#f4f2e8)
+     and the card (#fdfbf4); the dark end (700–950) stays near-neutral so dark
+     mode doesn't turn sepia.                                                */
+  --color-gray-50:  #f7f5ea;
+  --color-gray-100: #f1efe3;
+  --color-gray-200: #e4e1d1;
+  --color-gray-300: #d0cdbc;
+  --color-gray-400: #9a978c;
+  --color-gray-500: #78766d;
+  --color-gray-600: #6e6c64;
   --color-gray-700: #555555;
   --color-gray-800: #3d3d3d;
   --color-gray-900: #2a2a2a;
-  --color-gray-950: #1b1a1a;
+  --color-gray-950: #1e1e1e;
 
-  /* ── Brand: remap blue → Collective ERP lime ────────────────────────────
+  /* ── Brand color: remap blue → Open ERP red ─────────────────────────────
      All existing bg-blue-*, text-blue-*, border-blue-*, ring-blue-* classes
-     automatically become the brand lime. No page files need updating.        */
-  --color-blue-50:  #f7fde8;
-  --color-blue-100: #eefacc;
-  --color-blue-200: #d9f599;
-  --color-blue-300: #c4ee66;
-  --color-blue-400: #cef33c;
-  --color-blue-500: #bfe02a;
-  --color-blue-600: #9ac415;   /* action accent */
-  --color-blue-700: #3a5c00;
-  --color-blue-800: #2a4200;
-  --color-blue-900: #1e2900;
-  --color-blue-950: #121a00;
+     automatically become the brand red. No page files need updating.        */
+  --color-blue-50:  #fef2f2;
+  --color-blue-100: #fee2e2;
+  --color-blue-200: #fecaca;
+  --color-blue-300: #fca5a5;
+  --color-blue-400: #f87171;
+  --color-blue-500: #ef4444;
+  --color-blue-600: #c31010;   /* brand primary */
+  --color-blue-700: #a50e0e;
+  --color-blue-800: #7f1212;
+  --color-blue-900: #5c0d0d;
+  --color-blue-950: #3b0404;
 }
 
 /* ── Base styles ────────────────────────────────────────────────────────── */
@@ -145,14 +231,37 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Digits share one advance width, so numeric columns align down the page
+     without needing font-mono. The single largest readability win in a data
+     table. `slashed-zero` disambiguates 0/O in IDs and accession numbers.   */
+  font-variant-numeric: tabular-nums slashed-zero;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
+/* ── Code ─────────────────────────────────────────────────────────────────
+   The single exception to Inter-everywhere: literal code, where character
+   alignment and 0/O/l/1 disambiguation carry meaning. Keyed off the semantic
+   tags so no callsite needs updating. !important is required because many of
+   these already carry a `font-mono` class, which now resolves to Inter and
+   would otherwise win on specificity.                                       */
+:is(pre, code, kbd, samp) {
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-variant-numeric: normal;
+}
+
+/* ── Density ──────────────────────────────────────────────────────────────
+   Table rows carried px-4 py-3 (~44px/row). Only the BLOCK padding is
+   overridden — horizontal padding stays under each callsite's control, so
+   column rhythm is untouched while row height drops to ~32px (+35% rows per
+   screen). !important is required to beat Tailwind's utility specificity;
+   `.table-relaxed` on a <table> is the opt-out for genuinely airy contexts. */
+table:not(.table-relaxed) :is(th, td) {
+  padding-block: 0.375rem !important;
 }
 
 /* ── Accessibility ──────────────────────────────────────────────────────── */
 
+/* Skip to main content link */
 .skip-link {
   position: absolute;
   top: -100%;
@@ -160,10 +269,9 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 9999;
   padding: 0.5rem 1rem;
   background: var(--color-primary);
-  color: #000000;
+  color: #ffffff;
   font-size: 0.875rem;
-  font-weight: 600;
-  border-radius: 0 0 0.375rem 0.375rem;
+  font-weight: 500;
   text-decoration: none;
   transition: top var(--duration-fast) ease;
 }
@@ -171,12 +279,16 @@ h1, h2, h3, h4, h5, h6 {
   top: 0;
 }
 
+/* Consistent focus ring for keyboard navigation.
+   Deliberately does NOT set border-radius: doing so overrode the element's own
+   radius on focus, snapping rounded-full controls square mid-interaction. The
+   box-shadow ring already follows whatever radius the element has.          */
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  border-radius: 0.25rem;
 }
 
+/* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -198,11 +310,10 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
+  background: #d0cdbc;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #9a978c;
 }
 .dark ::-webkit-scrollbar-thumb {
   background: #383838;
@@ -219,13 +330,69 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background: linear-gradient(90deg, #f1efe3 25%, #e4e1d1 50%, #f1efe3 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: 0.25rem;
 }
 
 .dark .skeleton {
   background: linear-gradient(90deg, #1e1e1e 25%, #303030 50%, #1e1e1e 75%);
   background-size: 200% 100%;
+}
+
+/* ── Tiptap rich text editor ─────────────────────────────────────────────── */
+
+.ProseMirror {
+  outline: none;
+}
+
+.ProseMirror p {
+  margin: 0 0 0.5em;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #9a978c;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.25em 0;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.25em 0;
+}
+
+.ProseMirror li {
+  margin: 0.1em 0;
+}
+
+.ProseMirror li p {
+  margin: 0;
+}
+
+.ProseMirror a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Horizontal rails that should still scroll but not show a bar across the page. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

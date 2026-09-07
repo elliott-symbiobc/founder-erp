@@ -1,10 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
+import { Avatar } from "@/components/Avatar";
 import Link from "next/link";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface OpenReminder {
@@ -54,6 +56,7 @@ interface CompanyData {
   tags: string[];
   projects: LinkedProjectSummary[];
   description: string | null;
+  logo_url: string | null;
 }
 
 interface GoogleStatus {
@@ -87,10 +90,6 @@ function timeAgo(iso: string | null): string | null {
   if (days < 30) return `${Math.floor(days / 7)}w ago`;
   if (days < 365) return `${Math.floor(days / 30)}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
 }
 
 // Mutable tag color registry — populated from API
@@ -198,7 +197,8 @@ function InlineTagEditor({ contact, allTags, onUpdated }: {
               const c = resolvedColor(tag);
               return (
                 <span key={tag}
-                  className="text-[11px] px-1.5 py-0.5 rounded border font-medium leading-none"
+                  title={tag}
+                  className="text-[11px] px-1.5 py-0.5 rounded border font-medium leading-none max-w-full truncate"
                   style={{ backgroundColor: c + "22", color: c, borderColor: c + "55" }}
                 >
                   {tag}
@@ -388,7 +388,8 @@ function InlineCompanyTagEditor({ company, allTags, onUpdated }: {
               const c = resolvedColor(tag);
               return (
                 <span key={tag}
-                  className="text-[10px] px-1.5 py-0.5 rounded border font-medium leading-none"
+                  title={tag}
+                  className="text-[10px] px-1.5 py-0.5 rounded border font-medium leading-none max-w-full truncate"
                   style={{ backgroundColor: c + "22", color: c, borderColor: c + "55" }}
                 >
                   {tag}
@@ -492,29 +493,30 @@ function ContactCard({ contact, allTags, onTagsUpdated, onArchived }: {
     >
       {/* Avatar */}
       <div className="flex-shrink-0">
-        {contact.avatar_url ? (
-          <img src={contact.avatar_url} alt={contact.name} className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700" />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-[11px] font-bold select-none">
-            {initials(contact.name)}
-          </div>
-        )}
+        <Avatar url={contact.avatar_url} name={contact.name} size={8} />
       </div>
 
-      {/* Name + title */}
+      {/* Name + title — wrap to 2 lines; long unbroken strings (emails, URLs)
+          break mid-word rather than spilling past the card edge. */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight group-hover/card:text-blue-600 dark:group-hover/card:text-blue-400 transition-colors">
+        <div className="flex items-start gap-1.5">
+          <p
+            title={contact.name}
+            className="text-sm font-medium text-zinc-800 dark:text-zinc-100 leading-tight break-words [overflow-wrap:anywhere] line-clamp-2 group-hover/card:text-blue-600 dark:group-hover/card:text-blue-400 transition-colors"
+          >
             {contact.name}
           </p>
           {contact.is_project_primary && (
-            <span className="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-semibold leading-none tracking-wide uppercase">
+            <span className="flex-shrink-0 mt-px text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-semibold leading-none tracking-wide uppercase">
               Primary
             </span>
           )}
         </div>
         {contact.title && (
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate leading-tight mt-px">
+          <p
+            title={contact.title}
+            className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight mt-px break-words [overflow-wrap:anywhere] line-clamp-2"
+          >
             {contact.title}
           </p>
         )}
@@ -527,11 +529,11 @@ function ContactCard({ contact, allTags, onTagsUpdated, onArchived }: {
       </div>
 
       {/* Right meta */}
-      <div className="flex-shrink-0 flex flex-col items-end gap-1">
+      <div className="flex-shrink-0 flex flex-col items-end gap-1 max-w-[38%]">
         {openItems > 0 && (
           <span
             title={hasTask ? `${openItems} open task${openItems !== 1 ? "s" : ""}` : `${openItems} reminder${openItems !== 1 ? "s" : ""}`}
-            className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${
+            className={`text-[10px] px-1.5 py-0.5 rounded font-semibold leading-none ${
               hasTask
                 ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300"
                 : "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
@@ -573,9 +575,64 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
 }) {
   const [expanded, setExpanded] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const plusRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  useEffect(() => {
+    if (!plusOpen) return;
+    const h = (e: MouseEvent) => { if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [plusOpen]);
+
   const people = contacts;
+
+  async function enrich(e: React.MouseEvent) {
+    e.stopPropagation();
+    // Enrich needs a company row to attach to. If this org isn't a company yet,
+    // create it first (same path as openCompany), then enrich the new id.
+    let id = companyId;
+    setEnriching(true);
+    setEnrichMsg(null);
+    try {
+      if (!id) {
+        const cr = await fetch("/api/proxy/contacts/companies", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: org }),
+        });
+        if (!cr.ok) throw new Error("create failed");
+        id = (await cr.json()).company_id;
+      }
+      const r = await fetch(`/api/proxy/contacts/companies/${id}/enrich`, { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => ({}));
+        throw new Error(detail?.detail ?? "Enrichment failed");
+      }
+      const d = await r.json();
+      if (d.status === "no_data") {
+        setEnrichMsg("No brand data found for this domain.");
+      } else {
+        onCompanyUpdated(id!, {
+          logo_url: d.company?.logo_url ?? null,
+          description: d.company?.description ?? null,
+          tags: d.company?.tags ?? undefined,
+        });
+        const bits = [...(d.filled ?? [])].filter((f: string) => f !== "tags");
+        setEnrichMsg(
+          `Filled ${bits.length ? bits.join(", ") : "nothing new"}` +
+          (d.added_tags?.length ? ` · +${d.added_tags.join(", ")}` : "")
+        );
+      }
+    } catch (err) {
+      setEnrichMsg(err instanceof Error ? err.message : "Enrichment failed");
+    } finally {
+      setEnriching(false);
+    }
+  }
 
   async function openCompany() {
     if (companyId) { router.push(`/contacts/companies/${companyId}`); return; }
@@ -595,10 +652,22 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
       {/* Company header — overflow-visible so tag dropdowns aren't clipped */}
-      <div className="flex items-center gap-2.5 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 rounded-t-xl">
+      <div className="flex items-start gap-2.5 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 rounded-t-xl">
         {/* Initials badge */}
         <button onClick={() => setExpanded(e => !e)} className="flex-shrink-0">
-          <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white select-none">
+          {companyData?.logo_url ? (
+            <img
+              src={companyData.logo_url}
+              alt=""
+              className="w-9 h-9 rounded-md object-contain bg-white shrink-0"
+              // Brand data can go stale (a rebrand, a pulled asset). Fall back to
+              // the initials tile rather than leaving a broken-image glyph.
+              onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling?.classList.remove("hidden"); }}
+            />
+          ) : null}
+          {/* 36px: the company badge heads a group whose contact avatars are 32px.
+              At its old 24px the parent tile was smaller than its own children. */}
+          <div className={`w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-xs font-bold text-white select-none shrink-0 ${companyData?.logo_url ? "hidden" : ""}`}>
             {org.slice(0, 2).toUpperCase()}
           </div>
         </button>
@@ -608,7 +677,8 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
           <button
             onClick={openCompany}
             disabled={creating}
-            className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 truncate max-w-full text-left block hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+            title={org}
+            className="text-[15px] font-semibold text-zinc-800 dark:text-zinc-100 max-w-full text-left block leading-tight break-words [overflow-wrap:anywhere] line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
           >
             {creating ? "Creating…" : org}
           </button>
@@ -623,7 +693,7 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
             <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-zinc-100 dark:border-zinc-800" onClick={e => e.stopPropagation()}>
               {companyData.projects.slice(0, 3).map(p => (
                 <Link key={p.project_id} href={`/projects/${p.project_id}`}
-                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors truncate max-w-[130px] font-medium"
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors truncate max-w-[130px] min-w-0 font-medium"
                   title={p.name}>
                   <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
@@ -636,22 +706,67 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
 
           {/* Description */}
           {companyData?.description && (
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-snug mt-1 line-clamp-2">
+            <p
+              title={companyData.description}
+              className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-snug mt-1 line-clamp-2 break-words [overflow-wrap:anywhere]"
+            >
               {companyData.description}
+            </p>
+          )}
+
+          {/* Enrichment feedback */}
+          {enrichMsg && (
+            <p className="text-[10px] text-violet-500 dark:text-violet-400 mt-1 leading-snug break-words [overflow-wrap:anywhere]" onClick={e => e.stopPropagation()}>
+              {enrichMsg}
             </p>
           )}
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
-            onClick={e => { e.stopPropagation(); onAddContact(org); }}
-            className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
-            title="Add contact to this company"
+            onClick={enrich}
+            disabled={enriching}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-950/40 transition-colors disabled:opacity-50"
+            title="Auto-fill logo, description, industry & tags from the web"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+            {enriching ? (
+              <span className="w-3 h-3 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+            ) : (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-6.714 2.143L12 21l-2.286-6.857L3 12l6.714-2.143L12 3z" />
+              </svg>
+            )}
           </button>
+          {/* + menu: add a contact, or attach a CRM project / funding opportunity */}
+          <div className="relative" ref={plusRef} onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setPlusOpen(o => !o)}
+              className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+              title="Add contact or attach a project"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </button>
+            {plusOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl w-44 py-1 overflow-hidden">
+                <button
+                  onClick={() => { setPlusOpen(false); onAddContact(org); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                  Add contact
+                </button>
+                <button
+                  onClick={() => { setPlusOpen(false); setAttachOpen(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.828-6.828l3-3a4 4 0 015.656 5.656l-1.5 1.5" /></svg>
+                  Attach project…
+                </button>
+              </div>
+            )}
+          </div>
           <button onClick={() => setExpanded(e => !e)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             <svg
               className={`w-3.5 h-3.5 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
@@ -676,6 +791,126 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
           <Link href={`/contacts/companies/${companyId}`} className="text-blue-500 hover:underline">View company →</Link>
         </div>
       )}
+      {attachOpen && (
+        <AttachProjectModal
+          people={people}
+          org={org}
+          onClose={() => setAttachOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Attach a CRM project / funding opportunity to a contact ───────────────────
+
+function AttachProjectModal({ people, org, onClose }: {
+  people: Contact[];
+  org: string;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<{ source: string; id: string; title: string; subtitle: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [picked, setPicked] = useState<{ source: string; id: string; title: string } | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  // Debounced search
+  useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(async () => {
+      const r = await fetch(`/api/proxy/contacts/attachables?q=${encodeURIComponent(q)}`);
+      if (r.ok) setResults((await r.json()).results ?? []);
+      setLoading(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  async function attach(contactId: string, contactName: string) {
+    if (!picked) return;
+    setAttaching(contactId);
+    const r = await fetch(`/api/proxy/contacts/${contactId}/attach`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: picked.source, id: picked.id }),
+    });
+    setAttaching(null);
+    setDone(r.ok ? `Attached “${picked.title}” to ${contactName}` : "Attach failed");
+    if (r.ok) setTimeout(onClose, 1100);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24 bg-black/20" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            {picked ? "Attach to which contact?" : `Attach project to ${org}`}
+          </span>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-lg leading-none">✕</button>
+        </div>
+
+        {done ? (
+          <p className="px-4 py-6 text-sm text-center text-emerald-600 dark:text-emerald-400">{done}</p>
+        ) : !picked ? (
+          <>
+            <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+              <input
+                autoFocus
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                placeholder="Search CRM projects & funding…"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {loading && <p className="px-4 py-4 text-xs text-zinc-400 text-center">Searching…</p>}
+              {!loading && results.length === 0 && <p className="px-4 py-4 text-xs text-zinc-400 text-center">No matches.</p>}
+              {results.map(r => (
+                <button
+                  key={`${r.source}:${r.id}`}
+                  onClick={() => setPicked(r)}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors border-b border-zinc-50 dark:border-zinc-800/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${
+                      r.source === "funding"
+                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
+                        : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400"
+                    }`}>{r.source === "funding" ? "Funding" : "CRM"}</span>
+                    <span className="text-xs font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</span>
+                  </div>
+                  {r.subtitle && <p className="text-[10px] text-zinc-400 mt-0.5 ml-[38px]">{r.subtitle}</p>}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2">
+              <button onClick={() => setPicked(null)} className="text-xs text-zinc-400 hover:text-zinc-600">← back</button>
+              <span className="text-xs text-zinc-500 truncate">{picked.title}</span>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {people.length === 0 && <p className="px-4 py-4 text-xs text-zinc-400 text-center">No contacts in this company yet.</p>}
+              {people.map(c => (
+                <button
+                  key={c.contact_id}
+                  onClick={() => attach(c.contact_id, c.name)}
+                  disabled={attaching !== null}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors border-b border-zinc-50 dark:border-zinc-800/40 flex items-center justify-between disabled:opacity-50"
+                >
+                  <div>
+                    <span className="text-xs font-medium text-zinc-800 dark:text-zinc-100">{c.name}</span>
+                    {c.title && <span className="text-[10px] text-zinc-400 ml-1.5">{c.title}</span>}
+                  </div>
+                  {attaching === c.contact_id && <span className="w-3 h-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -685,6 +920,10 @@ function CompanyRow({ org, contacts, companyId, companyData, allTags, onTagsUpda
 interface ContactSuggestion {
   suggestion_id: string;
   suggestion_type: "new_contact" | "enrichment";
+  // Set when the suggested email already belongs to a live contact — approving
+  // merges into that contact rather than creating a second one.
+  duplicate_of_contact_id?: string | null;
+  duplicate_of_name?: string | null;
   status: "pending" | "approved" | "rejected";
   suggested_name: string | null;
   suggested_email: string | null;
@@ -731,16 +970,17 @@ function SuggestionsLink({ onContactCreated }: { onContactCreated: () => void })
 
   async function openModal() {
     setModalOpen(true);
-    if (suggestions.length === 0) {
-      setLoading(true);
-      const r = await fetch("/api/proxy/contacts/suggestions");
-      if (r.ok) {
-        const d = await r.json();
-        setSuggestions(d.suggestions ?? []);
-        setPendingCount(d.pending_count ?? 0);
-      }
-      setLoading(false);
+    // Always refetch. Guarding on `suggestions.length === 0` meant a non-empty
+    // list was never refreshed after mount, so the modal kept showing its
+    // mount-time snapshot even as new scans landed.
+    setLoading(true);
+    const r = await fetch("/api/proxy/contacts/suggestions", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      setSuggestions(d.suggestions ?? []);
+      setPendingCount(d.pending_count ?? 0);
     }
+    setLoading(false);
   }
 
   async function scan() {
@@ -776,7 +1016,6 @@ function SuggestionsLink({ onContactCreated }: { onContactCreated: () => void })
   }
 
   const pending = suggestions.filter(s => s.status === "pending");
-  const approved = suggestions.filter(s => s.status === "approved");
 
   return (
     <>
@@ -797,7 +1036,7 @@ function SuggestionsLink({ onContactCreated }: { onContactCreated: () => void })
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Suggested Contacts</span>
                 {pendingCount !== null && pendingCount > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold leading-none">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold leading-none">
                     {pendingCount}
                   </span>
                 )}
@@ -835,18 +1074,6 @@ function SuggestionsLink({ onContactCreated }: { onContactCreated: () => void })
               )}
               {pending.length === 0 && suggestions.length > 0 && !scanning && (
                 <p className="px-4 py-6 text-xs text-zinc-400 text-center">All caught up.</p>
-              )}
-              {approved.length > 0 && (
-                <div>
-                  <p className="px-4 py-1.5 text-[10px] text-zinc-400 uppercase tracking-wide font-medium bg-zinc-50 dark:bg-zinc-800/40">
-                    Added
-                  </p>
-                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 opacity-50">
-                    {approved.map(s => (
-                      <SuggestionRow key={s.suggestion_id} s={s} onReview={review} processing={false} readonly />
-                    ))}
-                  </div>
-                </div>
               )}
             </div>
           </div>
@@ -899,6 +1126,12 @@ function SuggestionRow({ s, onReview, processing, readonly }: {
             </span>
           )}
         </div>
+        {s.duplicate_of_contact_id && (
+          <p className="mt-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 leading-snug">
+            ⚠ Already a contact{s.duplicate_of_name ? ` — ${s.duplicate_of_name}` : ""}. Approving fills in
+            missing fields instead of adding a second one.
+          </p>
+        )}
         {s.reason && (
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug">{s.reason}</p>
         )}
@@ -999,7 +1232,7 @@ function CreateModal({ onClose, onCreated, defaultOrg }: { onClose: () => void; 
                 {label}{required && <span className="text-red-500 ml-0.5">*</span>}
               </label>
               {key === "notes" ? (
-                <textarea value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} rows={3}
+                <AutoTextarea value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} rows={3}
                   className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
               ) : (
                 <input type="text" required={required} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
@@ -1170,10 +1403,11 @@ function ContactsPageContent() {
     setContacts(prev => prev.filter(c => c.contact_id !== contactId));
   }
 
+  // "Name" sorts by company name: the browse view is grouped into company
+  // cards, so ordering by contact name scattered the groups unintuitively.
   const SORT_OPTIONS = [
     { value: "last_interaction", label: "Recent" },
     { value: "name",             label: "Name" },
-    { value: "organization",     label: "Company" },
     { value: "created_at",       label: "Added" },
   ] as const;
 

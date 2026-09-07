@@ -23,19 +23,6 @@ SOURCE_QUERIES = {
                coalesce(n.ai_summary, n.raw_transcript, '') AS body
         FROM notes n WHERE n.note_id = %s::uuid
     """,
-    "eln_entries": """
-        SELECT e.entry_id::text, e.user_id::text,
-               coalesce(e.title,'') || E'\n' ||
-               coalesce(e.ai_summary, e.raw_transcript, '') AS body
-        FROM eln_entries e WHERE e.entry_id = %s::uuid
-    """,
-    "papers": """
-        SELECT p.paper_id::text, NULL::text,
-               coalesce(p.title,'') || E'\n' ||
-               coalesce(p.abstract,'') || E'\n' ||
-               coalesce(p.paper_summary,'') AS body
-        FROM papers p WHERE p.paper_id = %s::uuid
-    """,
     "contacts": """
         SELECT c.contact_id::text, c.user_id::text,
                coalesce(c.name,'') || E'\n' ||

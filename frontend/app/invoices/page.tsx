@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import LogoImage from "@/components/LogoImage";
 
+import { AutoTextarea } from "@/components/AutoTextarea";
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface LineItem {
@@ -33,6 +34,14 @@ interface Invoice {
   total: number;
   notes: string | null;
   created_at: string;
+  // Stripe is the delivery and collection channel; the platform stays the
+  // system of record. These come back from the invoice row itself.
+  stripe_invoice_id: string | null;
+  stripe_hosted_url: string | null;
+  stripe_status: string | null;
+  sent_at: string | null;
+  document_url?: string | null;
+  document_name?: string | null;
 }
 
 interface Contact {
@@ -94,14 +103,14 @@ const STATUS_DOT: Record<string, string> = {
   cancelled: "bg-gray-300",
 };
 
-const LS_FORMATTING_KEY = "symbio_invoice_formatting";
+const LS_FORMATTING_KEY = "openerp_invoice_formatting";
 
 const DEFAULT_FORMATTING: FormattingSettings = {
-  companyName: "Collective ERP",
+  companyName: "Open ERP",
   companyTagline: "",
   companyAddress: "",
   companyEmail: "",
-  companyWebsite: "platform.collectiveerp.io",
+  companyWebsite: "erp.example.com",
   defaultCurrency: "USD",
   defaultPaymentTerms: "",
 };
@@ -144,6 +153,114 @@ function loadFormatting(): FormattingSettings {
 }
 
 // ── StyledSelect ──────────────────────────────────────────────────────────────
+
+
+/** Pick a contact by typing, not by scrolling.
+ *
+ *  A <select> is fine for five options and unusable for a contact book: the
+ *  only way to reach a name is to know where it sits in the list. This filters
+ *  on name and organization as you type, keeps the keyboard working (arrows,
+ *  Enter, Escape) and shows the current choice when closed.
+ */
+function ContactPicker({
+  value, contacts, onChange, placeholder = "Search contacts…",
+}: {
+  value: string;
+  contacts: Contact[];
+  onChange: (contactId: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+
+  const chosen = contacts.find((c) => c.contact_id === value) ?? null;
+  const label = (c: Contact) => c.name + (c.organization ? ` (${c.organization})` : "");
+
+  const q = query.trim().toLowerCase();
+  const matches = !q ? contacts : contacts.filter((c) =>
+    c.name.toLowerCase().includes(q) ||
+    (c.organization ?? "").toLowerCase().includes(q));
+
+  useEffect(() => {
+    function away(e: MouseEvent) {
+      if (box.current && !box.current.contains(e.target as Node)) {
+        setOpen(false); setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, []);
+
+  const pick = (id: string) => { onChange(id); setOpen(false); setQuery(""); };
+
+  const cls = "w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg " +
+              "px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 " +
+              "focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400";
+
+  return (
+    <div className="relative" ref={box}>
+      <input
+        value={open ? query : (chosen ? label(chosen) : "")}
+        placeholder={chosen ? label(chosen) : placeholder}
+        onFocus={() => { setOpen(true); setQuery(""); setActive(0); }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0); }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, matches.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+          else if (e.key === "Enter" && open) {
+            e.preventDefault();
+            if (matches[active]) pick(matches[active].contact_id);
+          } else if (e.key === "Escape") { setOpen(false); setQuery(""); }
+        }}
+        className={cls} />
+
+      {value && !open && (
+        // Clearing has to be possible: "— No contact —" was a real choice in
+        // the dropdown this replaces.
+        <button type="button" onClick={() => onChange("")}
+                title="clear"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400
+                           hover:text-gray-700 dark:hover:text-gray-200 text-sm">
+          ×
+        </button>
+      )}
+
+      {open && (
+        <div className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border
+                        border-gray-200 bg-white shadow-lg dark:border-gray-700
+                        dark:bg-gray-800">
+          <button type="button" onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick("")}
+                  className="block w-full px-3 py-1.5 text-left text-sm text-gray-500
+                             hover:bg-gray-50 dark:hover:bg-gray-700">
+            — No contact —
+          </button>
+          {matches.map((c, i) => (
+            <button key={c.contact_id} type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => pick(c.contact_id)}
+                    className={"block w-full px-3 py-1.5 text-left text-sm " +
+                      (i === active ? "bg-blue-50 dark:bg-gray-700 " : "") +
+                      "text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700"}>
+              {c.name}
+              {c.organization && (
+                <span className="ml-1 text-xs text-gray-400">{c.organization}</span>
+              )}
+            </button>
+          ))}
+          {matches.length === 0 && (
+            <p className="px-3 py-2 text-sm text-gray-400">
+              No contact matches “{query}”.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StyledSelect({
   value, onChange, children, className = "",
@@ -193,7 +310,7 @@ function StatusSelect({ value, onChange }: {
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-        className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-opacity hover:opacity-80 ${STATUS_STYLES[value]}`}
+        className={`text-xs font-medium px-2.5 py-1 rounded flex items-center gap-1 transition-opacity hover:opacity-80 ${STATUS_STYLES[value]}`}
       >
         {STATUS_LABELS[value]}
         <svg className="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -570,6 +687,116 @@ function InvoiceRow({
 
 // ── Invoice Panel ─────────────────────────────────────────────────────────────
 
+
+/** Send, collect, and reconcile through Stripe.
+ *
+ *  Every button here is one call to stripe_billing.py. The platform remains
+ *  the system of record: sending pushes a copy to Stripe and lets Stripe email
+ *  a payable invoice, and the webhook writes payment back — so an invoice paid
+ *  in Stripe becomes paid here without anyone re-typing it.
+ *
+ *  Sync exists because a webhook can be missed: it pulls Stripe's current view
+ *  of one invoice rather than assuming ours is right.
+ */
+function StripeActions({ invoice, onRefresh }: {
+  invoice: Invoice;
+  onRefresh: () => void;
+}) {
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState("");
+  const [link, setLink] = useState<string | null>(null);
+
+  const call = async (action: string, label: string, confirmText?: string) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(action); setNote(""); setLink(null);
+    try {
+      const r = await fetch(
+        `/api/proxy/stripe/invoices/${invoice.invoice_id}/${action}`,
+        { method: "POST", cache: "no-store" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.detail ?? `${label} failed (${r.status})`);
+      if (action === "payment-link") setLink(d.hosted_invoice_url ?? d.payment_url ?? null);
+      setNote(action === "send" && d.emailed_to
+        ? `Emailed to ${d.emailed_to}.`
+        : `${label} done.`);
+      onRefresh();
+    } catch (e: any) {
+      setNote(String(e?.message ?? e));
+    } finally { setBusy(""); }
+  };
+
+  const sent = Boolean(invoice.stripe_invoice_id);
+  const btn = "text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50";
+
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Stripe</span>
+        {invoice.stripe_status && (
+          <span className="rounded-full border border-gray-200 px-2 py-0.5 text-[10px]
+                           text-gray-600 dark:border-gray-700 dark:text-gray-400">
+            {invoice.stripe_status}
+          </span>
+        )}
+        {invoice.sent_at && (
+          <span className="text-[10px] text-gray-400">
+            sent {new Date(invoice.sent_at).toLocaleDateString()}
+          </span>
+        )}
+
+        <div className="ml-auto flex flex-wrap gap-2">
+          {!sent && (
+            <button onClick={() => call("send", "Send",
+                      `Email this invoice to ${invoice.contact_email ?? "the contact"} via Stripe?`)}
+                    disabled={!!busy || !invoice.contact_email}
+                    title={invoice.contact_email
+                      ? "push to Stripe, finalize, and let Stripe email it"
+                      : "the contact has no email address"}
+                    className={btn + " border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-900"}>
+              {busy === "send" ? "Sending…" : "Send via Stripe"}
+            </button>
+          )}
+          <button onClick={() => call("payment-link", "Payment link")}
+                  disabled={!!busy}
+                  title="finalize and return a payable URL without emailing"
+                  className={btn + " border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700"}>
+            {busy === "payment-link" ? "Creating…" : "Payment link"}
+          </button>
+          {sent && (
+            <>
+              <button onClick={() => call("resend", "Resend", "Email this invoice again?")}
+                      disabled={!!busy}
+                      className={btn + " border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700"}>
+                {busy === "resend" ? "Resending…" : "Resend"}
+              </button>
+              <button onClick={() => call("sync", "Sync")} disabled={!!busy}
+                      title="pull Stripe's current view — a webhook can be missed"
+                      className={btn + " border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700"}>
+                {busy === "sync" ? "Syncing…" : "Sync"}
+              </button>
+              <button onClick={() => call("void", "Void",
+                        "Void this invoice in Stripe? Ours is left as it is.")}
+                      disabled={!!busy}
+                      className={btn + " border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900"}>
+                Void
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {(invoice.stripe_hosted_url || link) && (
+        <a href={(link ?? invoice.stripe_hosted_url) as string} target="_blank" rel="noreferrer"
+           className="mt-2 block truncate text-xs text-blue-600 hover:underline">
+          {link ? "Payment link — " : "Hosted invoice — "}
+          {link ?? invoice.stripe_hosted_url}
+        </a>
+      )}
+      {note && <p className="mt-2 text-xs text-gray-500">{note}</p>}
+    </div>
+  );
+}
+
 function InvoicePanel({
   invoice, catalog, contacts, projects, onClose, onDelete, onRefresh, onCatalogUpdate,
 }: {
@@ -701,19 +928,15 @@ function InvoicePanel({
         {/* Body */}
         <div className="px-6 py-4 space-y-5">
 
+          {!editing && <StripeActions invoice={invoice} onRefresh={onRefresh} />}
+
           {/* Contact + Project (editable) */}
           {editing && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-400 mb-1">Contact</p>
-                <StyledSelect value={form.contact_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, contact_id: e.target.value }))}>
-                  <option value="">— No contact —</option>
-                  {contacts.map((c) => (
-                    <option key={c.contact_id} value={c.contact_id}>
-                      {c.name}{c.organization ? ` (${c.organization})` : ""}
-                    </option>
-                  ))}
-                </StyledSelect>
+                <ContactPicker value={form.contact_id ?? ""} contacts={contacts}
+                               onChange={(id) => setForm((f) => ({ ...f, contact_id: id }))} />
               </div>
               <div>
                 <p className="text-xs text-gray-400 mb-1">Project</p>
@@ -736,7 +959,7 @@ function InvoicePanel({
                   {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                 </StyledSelect>
               ) : (
-                <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[invoice.status]}`}>
+                <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded ${STATUS_STYLES[invoice.status]}`}>
                   {STATUS_LABELS[invoice.status]}
                 </span>
               )}
@@ -874,7 +1097,7 @@ function InvoicePanel({
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Notes</p>
               {editing ? (
-                <textarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                <AutoTextarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   rows={3} placeholder="Add notes…"
                   className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
               ) : (
@@ -974,10 +1197,8 @@ function NewInvoiceModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Bill To (Contact)</label>
-              <StyledSelect value={form.contact_id} onChange={(e) => setField("contact_id", e.target.value)}>
-                <option value="">— No contact —</option>
-                {contacts.map((c) => <option key={c.contact_id} value={c.contact_id}>{c.name}{c.organization ? ` (${c.organization})` : ""}</option>)}
-              </StyledSelect>
+              <ContactPicker value={form.contact_id} contacts={contacts}
+                             onChange={(id) => setField("contact_id", id)} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Project</label>
@@ -1046,7 +1267,7 @@ function NewInvoiceModal({
           {/* Notes */}
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Notes (optional)</label>
-            <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={2}
+            <AutoTextarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={2}
               placeholder="Payment terms, references, etc."
               className={`${inputCls} resize-none`} />
           </div>
@@ -1346,7 +1567,7 @@ function FormattingTab() {
           </div>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Default Payment Terms</label>
-            <textarea
+            <AutoTextarea
               value={settings.defaultPaymentTerms}
               onChange={(e) => set("defaultPaymentTerms", e.target.value)}
               rows={2}
@@ -1497,7 +1718,7 @@ export default function ReceivablesPage() {
             <span className="text-xs text-gray-400">Filter:</span>
             {["", ...STATUSES].map((s) => (
               <button key={s} onClick={() => setFilterStatus(s)}
-                className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                className={`text-xs px-3 py-1.5 rounded transition-colors ${
                   filterStatus === s
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"

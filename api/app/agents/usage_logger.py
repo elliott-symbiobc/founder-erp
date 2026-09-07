@@ -56,6 +56,7 @@ def log_anthropic_call(
     model: str,
     input_tokens: int,
     output_tokens: int,
+    paper_id: Optional[str] = None,
 ) -> None:
     """Fire-and-forget: log one Anthropic messages.create() call."""
     cost = _anthropic_cost(model, input_tokens, output_tokens)
@@ -66,10 +67,10 @@ def log_anthropic_call(
             cur.execute(
                 """
                 INSERT INTO api_usage_log
-                    (service, operation, model, input_tokens, output_tokens, cost_usd)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (service, operation, model, input_tokens, output_tokens, cost_usd, paper_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                ("anthropic", operation, model, input_tokens, output_tokens, cost),
+                ("anthropic", operation, model, input_tokens, output_tokens, cost, paper_id or None),
             )
             conn.commit()
         finally:

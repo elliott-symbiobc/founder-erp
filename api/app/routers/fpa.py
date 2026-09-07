@@ -81,6 +81,10 @@ class ModelUpdate(BaseModel):
     change_summary: str | None = None
     notes: str | None = None
     write_excel: bool = False
+    burn_mode: str | None = None
+    manual_burn_entries: list[dict[str, Any]] | None = None
+    pending_liabilities: list[dict[str, Any]] | None = None
+    excluded_burn_categories: list[str] | None = None
 
 
 @router.patch("/model")
@@ -138,9 +142,29 @@ def update_model(body: ModelUpdate, request: Request):
         fields.append("change_summary = %s")
         values.append(body.change_summary)
 
+    if body.burn_mode is not None:
+        fields.append("burn_mode = %s")
+        values.append(body.burn_mode)
+
+    if body.manual_burn_entries is not None:
+        fields.append("manual_burn_entries = %s")
+        values.append(json.dumps(body.manual_burn_entries))
+
+    if body.pending_liabilities is not None:
+        fields.append("pending_liabilities = %s")
+        values.append(json.dumps(body.pending_liabilities))
+
+    if body.excluded_burn_categories is not None:
+        fields.append("excluded_burn_categories = %s")
+        values.append(json.dumps(body.excluded_burn_categories))
+
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    driver_fields = {"contract_pipeline", "headcount_schedule", "expense_schedule", "funding_schedule", "start_year"}
+    has_driver_change = any(f.split(" =")[0] in driver_fields for f in fields)
+
+    import json as _json2
     conn = get_conn()
     try:
         cur = conn.cursor()
@@ -150,6 +174,16 @@ def update_model(body: ModelUpdate, request: Request):
         )
         conn.commit()
         model = _fetch_active_model(cur)
+
+        if has_driver_change and model:
+            engine_result = _run_engine(dict(model))
+            cur.execute(
+                "UPDATE fpa_model SET annual_data = %s, monthly_data = %s WHERE is_active = true",
+                (_json2.dumps(engine_result["annual_data"]), _json2.dumps(engine_result["monthly_data"])),
+            )
+            conn.commit()
+            model = _fetch_active_model(cur)
+
         cur.close()
     finally:
         conn.close()
@@ -803,7 +837,7 @@ def export_model(request: Request):
     ws1.column_dimensions["A"].width = 35
     ws1.column_dimensions["B"].width = 20
 
-    ws1["A1"].value = "Collective ERP — Returns Model"
+    ws1["A1"].value = "Open ERP Bioculinary — Returns Model"
     ws1["A1"].font = Font(bold=True, size=14)
 
     bold_label(ws1["A3"], "EXIT ASSUMPTIONS")
@@ -876,7 +910,7 @@ def export_model(request: Request):
     ws2 = wb.create_sheet("P&L Summary")
     ws2.column_dimensions["A"].width = 32
 
-    ws2["A1"].value = "Collective ERP — P&L Summary ($)"
+    ws2["A1"].value = "Open ERP Bioculinary — P&L Summary ($)"
     ws2["A1"].font = Font(bold=True, size=13)
 
     years = [d["year"] for d in annual_data if isinstance(d, dict)]
@@ -999,7 +1033,7 @@ def export_model(request: Request):
     ws4.column_dimensions["B"].width = 35
     ws4.column_dimensions["C"].width = 18
 
-    ws4["B1"].value = "Collective ERP LLC"
+    ws4["B1"].value = "Open ERP Bioculinary LLC"
     ws4["B1"].font = Font(bold=True, size=13)
     ws4["B2"].value = "Pro Forma Balance Sheet"
     ws4["B3"].value = "As of March 15, 2025"
@@ -1052,7 +1086,7 @@ def export_model(request: Request):
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=Symbio_Financial_Model.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=OpenERP_Financial_Model.xlsx"},
     )
 
 
@@ -1068,13 +1102,13 @@ def _run_engine(model: dict) -> dict:
     Compute monthly_data, annual_data, and audit_data from driver sheets.
     Falls back to existing monthly_data for non-driver cost lines (office, legal, software).
     """
-    from datetime import date as _date
+    from datetime import date as _date, datetime as _dt
+    import datetime as _datetime_mod
 
     contracts = model.get("contract_pipeline") or []
     headcount = model.get("headcount_schedule") or []
     expenses  = model.get("expense_schedule") or []
     funding   = model.get("funding_schedule") or []
-    import datetime as _datetime_mod
     start_year = int(model.get("start_year") or _datetime_mod.date.today().year)
 
     # Pre-index non-dilutive lump-sum funding by (year, month) for O(1) lookup
@@ -1115,7 +1149,6 @@ def _run_engine(model: dict) -> dict:
                 if c.get("status") not in ("active", "pipeline"):
                     continue
                 try:
-                    from datetime import datetime as _dt
                     sd = _dt.strptime(c.get("start_date", "2025-01-01")[:10], "%Y-%m-%d")
                 except Exception:
                     continue
@@ -1265,7 +1298,6 @@ def _run_engine(model: dict) -> dict:
 
             for emp in headcount:
                 try:
-                    from datetime import datetime as _dt
                     emp_start = _dt.strptime(emp.get("start_date", "2025-01-01")[:10], "%Y-%m-%d").date()
                 except Exception:
                     continue
@@ -1947,7 +1979,7 @@ def export_model_v2(request: Request):
 
     ws.merge_cells("A1:B1")
     c = ws["A1"]
-    c.value = "Collective ERP — Financial Model"
+    c.value = "Open ERP Bioculinary — Financial Model"
     c.font = Font(bold=True, size=18, color=NAVY)
     c.alignment = Alignment(horizontal="left", vertical="center")
 
@@ -2509,7 +2541,7 @@ def export_model_v2(request: Request):
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=Symbio_Financial_Model_v2.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=OpenERP_Financial_Model_v2.xlsx"},
     )
 
 
@@ -2578,6 +2610,9 @@ def _do_plaid_sync() -> dict:
             if t["account_id"] not in excluded
         ]
 
+        # Build account name lookup
+        account_names = {a["account_id"]: a.get("name", "") for a in accounts}
+
         # Plaid sign convention: positive = money out, negative = money in
         outflow = sum(float(t["amount"]) for t in transactions if float(t["amount"]) > 0)
         inflow = sum(abs(float(t["amount"])) for t in transactions if float(t["amount"]) < 0)
@@ -2591,6 +2626,37 @@ def _do_plaid_sync() -> dict:
         )
         conn.commit()
         saved = cur.fetchone()
+
+        # Upsert individual transactions
+        import json as _json
+        for t in transactions:
+            amt = float(t["amount"])
+            cats = t.get("category") or []
+            cat_str = " > ".join(cats) if cats else None
+            cur.execute(
+                """INSERT INTO fpa_plaid_transactions
+                     (transaction_id, txn_date, name, amount, is_expense, category,
+                      account_id, account_name, pending, raw_json)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (transaction_id) DO UPDATE SET
+                     txn_date=EXCLUDED.txn_date, name=EXCLUDED.name,
+                     amount=EXCLUDED.amount, is_expense=EXCLUDED.is_expense,
+                     category=EXCLUDED.category, pending=EXCLUDED.pending,
+                     raw_json=EXCLUDED.raw_json, synced_at=NOW()""",
+                (
+                    t.get("transaction_id"),
+                    t["date"],
+                    t.get("name"),
+                    amt,
+                    amt > 0,
+                    cat_str,
+                    t.get("account_id"),
+                    account_names.get(t.get("account_id", ""), ""),
+                    t.get("pending", False),
+                    _json.dumps(t),
+                ),
+            )
+        conn.commit()
         cur.close()
 
         return {
@@ -2605,27 +2671,46 @@ def _do_plaid_sync() -> dict:
         conn.close()
 
 
-def _compute_kpis(actuals: dict) -> dict:
-    capital_adj = float(actuals.get("capital_adjustment", 0) or 0)
-    net_burn = float(actuals["net_burn"]) + capital_adj  # add back one-time capital injections
-    cash = float(actuals["cash_balance"])
-    inflow = float(actuals["monthly_inflow"]) - capital_adj
+def _compute_kpis(actuals: dict, manual_monthly: float | None = None,
+                  pending_liabilities: list | None = None,
+                  excluded_burn_categories: list | None = None) -> dict:
+    capital_adj  = float(actuals.get("capital_adjustment",  0) or 0)
+    outflow_adj  = float(actuals.get("outflow_adjustment",  0) or 0)
+    operating_inflow = float(actuals["monthly_inflow"]) - capital_adj
 
-    runway_months = (cash / net_burn) if net_burn > 0 else None
+    if manual_monthly is not None:
+        operating_outflow = manual_monthly
+    else:
+        # Try reconciled burn from categorized Plaid transactions
+        reconciled = _get_reconciled_burn(excluded_burn_categories)
+        operating_outflow = reconciled if reconciled is not None \
+            else float(actuals["monthly_outflow"]) - outflow_adj
+    net_burn = operating_outflow - operating_inflow
+    cash = float(actuals["cash_balance"])
+
+    # Subtract one-time obligations from available cash before computing runway
+    total_pending = sum(float(p.get("amount", 0)) for p in (pending_liabilities or []))
+    effective_cash = cash - total_pending
+
+    effective_burn = net_burn if net_burn > 0 else operating_outflow
+    runway_months = (effective_cash / effective_burn) if effective_burn > 0 else None
     zero_date = None
     if runway_months is not None:
         zero_date = (datetime.now() + timedelta(days=runway_months * 30)).date().isoformat()
 
     return {
-        "burn_rate_monthly": round(net_burn, 2),
-        "burn_rate_daily": round(net_burn / 30, 2),
-        "burn_rate_hourly": round(net_burn / 720, 2),
-        "run_rate_monthly": round(inflow, 2),
-        "run_rate_daily": round(inflow / 30, 2),
-        "run_rate_hourly": round(inflow / 720, 2),
+        "burn_rate_monthly": round(operating_outflow, 2),
+        "burn_rate_daily": round(operating_outflow / 30, 2),
+        "burn_rate_hourly": round(operating_outflow / 720, 2),
+        "run_rate_monthly": round(operating_inflow, 2),
+        "run_rate_daily": round(operating_inflow / 30, 2),
+        "run_rate_hourly": round(operating_inflow / 720, 2),
+        "net_burn_monthly": round(net_burn, 2),
         "runway_months": round(runway_months, 1) if runway_months is not None else None,
         "zero_date": zero_date,
         "cash_balance": round(cash, 2),
+        "effective_cash": round(effective_cash, 2),
+        "pending_liabilities_total": round(total_pending, 2),
     }
 
 
@@ -2640,7 +2725,7 @@ def create_link_token(request: Request):
         f"{_plaid_base()}/link/token/create",
         json={
             **_plaid_creds(),
-            "client_name": "Collective ERP",
+            "client_name": "Open ERP",
             "country_codes": ["US"],
             "language": "en",
             "user": {"client_user_id": "admin"},
@@ -2784,6 +2869,70 @@ def update_account_exclusions(body: AccountExclusionUpdate, request: Request):
 
 # ── Actuals endpoints ────────────────────────────────────────────────────────
 
+def _get_reconciled_burn(excluded_categories: list[str] | None = None) -> float | None:
+    """
+    Compute operating burn from Plaid transactions using smart categorization,
+    excluding pass-through categories. Returns None if no transactions stored.
+    """
+    excluded = set(excluded_categories or [])
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        today = date.today()
+        start = today - timedelta(days=30)
+        cur.execute(
+            "SELECT name, amount, category, pending FROM fpa_plaid_transactions "
+            "WHERE txn_date >= %s AND txn_date <= %s AND amount > 0 AND pending = false",
+            (start.isoformat(), today.isoformat()),
+        )
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
+
+    if not rows:
+        return None
+
+    total = 0.0
+    for r in rows:
+        cat = _plaid_smart_category(r["name"] or "", r["category"])
+        if cat not in excluded:
+            total += float(r["amount"])
+    return round(total, 2)
+
+
+def _get_pending_liabilities(model: dict | None) -> list:
+    return (model or {}).get("pending_liabilities") or []
+
+
+def _get_manual_monthly(model: dict | None) -> float | None:
+    """Return sum of manual burn entries if model is in manual mode, else None."""
+    if not model or model.get("burn_mode", "auto") != "manual":
+        return None
+    entries = model.get("manual_burn_entries") or []
+    total = 0.0
+    for e in entries:
+        if e.get("type") == "employees":
+            for emp in (e.get("employees") or []):
+                salary = float(emp.get("annual_salary", 0) or 0)
+                benefits = float(emp.get("benefits_pct", 0.25) or 0.25)
+                total += salary / 12 * (1 + benefits)
+        else:
+            total += float(e.get("monthly_amount", 0) or 0)
+    return total
+
+
+def _actuals_floats(actuals: dict) -> dict:
+    for f in ("cash_balance", "monthly_inflow", "monthly_outflow", "net_burn",
+              "capital_adjustment", "outflow_adjustment"):
+        if f in actuals and actuals[f] is not None:
+            actuals[f] = float(actuals[f])
+    if "pulled_at" in actuals and actuals["pulled_at"]:
+        actuals["pulled_at"] = actuals["pulled_at"].isoformat() \
+            if hasattr(actuals["pulled_at"], "isoformat") else actuals["pulled_at"]
+    return actuals
+
+
 @router.get("/actuals")
 def get_actuals(request: Request):
     """Return latest actuals and computed KPIs. Admin only."""
@@ -2794,28 +2943,39 @@ def get_actuals(request: Request):
         cur = conn.cursor()
         cur.execute("SELECT * FROM fpa_actuals ORDER BY pulled_at DESC LIMIT 1")
         row = cur.fetchone()
+        model = _fetch_active_model(cur)
         cur.close()
     finally:
         conn.close()
 
     if not row:
-        return {"actuals": None, "kpis": None}
+        return {"actuals": None, "kpis": None,
+                "burn_mode": (model or {}).get("burn_mode", "auto"),
+                "manual_burn_entries": (model or {}).get("manual_burn_entries") or []}
 
-    actuals = dict(row)
-    actuals["pulled_at"] = actuals["pulled_at"].isoformat() if actuals["pulled_at"] else None
-    for f in ("cash_balance", "monthly_inflow", "monthly_outflow", "net_burn", "capital_adjustment"):
-        if f in actuals and actuals[f] is not None:
-            actuals[f] = float(actuals[f])
-
-    return {"actuals": actuals, "kpis": _compute_kpis(actuals)}
+    actuals = _actuals_floats(dict(row))
+    manual_monthly = _get_manual_monthly(model)
+    return {
+        "actuals": actuals,
+        "kpis": _compute_kpis(actuals, manual_monthly, _get_pending_liabilities(model), (model or {}).get("excluded_burn_categories")),
+        "burn_mode": (model or {}).get("burn_mode", "auto"),
+        "manual_burn_entries": (model or {}).get("manual_burn_entries") or [],
+    }
 
 
 @router.post("/actuals/sync")
 def sync_actuals(request: Request):
     """Trigger an immediate Plaid sync. Admin only."""
     require_admin(request)
+    conn2 = get_conn()
+    try:
+        cur2 = conn2.cursor()
+        model = _fetch_active_model(cur2)
+        cur2.close()
+    finally:
+        conn2.close()
     result = _do_plaid_sync()
-    return {"actuals": result, "kpis": _compute_kpis(result)}
+    return {"actuals": result, "kpis": _compute_kpis(result, _get_manual_monthly(model), _get_pending_liabilities(model), (model or {}).get("excluded_burn_categories"))}
 
 
 class CapitalAdjustmentBody(BaseModel):
@@ -2845,13 +3005,244 @@ def set_capital_adjustment(body: CapitalAdjustmentBody, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="No actuals row found")
 
-    actuals = dict(row)
-    actuals["pulled_at"] = actuals["pulled_at"].isoformat() if actuals["pulled_at"] else None
-    for f in ("cash_balance", "monthly_inflow", "monthly_outflow", "net_burn", "capital_adjustment"):
-        if f in actuals and actuals[f] is not None:
-            actuals[f] = float(actuals[f])
+    conn2 = get_conn()
+    try:
+        cur2 = conn2.cursor()
+        model = _fetch_active_model(cur2)
+        cur2.close()
+    finally:
+        conn2.close()
+    actuals = _actuals_floats(dict(row))
+    return {"actuals": actuals, "kpis": _compute_kpis(actuals, _get_manual_monthly(model), _get_pending_liabilities(model), (model or {}).get("excluded_burn_categories"))}
 
-    return {"actuals": actuals, "kpis": _compute_kpis(actuals)}
+
+@router.patch("/actuals/outflow-adjustment")
+def set_outflow_adjustment(body: CapitalAdjustmentBody, request: Request):
+    """Set a pass-through outflow adjustment to exclude from burn rate. Admin only."""
+    require_admin(request)
+
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE fpa_actuals SET outflow_adjustment = %s
+               WHERE id = (SELECT id FROM fpa_actuals ORDER BY pulled_at DESC LIMIT 1)
+               RETURNING *""",
+            (body.amount,),
+        )
+        conn.commit()
+        row = cur.fetchone()
+        model = _fetch_active_model(cur)
+        cur.close()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No actuals row found")
+
+    actuals = _actuals_floats(dict(row))
+    return {"actuals": actuals, "kpis": _compute_kpis(actuals, _get_manual_monthly(model), _get_pending_liabilities(model), (model or {}).get("excluded_burn_categories"))}
+
+
+# ── Plaid transaction endpoints ──────────────────────────────────────────────
+
+@router.get("/plaid/transactions")
+def get_plaid_transactions(
+    request: Request,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    search: str | None = None,
+):
+    """Return stored Plaid transactions. Admin only."""
+    require_admin(request)
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        conditions, params = [], []
+        if start_date:
+            conditions.append("txn_date >= %s"); params.append(start_date)
+        if end_date:
+            conditions.append("txn_date <= %s"); params.append(end_date)
+        if search:
+            conditions.append("(name ILIKE %s OR category ILIKE %s)")
+            params += [f"%{search}%", f"%{search}%"]
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        cur.execute(
+            f"""SELECT transaction_id, txn_date, name, amount, is_expense,
+                       category, account_name, pending
+                FROM fpa_plaid_transactions {where}
+                ORDER BY txn_date DESC, id DESC""",
+            params,
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
+    for r in rows:
+        r["txn_date"] = r["txn_date"].isoformat()
+        r["amount"] = float(r["amount"])
+    return {"transactions": rows}
+
+
+def _plaid_smart_category(name: str, raw_category: str | None) -> str:
+    """Map a Plaid transaction name/category to a human-readable group."""
+    n = (name or "").lower()
+    if any(x in n for x in ("wire transfer debit", "luohe", "machinery", "mechanical equipment")):
+        return "Equipment"
+    if "payrolltax" in n.replace(" ", "") or "payroll tax" in n:
+        return "Payroll Tax"
+    if "payroll" in n:
+        return "Payroll"
+    if any(x in n for x in ("all seasons prop", "rent", "lease")):
+        return "Rent"
+    if any(x in n for x in ("chase credit crd", "credit card", "autopay")):
+        return "Credit Card"
+    if any(x in n for x in ("salusion", "health", "dental", "benefit", "insurance")):
+        return "Benefits"
+    if any(x in n for x in ("amazon", "staples", "office depot")):
+        return "Supplies"
+    if any(x in n for x in ("quickbooks", "qbooks", "google cloud", "claude.ai", "anthropic",
+                             "unitel", "intuit", "microsoft", "adobe", "slack", "zoom")):
+        return "Software & Subscriptions"
+    if any(x in n for x in ("lyft", "uber", "taxi", "parking", "doordash", "grubhub")):
+        return "Travel & Meals"
+    if any(x in n for x in ("wire transfer fee",)):
+        return "Bank Fees"
+    if any(x in n for x in ("venmo", "zelle", "cashapp")):
+        return "Transfers"
+    if raw_category:
+        return raw_category.split(" > ")[0]
+    return "Other"
+
+
+@router.get("/plaid/transactions/summary")
+def get_plaid_transactions_summary(
+    request: Request,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
+    """Return Plaid transactions grouped by smart category. Admin only."""
+    require_admin(request)
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        conditions, params = ["amount != 0"], []
+        if start_date:
+            conditions.append("txn_date >= %s"); params.append(start_date)
+        if end_date:
+            conditions.append("txn_date <= %s"); params.append(end_date)
+        where = "WHERE " + " AND ".join(conditions)
+        cur.execute(
+            f"SELECT name, amount, is_expense, category, pending FROM fpa_plaid_transactions {where}",
+            params,
+        )
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
+
+    from collections import defaultdict
+    groups: dict[str, dict] = defaultdict(lambda: {"label": "", "total": 0.0, "count": 0, "is_expense": True})
+    for r in rows:
+        if r["pending"]:
+            continue
+        label = _plaid_smart_category(r["name"] or "", r["category"])
+        amt = float(r["amount"])
+        groups[label]["label"] = label
+        groups[label]["total"] += abs(amt)
+        groups[label]["count"] += 1
+        groups[label]["is_expense"] = amt > 0
+
+    result = sorted(
+        [{"label": k, "total": round(v["total"], 2), "count": v["count"], "is_expense": v["is_expense"]}
+         for k, v in groups.items()],
+        key=lambda x: -x["total"],
+    )
+    return result
+
+
+@router.get("/transactions/reconcile")
+def reconcile_transactions(
+    request: Request,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
+    """
+    Compare Plaid bank transactions with QBO accounting entries.
+    Returns matched pairs plus unmatched items from each source.
+    Admin only.
+    """
+    require_admin(request)
+    import json as _json
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        conditions, params = [], []
+        if start_date:
+            conditions.append("txn_date >= %s"); params.append(start_date)
+        if end_date:
+            conditions.append("txn_date <= %s"); params.append(end_date)
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        cur.execute(
+            f"""SELECT transaction_id, txn_date, name, amount, is_expense, category, account_name
+                FROM fpa_plaid_transactions {where} ORDER BY txn_date DESC""",
+            params,
+        )
+        plaid_rows = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            f"""SELECT txn_date, txn_type, name, amount, is_expense, category, account
+                FROM fpa_qbo_transactions {where} ORDER BY txn_date DESC""",
+            params,
+        )
+        qbo_rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
+
+    # Normalise dates and amounts
+    for r in plaid_rows:
+        r["txn_date"] = r["txn_date"].isoformat()
+        r["amount"] = float(r["amount"])
+    for r in qbo_rows:
+        r["txn_date"] = r["txn_date"].isoformat()
+        r["amount"] = float(r["amount"])
+
+    # Match by amount (abs) within 3-day window
+    matched, used_qbo = [], set()
+    for p in plaid_rows:
+        best = None
+        for qi, q in enumerate(qbo_rows):
+            if qi in used_qbo:
+                continue
+            if abs(abs(p["amount"]) - abs(q["amount"])) > 0.02:
+                continue
+            p_date = date.fromisoformat(p["txn_date"])
+            q_date = date.fromisoformat(q["txn_date"])
+            if abs((p_date - q_date).days) <= 3:
+                best = qi
+                break
+        if best is not None:
+            used_qbo.add(best)
+            matched.append({"plaid": p, "qbo": qbo_rows[best], "delta_days": abs(
+                (date.fromisoformat(p["txn_date"]) - date.fromisoformat(qbo_rows[best]["txn_date"])).days)})
+        else:
+            matched.append({"plaid": p, "qbo": None, "delta_days": None})
+
+    unmatched_qbo = [q for qi, q in enumerate(qbo_rows) if qi not in used_qbo]
+
+    return {
+        "matched": matched,
+        "unmatched_qbo": unmatched_qbo,
+        "summary": {
+            "plaid_total": len(plaid_rows),
+            "qbo_total": len(qbo_rows),
+            "matched_count": sum(1 for m in matched if m["qbo"]),
+            "plaid_only_count": sum(1 for m in matched if not m["qbo"]),
+            "qbo_only_count": len(unmatched_qbo),
+        },
+    }
 
 
 # ── QBO helpers ──────────────────────────────────────────────────────────────
@@ -2868,7 +3259,7 @@ QBO_TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 
 
 def _qbo_redirect_uri() -> str:
-    base = os.environ.get("NEXTAUTH_URL", "https://platform.collectiveerp.io").rstrip("/")
+    base = os.environ.get("NEXTAUTH_URL", "https://erp.example.com").rstrip("/")
     return f"{base}/api/fpa/qbo/callback"
 
 
@@ -3150,7 +3541,7 @@ def qbo_callback(code: str, realmId: str, state: str | None = None):
     finally:
         conn.close()
 
-    base = os.environ.get("NEXTAUTH_URL", "https://platform.collectiveerp.io").rstrip("/")
+    base = os.environ.get("NEXTAUTH_URL", "https://erp.example.com").rstrip("/")
     return RedirectResponse(url=f"{base}/settings?qbo=connected")
 
 
