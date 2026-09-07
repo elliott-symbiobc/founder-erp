@@ -8,7 +8,7 @@ is what this middleware does — but only under tight conditions:
   * the real caller must be an admin (their headers were already verified by
     enforce_internal_identity, which runs immediately before this),
   * the target must be an active account with role 'partner', so this can never
-    be used to step into another admin or a scientist,
+    be used to step into another admin or a regular user,
   * the request must be a read. Any write is refused, so a preview can never
     change data while wearing someone else's name.
 

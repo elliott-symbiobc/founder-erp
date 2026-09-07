@@ -62,7 +62,7 @@ interface PermissionDef {
   label: string;
   description: string;
   group: string;
-  roleDefaults: { admin: boolean; scientist: boolean; viewer: boolean; partner: boolean };
+  roleDefaults: { admin: boolean; user: boolean; viewer: boolean; partner: boolean };
 }
 
 // Partners default to nothing: a partner account's access comes from its
@@ -70,40 +70,24 @@ interface PermissionDef {
 // partner account can always reach the Learning Center.
 const PERMISSIONS: PermissionDef[] = [
   // ── Core ──
-  { key: "analyses",      label: "Analyses & TEA",         description: "View and create BioSTEAM techno-economic analyses",    group: "Core",    roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "contacts",      label: "Contacts & CRM",         description: "Contacts, advisors, clients, relationship graph",      group: "Core",    roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
-  { key: "projects",      label: "Projects",               description: "Project board and task management",                    group: "Core",    roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  // ── Lab ──
-  { key: "literature",    label: "Literature library",     description: "Browse approved papers and literature",                group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "queue_upload",  label: "Upload to queue",        description: "Add papers to the literature review queue",           group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
-  { key: "queue_approve", label: "Approve queue items",    description: "Review, edit, and approve extracted fermentation data", group: "Lab",    roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
-  { key: "log_runs",      label: "Log fermentation runs",  description: "Record new fermentation experiment runs",             group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
-  { key: "strains",       label: "Strains & annotation",   description: "View strains, trigger genome annotation and editing",  group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "enzymes",       label: "Enzyme database",        description: "View and manage the enzyme library",                  group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "protocols",     label: "Protocol bank",          description: "View and create standard operating procedures",       group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "notebook",      label: "Lab notebook",           description: "View and write ELN entries",                         group: "Lab",     roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
-  // ── Science ──
-  { key: "model",         label: "ML model",               description: "View model metrics, predictions, and SHAP values",   group: "Science", roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  { key: "model_retrain", label: "Retrain model / AI jobs","description": "Trigger ML retraining, compound scans, annotation jobs", group: "Science", roleDefaults: { admin: true, scientist: true, viewer: false, partner: false } },
-  { key: "compounds",     label: "Compound discovery",     description: "View compound opportunities and biosynthetic pathways", group: "Science", roleDefaults: { admin: true, scientist: true, viewer: true,  partner: false } },
-  { key: "explore",       label: "AI exploration",         description: "AI-powered substrate and strain exploration",         group: "Science", roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
-  // ── Design ──
-  { key: "system_design", label: "System Design",     description: "Flowsheets, systems, unit operations, vendor quotes",  group: "Science", roleDefaults: { admin: true,  scientist: true,  viewer: true,  partner: false } },
+  { key: "contacts",      label: "Contacts & CRM",         description: "Contacts, advisors, clients, relationship graph",      group: "Core",    roleDefaults: { admin: true,  user: true,  viewer: false, partner: false } },
+  { key: "projects",      label: "Projects",               description: "Project board and task management",                    group: "Core",    roleDefaults: { admin: true,  user: true,  viewer: true,  partner: false } },
   // ── Finance ──
-  { key: "view_fpa",      label: "View FP&A",              description: "Access financial dashboard, actuals, and cash tracking", group: "Finance", roleDefaults: { admin: true, scientist: false, viewer: false, partner: false } },
-  { key: "edit_fpa",      label: "Edit FP&A",              description: "Upload Excel model, connect Plaid and QuickBooks",   group: "Finance", roleDefaults: { admin: true,  scientist: false, viewer: false, partner: false } },
-  { key: "invoices",      label: "Receivables",            description: "Create, view and manage invoices",                   group: "Finance", roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
+  { key: "view_fpa",      label: "View FP&A",              description: "Access financial dashboard, actuals, and cash tracking", group: "Finance", roleDefaults: { admin: true, user: false, viewer: false, partner: false } },
+  { key: "edit_fpa",      label: "Edit FP&A",              description: "Upload Excel model, connect Plaid and QuickBooks",   group: "Finance", roleDefaults: { admin: true,  user: false, viewer: false, partner: false } },
+  { key: "invoices",      label: "Receivables",            description: "Create, view and manage invoices",                   group: "Finance", roleDefaults: { admin: true,  user: true,  viewer: false, partner: false } },
   // ── Workspace ──
-  { key: "notes",         label: "Meeting notes",          description: "Meeting notes with recording and AI analysis",       group: "Workspace", roleDefaults: { admin: true, scientist: true, viewer: false, partner: false } },
-  { key: "learn",         label: "Learning Center",        description: "Access learning tracks, modules and progress",       group: "Workspace", roleDefaults: { admin: true, scientist: true, viewer: true,  partner: true  } },
+  { key: "notes",         label: "Meeting notes",          description: "Meeting notes with recording and AI analysis",       group: "Workspace", roleDefaults: { admin: true, user: true, viewer: false, partner: false } },
+  { key: "learn",         label: "Learning Center",        description: "Access learning tracks, modules and progress",       group: "Workspace", roleDefaults: { admin: true, user: true, viewer: true,  partner: true  } },
   // ── Admin ──
-  { key: "manage_users",  label: "Manage users",           description: "Access admin panel, create/edit/delete users",       group: "Admin",   roleDefaults: { admin: true,  scientist: false, viewer: false, partner: false } },
-  { key: "manage_partners", label: "Manage cohorts",       description: "Create cohorts, invite partners, author course content", group: "Admin", roleDefaults: { admin: true, scientist: false, viewer: false, partner: false } },
-  { key: "view_activity", label: "View activity log",      description: "See the activity log for other users",               group: "Admin",   roleDefaults: { admin: true,  scientist: false, viewer: false, partner: false } },
-  { key: "dev_mode",      label: "Developer mode",         description: "Enable dev panel and experimental debug features",   group: "Admin",   roleDefaults: { admin: true,  scientist: true,  viewer: false, partner: false } },
+  { key: "manage_users",  label: "Manage users",           description: "Access admin panel, create/edit/delete users",       group: "Admin",   roleDefaults: { admin: true,  user: false, viewer: false, partner: false } },
+  { key: "manage_partners", label: "Manage cohorts",       description: "Create cohorts, invite partners, author course content", group: "Admin", roleDefaults: { admin: true, user: false, viewer: false, partner: false } },
+  { key: "view_activity", label: "View activity log",      description: "See the activity log for other users",               group: "Admin",   roleDefaults: { admin: true,  user: false, viewer: false, partner: false } },
+  { key: "dev_mode",      label: "Developer mode",         description: "Enable dev panel and experimental debug features",   group: "Admin",   roleDefaults: { admin: true,  user: true,  viewer: false, partner: false } },
 ];
 
-const GROUPS = ["Core", "Lab", "Science", "Finance", "Workspace", "Admin"];
+
+const GROUPS = ["Core", "Finance", "Workspace", "Admin"];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

@@ -22,7 +22,7 @@ export default function EulaPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">1. Agreement to Terms</h2>
-            <p>This End User License Agreement (&ldquo;Agreement&rdquo;) is a legal agreement between you (&ldquo;User&rdquo;) and Open ERP Bioculinary LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) governing your access to and use of the Open ERP Computational Biology Platform (the &ldquo;Platform&rdquo;). By accessing or using the Platform, you agree to be bound by this Agreement. If you do not agree, do not access or use the Platform.</p>
+            <p>This End User License Agreement (&ldquo;Agreement&rdquo;) is a legal agreement between you (&ldquo;User&rdquo;) and Your Company LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) governing your access to and use of the Open ERP platform (the &ldquo;Platform&rdquo;). By accessing or using the Platform, you agree to be bound by this Agreement. If you do not agree, do not access or use the Platform.</p>
           </section>
 
           <section>
@@ -49,7 +49,7 @@ export default function EulaPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">5. Intellectual Property</h2>
-            <p>The Platform and all content, features, and functionality therein — including but not limited to software, algorithms, models, text, graphics, and data — are and remain the exclusive property of Open ERP Bioculinary LLC and its licensors. Nothing in this Agreement transfers any intellectual property rights to you.</p>
+            <p>The Platform and all content, features, and functionality therein — including but not limited to software, algorithms, models, text, graphics, and data — are and remain the exclusive property of Your Company LLC and its licensors. Nothing in this Agreement transfers any intellectual property rights to you.</p>
             <p className="mt-2">Data you upload or generate through your use of the Platform remains your property. You grant Open ERP a limited license to use such data solely for the purpose of providing and improving the Platform.</p>
           </section>
 
@@ -90,7 +90,7 @@ export default function EulaPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} Open ERP Bioculinary LLC. All rights reserved. &nbsp;·&nbsp;
+          &copy; {new Date().getFullYear()} Your Company LLC. All rights reserved. &nbsp;·&nbsp;
           <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
         </p>
       </div>

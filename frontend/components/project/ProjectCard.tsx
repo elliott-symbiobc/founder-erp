@@ -31,7 +31,6 @@ export interface Project {
   tasks_done: number;
   last_email_at: string | null;
   email_count: number;
-  substrate: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -171,15 +170,6 @@ export function ProjectCard({ p, compact = false, onDelete, onUpdate, showType =
             </span>
           )}
         </div>
-
-        {/* Substrate — hidden for marketing, operations, and grants */}
-        {!["marketing", "internal", "grant"].includes(p.project_type) && (
-          p.substrate ? (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mb-2">{p.substrate}</p>
-          ) : (
-            <p className="text-xs text-zinc-300 dark:text-zinc-600 truncate mb-2 italic">No substrate</p>
-          )
-        )}
 
         {/* Status + revenue + owner */}
         <div className="flex items-center gap-1.5 mb-2" onClick={e => e.stopPropagation()}>

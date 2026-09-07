@@ -731,7 +731,7 @@ export default function PortalPage() {
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-4 px-6 shrink-0">
         <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center">
-          Shared via Open ERP Bioculinary Platform
+          Shared via Open ERP Platform
         </p>
       </footer>
 
@@ -1056,7 +1056,7 @@ function LogoMark() {
   return (
     <img
       src="/api/logo"
-      alt="Open ERP Bioculinary"
+      alt="Open ERP"
       style={{ height: 24, width: "auto" }}
       onError={(e) => {
         const i = e.currentTarget;
@@ -1159,7 +1159,7 @@ function PasswordGate({
             </form>
           </div>
           <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center mt-5">
-            Shared via Open ERP Bioculinary Platform
+            Shared via Open ERP Platform
           </p>
         </div>
       </div>

@@ -332,7 +332,6 @@ function TableView({ projects, onDelete, onStatusChange }: { projects: Project[]
                     <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[p.status] ?? "bg-gray-300"}`} />
                     <div className="min-w-0">
                       <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate max-w-[200px]">{p.contact_org ?? p.contact_name ?? p.name}</p>
-                      {p.substrate && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[200px]">{p.substrate}</p>}
                     </div>
                   </Link>
                 </td>

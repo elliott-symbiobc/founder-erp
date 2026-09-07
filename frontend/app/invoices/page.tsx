@@ -1519,7 +1519,7 @@ function FormattingTab() {
             </div>
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tagline</label>
-              <input value={settings.companyTagline} onChange={(e) => set("companyTagline", e.target.value)} placeholder="e.g. Bioculinary Technology" className={fieldCls} />
+              <input value={settings.companyTagline} onChange={(e) => set("companyTagline", e.target.value)} placeholder="e.g. Operations Technology" className={fieldCls} />
             </div>
           </div>
           <div>

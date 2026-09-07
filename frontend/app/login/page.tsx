@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex justify-center">
-          <img src="/api/logo" alt="Open ERP Bioculinary" className="h-14 w-auto"
+          <img src="/api/logo" alt="Open ERP" className="h-14 w-auto"
             onError={(e) => { const i = e.currentTarget; if (!i.src.includes("logo.svg")) i.src = "/logo.svg"; }} />
         </div>
 

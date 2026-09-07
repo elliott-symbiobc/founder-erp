@@ -45,7 +45,7 @@ UPDATABLE = {
     "name", "description", "project_type", "stage", "status",
     "contact_id", "probability", "expected_revenue",
     "date_start", "date_deadline", "tags", "notes", "section", "crm_type",
-    "assigned_to", "substrate", "revenue_to_date",
+    "assigned_to", "revenue_to_date",
     "lead_source", "esg_url", "company_description",
 }
 
@@ -108,7 +108,6 @@ def list_projects(
                     p.probability, p.expected_revenue,
                     p.date_start, p.date_deadline,
                     p.tags, p.notes, p.section, p.crm_type,
-                    p.substrate,
                     p.odoo_crm_id, p.odoo_project_id,
                     p.created_at, p.updated_at,
                     p.contact_id,
@@ -590,7 +589,7 @@ def generate_company_info(project_id: str, request: Request):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT p.name, p.substrate, p.notes, c.organization as contact_org, c.name as contact_name "
+                "SELECT p.name, p.notes, c.organization as contact_org, c.name as contact_name "
                 "FROM projects p "
                 "LEFT JOIN contacts c ON c.contact_id = p.contact_id "
                 "WHERE p.project_id = %s", (project_id,)

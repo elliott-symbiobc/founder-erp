@@ -42,8 +42,8 @@ class ExecutionTracer:
 
         with ExecutionTracer(
             pipeline="tea",
-            entity_id=substrate_id,
-            entity_type="substrate",
+            entity_id=record_id,
+            entity_type="record",
             fn=run_tea_for_route,
             inputs={"route_code": route_code},
         ) as tracer:

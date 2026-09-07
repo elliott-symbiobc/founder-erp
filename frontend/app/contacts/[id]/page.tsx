@@ -188,15 +188,6 @@ interface Reminder {
   auto_generated: boolean;
 }
 
-interface SubstrateLink {
-  link_id: string;
-  substrate_id: string;
-  substrate_name: string;
-  role: string;
-  substrate_purpose: string;
-  partner_name: string | null;
-}
-
 interface Relationship {
   rel_id: string;
   other_contact_id: string;
@@ -242,7 +233,6 @@ interface Contact {
   company_name: string | null;
   interactions: Interaction[];
   reminders: Reminder[];
-  substrate_links: SubstrateLink[];
   relationships: Relationship[];
   linked_projects: LinkedProject[];
 }
@@ -1485,20 +1475,6 @@ export default function ContactDetailPage() {
             </div>
           )}
 
-          {/* Substrate links */}
-          {contact.substrate_links.length > 0 && (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 space-y-1.5">
-              <p className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Waste Stream Links</p>
-              {contact.substrate_links.map((sl) => (
-                <Link key={sl.link_id} href={`/analyses/${sl.substrate_id}`}
-                  className="flex items-center justify-between gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg p-1 -mx-1 transition-colors">
-                  <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">{sl.substrate_name}</span>
-                  <span className="text-xs text-zinc-400 shrink-0">{sl.role}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-
           {/* Enrichment data */}
           {Object.keys(enrichmentData).length > 0 && (
             <div className="space-y-3">
@@ -1509,8 +1485,8 @@ export default function ContactDetailPage() {
                   {(enrichmentData as any).industry_focus && (
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">Industry: {(enrichmentData as any).industry_focus}</p>
                   )}
-                  {(enrichmentData as any).relevance_to_biotech && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 italic leading-relaxed">{(enrichmentData as any).relevance_to_biotech}</p>
+                  {(enrichmentData as any).relevance_to_business && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 italic leading-relaxed">{(enrichmentData as any).relevance_to_business}</p>
                   )}
                   {(enrichmentData as any).verified_facts?.person_location && (
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">{(enrichmentData as any).verified_facts.person_location}</p>

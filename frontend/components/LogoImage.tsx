@@ -13,7 +13,7 @@ export function bumpLogoCacheBust() {
   cacheBust = Date.now();
 }
 
-export default function LogoImage({ className, style, alt = "Open ERP Bioculinary" }: LogoImageProps) {
+export default function LogoImage({ className, style, alt = "Open ERP" }: LogoImageProps) {
   const [key, setKey] = useState(0);
 
   useEffect(() => {

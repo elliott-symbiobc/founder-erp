@@ -497,7 +497,7 @@ def _build_lead_prompt(lead: dict, icp: dict) -> str:
             missing.append("email addresses for known contacts")
 
     parts = [
-        f"Enrich this bakery company lead for Open ERP, a biotech startup selling fermentation-derived specialty ingredients (enzymatic dough improvers, natural colorants/flavors, upcycled grain ingredients).",
+        f"Enrich this company lead.",
         f"",
         f"**Company:** {lead['company']}",
         f"**Priority:** {lead.get('priority') or 'unset'}",

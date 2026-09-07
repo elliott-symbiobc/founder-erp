@@ -636,7 +636,7 @@ export default function InvestorRoomPage() {
 
       <footer className="border-t border-gray-200 mt-auto">
         <div className="w-full px-6 lg:px-8 py-6 flex items-center justify-between gap-4 text-xs text-gray-400">
-          <span>Open ERP Bioculinary · Confidential, not for distribution</span>
+          <span>Open ERP · Confidential, not for distribution</span>
           <span className="shrink-0">{new Date().getFullYear()}</span>
         </div>
       </footer>

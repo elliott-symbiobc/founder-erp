@@ -21,7 +21,7 @@ export default function AgentManagerPage() {
       <P>Click the <strong>Inspect</strong> (eye) button on any agent card to reveal three sub-tabs:</P>
       <Ul>
         <Li><strong>System Prompt</strong> — The base prompt the agent uses. If you have set a custom override, it appears highlighted in amber above the default prompt.</Li>
-        <Li><strong>Context (N)</strong> — The data sources the agent reads at runtime (e.g., &quot;Today&apos;s tasks&quot;, &quot;ELN entries&quot;, &quot;Calendar events&quot;, &quot;pgvector RAG results&quot;).</Li>
+        <Li><strong>Context (N)</strong> — The data sources the agent reads at runtime (e.g., &quot;Today&apos;s tasks&quot;, &quot;Calendar events&quot;, &quot;pgvector RAG results&quot;).</Li>
         <Li><strong>Tools (N)</strong> — External APIs or tools the agent calls (e.g., USDA search, eCFR regulatory search). Most agents have no external tools.</Li>
       </Ul>
 
@@ -42,39 +42,26 @@ export default function AgentManagerPage() {
         for most agents).
       </Warning>
 
-      <H2>The 16 Registered Agents</H2>
+      <H2>The Registered Agents</H2>
 
-      <H3>Operations</H3>
+      <H3>Planning</H3>
       <Ul>
-        <Li><strong>planner_chat</strong> — Dashboard AI assistant. Omnipresent context + RAG. The primary user-facing agent.</Li>
-        <Li><strong>daily_plan</strong> — Generates the daily time-blocked plan from tasks and calendar events.</Li>
-        <Li><strong>weekly_plan</strong> — Generates the Monday weekly priorities and theme.</Li>
-        <Li><strong>note_analyzer</strong> — Extracts summary, action items, and decisions from meeting note transcripts.</Li>
-        <Li><strong>entry_analyzer</strong> — Extracts structured data from ELN entry transcripts.</Li>
+        <Li><strong>planner_generate</strong> — Generates prioritised daily work blocks from tasks, calendar and context.</Li>
+        <Li><strong>planner_weekly</strong> — Generates the high-level weekly plan from tasks and objectives.</Li>
+        <Li><strong>planner_chat</strong> — The dashboard assistant. Omnipresent context plus RAG; the primary user-facing agent.</Li>
+        <Li><strong>tasks_extract</strong> — Extracts structured tasks from free text or a brain dump.</Li>
       </Ul>
 
-      <H3>Contacts &amp; CRM</H3>
+      <H3>Notes &amp; Contacts</H3>
       <Ul>
-        <Li><strong>contact_enricher</strong> — Searches Semantic Scholar and enriches contact profiles with publications and expertise.</Li>
-        <Li><strong>contact_summarizer</strong> — Generates AI relationship summaries from interaction history.</Li>
-        <Li><strong>relationship_infer</strong> — Infers contact-to-contact relationships from email co-occurrence.</Li>
+        <Li><strong>note_analysis</strong> — Extracts action items, decisions and follow-ups from meeting transcripts.</Li>
+        <Li><strong>contact_summary</strong> — Generates relationship summaries from email and calendar activity.</Li>
       </Ul>
 
-      <H3>R&amp;D &amp; Science</H3>
+      <H3>Funding</H3>
       <Ul>
-        <Li><strong>literature_agent</strong> — Weekly PubMed/Scholar sweep; extracts and stages papers for review.</Li>
-        <Li><strong>extraction_agent</strong> — Structured data extraction (strain, titer, conditions) from PDF paper text.</Li>
-        <Li><strong>paper_summarizer</strong> — Generates plain-language paper summaries.</Li>
-        <Li><strong>compound_discovery</strong> — Four-mode compound opportunity identification (enzymatic, substrate, pairing, enzyme-supplemented).</Li>
-        <Li><strong>edit_prioritizer</strong> — SHAP-driven CRISPR edit candidate ranking + sgRNA design.</Li>
-        <Li><strong>sop_generator</strong> — Claude-generated SOPs for approved genome edits.</Li>
-      </Ul>
-
-      <H3>Commercial</H3>
-      <Ul>
-        <Li><strong>tea_agent</strong> — BioSTEAM TEA + DCF analysis for compound routes.</Li>
-        <Li><strong>regulatory_agent</strong> — US and EU regulatory pathway analysis; regulatory-adjusted NPV.</Li>
-        <Li><strong>rnd_estimator</strong> — Phase durations, capital requirements, Monte Carlo simulation.</Li>
+        <Li><strong>funding_enrich</strong> — Fills missing fields on a funding opportunity, suggests tags and adds context.</Li>
+        <Li><strong>dilutive_enrich</strong> — Enriches investor records with firm and fund details, focus, stage, check sizes and links.</Li>
       </Ul>
 
       <H2>How Overrides Are Stored</H2>

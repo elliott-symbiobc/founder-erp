@@ -12,7 +12,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kfbq1T2N14rMg5iSbeZ1MBsxEImhWVwMGGajhNefRFx33FNecP5h33DgDXuiIk5
+\restrict zBcwnFfggaG7axIwepjUI0xKEzIPiBpdHvLdh6K47kklCJjz4WIVfso4VQEot5b
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
 -- Dumped by pg_dump version 16.13 (Debian 16.13-1.pgdg12+1)
@@ -3180,7 +3180,6 @@ CREATE TABLE public.projects (
     crm_type text DEFAULT 'lead'::text,
     ai_summary text,
     ai_summary_generated_at timestamp with time zone,
-    substrate text,
     revenue_to_date numeric,
     company_description text,
     esg_url text,
@@ -8426,5 +8425,5 @@ ALTER TABLE ONLY public.weekly_plans
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kfbq1T2N14rMg5iSbeZ1MBsxEImhWVwMGGajhNefRFx33FNecP5h33DgDXuiIk5
+\unrestrict zBcwnFfggaG7axIwepjUI0xKEzIPiBpdHvLdh6K47kklCJjz4WIVfso4VQEot5b
 

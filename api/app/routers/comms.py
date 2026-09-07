@@ -911,7 +911,7 @@ def render_signature(raw: str) -> dict:
     logo_html = ""
     if os.path.exists(LOGO_PATH):
         logo_html = (f'<div style="margin-top:10px">'
-                     f'<img src="cid:{LOGO_CID}" width="{LOGO_WIDTH}" alt="Open ERP Bioculinary" '
+                     f'<img src="cid:{LOGO_CID}" width="{LOGO_WIDTH}" alt="Open ERP" '
                      f'style="display:block;border:0"></div>')
 
     html = ('<div style="margin-top:18px;padding-top:10px;border-top:1px solid #e5e5e5;'

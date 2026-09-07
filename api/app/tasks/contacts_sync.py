@@ -990,9 +990,7 @@ def enrich_contact(contact_id: str) -> dict:
         if facts:
             facts_text = "\n".join(f"  {k}: {v}" for k, v in facts.items())
             prompt = (
-                "You are enriching a CRM record for Open ERP Bioculinary, a biotech company "
-                "working on fungal fermentation and upcycling agricultural and industrial "
-                "waste streams into food ingredients.\n\n"
+                "You are enriching a CRM record.\n\n"
                 "VERIFIED FACTS about this contact, retrieved from Apollo and Brand.dev:\n"
                 f"  name: {name}\n"
                 f"  organization on file: {org or 'unknown'}\n"
@@ -1002,7 +1000,7 @@ def enrich_contact(contact_id: str) -> dict:
                 ' "key_expertise": ["3-5 areas"],\n'
                 ' "industry_focus": "primary sector",\n'
                 ' "company_focus": "1-2 sentences on what their employer does",\n'
-                ' "relevance_to_biotech": "why this contact matters to Open ERP specifically",\n'
+                ' "relevance_to_business": "why this contact matters to the company specifically",\n'
                 ' "partnership_potential": "1-2 concrete sentences on how Open ERP could work with them",\n'
                 ' "suggested_tags": ["up to 5 short tags"]}\n\n'
                 "RULES:\n"
@@ -1017,7 +1015,7 @@ def enrich_contact(contact_id: str) -> dict:
             if synth:
                 sources.append("claude")
                 for k in ("professional_background", "key_expertise", "industry_focus",
-                          "company_focus", "relevance_to_biotech", "partnership_potential",
+                          "company_focus", "relevance_to_business", "partnership_potential",
                           "suggested_tags"):
                     if synth.get(k) is not None:
                         enrichment[k] = synth[k]

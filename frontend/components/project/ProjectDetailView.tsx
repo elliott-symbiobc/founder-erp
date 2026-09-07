@@ -63,7 +63,7 @@ export interface Project {
   date_start: string | null; date_deadline: string | null; tags: string[]; notes: string | null;
   contact_id: string | null; contact_name: string | null; contact_org: string | null;
   contact_avatar: string | null; contact_email: string | null; assigned_to: string | null;
-  assigned_to_name: string | null; ai_summary: string | null; substrate: string | null;
+  assigned_to_name: string | null; ai_summary: string | null;
   linked_opportunity_id: string | null; linked_investor_id: string | null;
   tasks: Task[]; email_activity: EmailActivity[]; contact_reminders: ContactReminder[];
   project_contacts: ProjectContact[]; milestones: Array<{
@@ -234,20 +234,10 @@ function FinancialSection({ project, onUpdate }: { project: Project; onUpdate: (
 }
 
 function ProjectHeader({ project, onUpdate }: { project: Project; onUpdate: () => void }) {
-  const [editingSubstrate, setEditingSubstrate] = useState(false);
-  const [substrateDraft, setSubstrateDraft] = useState(project.substrate ?? "");
   const [editingName, setEditingName] = useState(false);
   const displayTitle = project.contact_org ?? project.contact_name ?? project.name;
   const [nameDraft, setNameDraft] = useState(displayTitle);
-  useEffect(() => { setSubstrateDraft(project.substrate ?? ""); }, [project.substrate]);
   useEffect(() => { setNameDraft(project.contact_org ?? project.contact_name ?? project.name); }, [project.contact_org, project.contact_name, project.name]);
-  async function saveSubstrate() {
-    await fetch(`/api/proxy/projects/${project.project_id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ substrate: substrateDraft.trim() || null }),
-    });
-    setEditingSubstrate(false); onUpdate();
-  }
   async function saveName() {
     const trimmed = nameDraft.trim();
     if (trimmed && trimmed !== displayTitle) {
@@ -271,7 +261,6 @@ function ProjectHeader({ project, onUpdate }: { project: Project; onUpdate: () =
     }
     setEditingName(false);
   }
-  const showSubstrate = !["marketing", "internal", "grant"].includes(project.project_type);
   return (
     <div className="space-y-0.5">
       {editingName ? (
@@ -286,18 +275,6 @@ function ProjectHeader({ project, onUpdate }: { project: Project; onUpdate: () =
           {displayTitle}
         </h1>
       )}
-      {showSubstrate && (editingSubstrate ? (
-        <input autoFocus value={substrateDraft} onChange={e => setSubstrateDraft(e.target.value)}
-          onBlur={saveSubstrate}
-          onKeyDown={e => { if (e.key === "Enter") saveSubstrate(); if (e.key === "Escape") { setSubstrateDraft(project.substrate ?? ""); setEditingSubstrate(false); } }}
-          placeholder="Substrate…"
-          className="text-sm bg-transparent border-b border-blue-400 focus:outline-none text-zinc-500 dark:text-zinc-400 w-full max-w-lg" />
-      ) : (
-        <button onClick={() => { setSubstrateDraft(project.substrate ?? ""); setEditingSubstrate(true); }}
-          className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left">
-          {project.substrate || <span className="text-zinc-300 dark:text-zinc-600 italic">+ Add substrate</span>}
-        </button>
-      ))}
     </div>
   );
 }

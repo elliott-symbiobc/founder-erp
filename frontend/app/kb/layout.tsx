@@ -5,8 +5,6 @@ import { useState, useEffect } from "react";
 import { useDevMode } from "@/components/DevModeContext";
 
 const TOPICS = [
-  { href: "/kb/overview",           label: "How the System Works" },
-  { href: "/kb/agent-layer",        label: "Literature Agent" },
 ];
 
 export default function KbLayout({ children }: { children: React.ReactNode }) {

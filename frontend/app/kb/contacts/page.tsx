@@ -56,26 +56,18 @@ export default function ContactsKbPage() {
       </P>
       <P>
         For example, rather than "Follow up with Dr. Chen", the task might be: "Send Dr. Chen the
-        updated fermentation yield data she requested in the 4 April email." These tasks appear in the
+        Q3 pricing sheet she requested in the 4 April email." These tasks appear in the
         Tasks module and are linked to the contact record.
       </P>
 
       <H2>AI Contact Summaries & Enrichment</H2>
       <P>
-        Each contact has an AI-generated summary that synthesises interaction history, substrate links,
-        and any notes. Summaries are refreshed nightly for contacts where the underlying data has changed.
+        Each contact has an AI-generated summary that synthesises interaction history and any notes. Summaries are refreshed nightly for contacts where the underlying data has changed.
       </P>
       <P>
         The enrichment pipeline (triggered manually or automatically for new contacts) queries Semantic
         Scholar for publications and uses Claude to extract professional context — institution,
         expertise area, relevant publications.
-      </P>
-
-      <H2>Contact → Substrate Links</H2>
-      <P>
-        Contacts can be linked to specific substrates via the <Code>contact_substrate_links</Code> table.
-        This records which industrial partners are associated with which waste streams — useful for
-        tracking who to report TEA results to when a substrate analysis is complete.
       </P>
 
       <H2>Relationship Inference</H2>
@@ -122,7 +114,6 @@ export default function ContactsKbPage() {
         <Li><Code>contact_interactions</Code> — email, meeting, and call interactions</Li>
         <Li><Code>contact_relationships</Code> — inferred or explicit contact-to-contact edges</Li>
         <Li><Code>contact_reminders</Code> — AI-generated and manual follow-up tasks</Li>
-        <Li><Code>contact_substrate_links</Code> — contact-to-substrate partnership links</Li>
         <Li><Code>google_oauth_tokens</Code> — per-user Google OAuth credentials</Li>
       </Ul>
     </article>

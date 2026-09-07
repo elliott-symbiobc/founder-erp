@@ -57,7 +57,7 @@ export default function FpaKbPage() {
         ]}
       />
       <Warning>
-        FP&A permissions are not granted to the <Code>scientist</Code> role by default. Only admins
+        FP&amp;A permissions are not granted to the <Code>user</Code> role by default. Only admins
         and users explicitly granted <Code>view_fpa</Code> can access the FP&A module.
       </Warning>
 
@@ -96,7 +96,10 @@ export default function FpaKbPage() {
         <Li><Code>fpa_plaid_tokens</Code> — Plaid OAuth tokens (one per connected institution)</Li>
         <Li><Code>fpa_qbo_tokens</Code> — QuickBooks OAuth tokens</Li>
         <Li><Code>fpa_actuals</Code> — Daily cash balance snapshots from Plaid</Li>
-        <Li><Code>fpa_pl_data</Code> — P&L records from QBO (by period and granularity)</Li>
+        <Li><Code>fpa_qbo_periods</Code> — P&amp;L records from QuickBooks, by period</Li>
+        <Li><Code>fpa_qbo_transactions</Code> — transaction-level QuickBooks detail</Li>
+        <Li><Code>fpa_model</Code> / <Code>fpa_model_versions</Code> — the financial model and its version history</Li>
+        <Li><Code>fpa_scenarios</Code> — scenario definitions layered on the model</Li>
       </Ul>
     </article>
   );

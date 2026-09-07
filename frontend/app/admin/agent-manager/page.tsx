@@ -144,7 +144,6 @@ function moduleColor(mod: string): string {
     Notebook: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
     Tasks: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
     Protocols: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800",
-    Substrates: "bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-950/40 dark:text-lime-300 dark:border-lime-800",
     Compounds: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800",
     Contacts: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
     "ML Model": "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
@@ -1002,7 +1001,7 @@ export default function AgentManagerPage() {
         <div className="space-y-3">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             These prompts are used internally by data pipeline agents (composition research, TEA, etc.).
-            Overrides are applied globally — they affect all substrates.
+            Overrides are applied globally — they affect every run of the agent.
           </p>
           {promptsLoading ? (
             <div className="flex items-center justify-center py-16">

@@ -51,7 +51,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Open ERP Computational Biology API",
+    title="Open ERP API",
     root_path="/api",
 )
 

@@ -50,14 +50,14 @@ export default function SmsConsentPage() {
 
             {/* Header */}
             <div className="text-center border-b border-gray-200 dark:border-gray-700 pb-6 mb-6">
-              <p className="text-xs font-semibold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase mb-1">Open ERP Bioculinary LLC</p>
+              <p className="text-xs font-semibold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase mb-1">Your Company LLC</p>
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">SMS / Text Message Consent Form</h1>
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">TCPA Compliance — Prior Express Written Consent</p>
             </div>
 
             {/* Introduction */}
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
-              By signing this form, you consent to receive automated text messages (SMS) from Open ERP Bioculinary LLC
+              By signing this form, you consent to receive automated text messages (SMS) from Your Company LLC
               at the mobile telephone number provided below. Please read the following disclosures carefully before signing.
             </p>
 
@@ -84,7 +84,7 @@ export default function SmsConsentPage() {
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-1">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Costs</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Message and data rates may apply. Open ERP Bioculinary LLC does not charge for SMS messages,
+                  Message and data rates may apply. Your Company LLC does not charge for SMS messages,
                   but your mobile carrier may charge for incoming or outgoing text messages.
                 </p>
               </div>
@@ -101,7 +101,7 @@ export default function SmsConsentPage() {
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-1">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Help</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Reply <strong>HELP</strong> to any message for assistance, or contact Open ERP Bioculinary LLC at{" "}
+                  Reply <strong>HELP</strong> to any message for assistance, or contact Your Company LLC at{" "}
                   <span className="font-medium">elliott@example.com</span>.
                 </p>
               </div>
@@ -110,7 +110,7 @@ export default function SmsConsentPage() {
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Consent is not a condition of employment</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Consent to receive SMS messages is not required as a condition of employment or continued employment
-                  with Open ERP Bioculinary LLC.
+                  with Your Company LLC.
                 </p>
               </div>
 
@@ -146,7 +146,7 @@ export default function SmsConsentPage() {
             <div className="bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 mb-8">
               <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                 By signing below, I acknowledge that I have read and understand the above disclosures. I expressly
-                consent to receive automated text messages from Open ERP Bioculinary LLC at the mobile number provided.
+                consent to receive automated text messages from Your Company LLC at the mobile number provided.
                 I understand that consent is not required as a condition of employment and that I may opt out at any
                 time by replying <strong>STOP</strong>.
               </p>
@@ -167,7 +167,7 @@ export default function SmsConsentPage() {
             {/* Footer */}
             <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
               <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                Open ERP Bioculinary LLC · St. Louis, MO · elliott@example.com · erp.example.com
+                Your Company LLC · St. Louis, MO · elliott@example.com · erp.example.com
               </p>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                 This form satisfies TCPA prior express written consent requirements (47 U.S.C. § 227).

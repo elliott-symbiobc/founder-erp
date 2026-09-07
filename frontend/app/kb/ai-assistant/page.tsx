@@ -6,8 +6,8 @@ export default function AiAssistantPage() {
       <H1>AI Assistant &amp; Dashboard Intelligence</H1>
       <Lead>
         The dashboard AI assistant is an omnipresent executive assistant with live access to every
-        module — tasks, lab notebook, meeting notes, contacts, funding, financials, strains, and
-        literature. It uses a semantic RAG pipeline to surface the most relevant information for
+        module — tasks, projects, meeting notes, contacts, funding and financials.
+        It uses a semantic RAG pipeline to surface the most relevant information for
         each conversation turn.
       </Lead>
 
@@ -15,9 +15,9 @@ export default function AiAssistantPage() {
       <Ul>
         <Li><strong>Brain dumps</strong> — speak or type a stream of consciousness; the assistant extracts and creates tasks automatically.</Li>
         <Li><strong>Daily priorities</strong> — asks what you should focus on today using real task data, calendar commitments, and overdue items.</Li>
-        <Li><strong>R&amp;D questions</strong> — retrieves semantically relevant ELN entries, papers, and notes to answer specific questions.</Li>
+        <Li><strong>Recall</strong> — retrieves semantically relevant notes and contact history to answer specific questions.</Li>
         <Li><strong>Business development</strong> — surfaces relevant contacts, funding opportunities, and project status.</Li>
-        <Li><strong>Proactive flagging</strong> — warns about overdue tasks, low runway, stalled R&amp;D, or at-risk projects.</Li>
+        <Li><strong>Proactive flagging</strong> — warns about overdue tasks, low runway, or at-risk projects.</Li>
       </Ul>
 
       <Concept>
@@ -32,8 +32,8 @@ export default function AiAssistantPage() {
       </P>
       <Ol>
         <Li><strong>Embed query</strong> — your message is converted to a 1536-dimensional vector using OpenAI <Code>text-embedding-3-small</Code>.</Li>
-        <Li><strong>Retrieve chunks</strong> — the vector database (pgvector) finds the 12 most similar content chunks from your notes, lab entries, contacts, tasks, and papers using cosine similarity.</Li>
-        <Li><strong>Hybrid re-score</strong> — chunks are re-ranked by a weighted score: 75% semantic similarity + 15% recency (half-life 30 days) + 10% source priority (tasks rank highest, papers lowest).</Li>
+        <Li><strong>Retrieve chunks</strong> — the vector database (pgvector) finds the 12 most similar content chunks from your notes, contacts and tasks using cosine similarity.</Li>
+        <Li><strong>Hybrid re-score</strong> — chunks are re-ranked by a weighted score: 75% semantic similarity + 15% recency (half-life 30 days) + 10% source priority (tasks rank highest).</Li>
         <Li><strong>MMR rerank</strong> — Maximal Marginal Relevance selects 8 diverse, non-redundant chunks from the top 12 candidates, avoiding showing you five chunks from the same document.</Li>
       </Ol>
 
@@ -42,8 +42,8 @@ export default function AiAssistantPage() {
         The assistant receives three information blocks on every turn:
       </P>
       <Ul>
-        <Li><strong>Block A — Static role context</strong> (prompt-cached): Your role as Open ERP founder, response format rules, behavior instructions. Identical across all turns so Anthropic caches it — saves ~70% of input token costs on multi-turn conversations.</Li>
-        <Li><strong>Block B — Live structured data</strong>: Today&apos;s open tasks, calendar events, contact reminders, active projects, FP&A snapshot, recent ELN entries, meeting notes, strains, compound opportunities, key contacts, and funding opportunities — fetched fresh from the database on every request.</Li>
+        <Li><strong>Block A — Static role context</strong> (prompt-cached): Your role, response format rules, behaviour instructions. Identical across all turns so Anthropic caches it — saves ~70% of input token costs on multi-turn conversations.</Li>
+        <Li><strong>Block B — Live structured data</strong>: Today&apos;s open tasks, calendar events, contact reminders, active projects, FP&amp;A snapshot, meeting notes, key contacts and funding opportunities — fetched fresh from the database on every request.</Li>
         <Li><strong>Block C — Semantic RAG results</strong>: The 8 retrieved chunks most relevant to your current message, formatted as labelled excerpts.</Li>
       </Ul>
 
@@ -53,10 +53,8 @@ export default function AiAssistantPage() {
       </P>
       <Ul>
         <Li><strong>Meeting Notes</strong> — on create and every save</Li>
-        <Li><strong>Lab Notebook entries</strong> — on create and every save</Li>
         <Li><strong>Contacts</strong> — on create and profile update</Li>
         <Li><strong>Tasks</strong> — on create and status update</Li>
-        <Li><strong>Literature Papers</strong> — on metadata update</Li>
       </Ul>
       <P>
         A nightly job at 01:30 UTC also re-embeds anything updated in the last 25 hours as a

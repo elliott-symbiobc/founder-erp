@@ -20,7 +20,7 @@ export default function ProjectsKbPage() {
         headers={["Stage", "Meaning"]}
         rows={[
           ["New", "Initial lead or idea — not yet qualified"],
-          ["Qualified", "Confirmed interest, substrate or strain identified, TEA initiated"],
+          ["Qualified", "Confirmed interest and a defined scope of work"],
           ["Proposal", "Commercial proposal or term sheet in progress"],
           ["Negotiation", "Terms being discussed, legal review underway"],
           ["Won", "Deal closed — partnership or contract signed"],
@@ -48,13 +48,12 @@ export default function ProjectsKbPage() {
       <P>
         The Projects list (<Code>/projects</Code>) shows project cards with status, stage, linked
         contacts, and last-activity date. Clicking a card opens the project detail page
-        (<Code>/projects/[id]</Code>) with full history, notes, tasks, and linked substrate/strain
-        if applicable.
+        (<Code>/projects/[id]</Code>) with full history, notes, tasks and linked contacts.
       </P>
       <Tip>
-        If a project is linked to a substrate, the TEA results and ML model scores for that substrate
-        are visible from the project detail page — useful for building the commercial case during
-        the Proposal or Negotiation stage.
+        The workspace bar on the project detail page collects the project&apos;s Drive folder,
+        resources and client portal in one place, so the commercial case can be assembled
+        without leaving the record.
       </Tip>
 
       <H2>Permissions</H2>
@@ -81,7 +80,9 @@ export default function ProjectsKbPage() {
 
       <H3>Database Tables</H3>
       <Ul>
-        <Li><Code>projects</Code> — project records (name, stage, status, substrate_id, notes)</Li>
+        <Li><Code>projects</Code> — project records (name, stage, status, notes)</Li>
+        <Li><Code>project_milestones</Code> — milestones and their assignees</Li>
+        <Li><Code>project_templates</Code> / <Code>template_tasks</Code> — reusable project scaffolds</Li>
         <Li><Code>project_contacts</Code> — many-to-many join between projects and contacts</Li>
       </Ul>
     </article>

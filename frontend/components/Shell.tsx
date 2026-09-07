@@ -275,10 +275,6 @@ function pageTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/kb")) return "Knowledge Base";
   if (pathname.startsWith("/fpa")) return "FP&A";
   if (pathname.startsWith("/admin/agent-manager")) return "Agent Manager";
-  if (pathname.match(/^\/substrates\/[^/]+\/lca/)) return "LCA";
-  if (pathname.match(/^\/substrates\/[^/]+\/tea/)) return "Preliminary TEA";
-  if (pathname.startsWith("/admin/tea-admin")) return "Parameters";
-  if (pathname.startsWith("/admin/lca-admin")) return "Parameters";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/settings")) return "Settings";
   if (pathname.startsWith("/tasks")) return "Tasks";
@@ -294,7 +290,7 @@ function pageTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/portals")) return "Portals";
   if (pathname.startsWith("/reports")) return "Reports";
   if (pathname.startsWith("/inventory")) return "Inventory";
-  return "Open ERP Bioculinary";
+  return "Open ERP";
 }
 
 function moduleKeyFromPath(pathname: string): string | null {
@@ -1407,8 +1403,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   }));
 
   const title = pageTitleFromPath(pathname);
-  const substrateTabMatch = pathname.match(/^\/substrates\/([^/]+)\/(tea|lca)/);
-  const substrateTabId = substrateTabMatch ? substrateTabMatch[1] : null;
   const currentModuleKey = moduleKeyFromPath(pathname);
   const currentOwner = currentModuleKey ? (moduleOwners[currentModuleKey] ?? null) : null;
   const isAdmin = can("manage_users");
@@ -1740,112 +1734,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
               </div>
               {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
             </div>
-          ) : (pathname.startsWith("/analyses") || pathname.startsWith("/model") || pathname.startsWith("/admin/tea-admin") || pathname.startsWith("/admin/lca-admin")) ? (
-            <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <div className="flex items-center">
-              <Link
-                href="/analyses"
-                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                  pathname.startsWith("/analyses") && !pathname.startsWith("/analyses/logs") && !pathname.startsWith("/analyses/methodology") && !pathname.startsWith("/analyses/data")
-                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                Analysis
-              </Link>
-              {/* Methodology / Parameters / Logs / Prompts, only while Analysis is the active tab */}
-              {!pathname.startsWith("/model") && !pathname.startsWith("/analyses/data") && (
-              )}
-              </div>
-              <Link
-                href="/model"
-                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                  pathname.startsWith("/model")
-                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                ML Models
-              </Link>
-              <Link
-                href="/analyses/data"
-                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                  pathname.startsWith("/analyses/data")
-                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                Data
-              </Link>
-            </div>
-              {currentModuleKey && <ModuleOwnerBadge moduleKey={currentModuleKey} owner={currentOwner} isAdmin={isAdmin} onOwnerChange={updateModuleOwner} />}
-            </div>
-          ) : substrateTabId ? (
-            <div className="flex items-center gap-1">
-              <Link
-                href={`/substrates/${substrateTabId}/tea`}
-                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                  pathname.endsWith("/tea")
-                    ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                Preliminary TEA
-              </Link>
-              <Link
-                href={`/substrates/${substrateTabId}/lca`}
-                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                  pathname.endsWith("/lca")
-                    ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
-              >
-                LCA
-              </Link>
-            </div>
-          ) : pathname.startsWith("/system-design") ? (
-            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
-              {pathname === "/system-design" ? (
-                <>
-                  {/* Flowsheet title + current sheet name */}
-                  <div className="flex flex-col justify-center min-w-0 shrink-0">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 leading-none">Flowsheet</span>
-                    <div id="sd-name-slot" className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate max-w-[200px] leading-tight mt-0.5" />
-                  </div>
-                  <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
-                  <div id="sd-toolbar-slot" className="contents" />
-                </>
-              ) : (
-                <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">{pageTitleFromPath(pathname)}</h1>
-              )}
-            </div>
           ) : pathname.startsWith("/tasks") ? (
             <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Tasks</h1>
-          ) : pathname.startsWith("/literature") ? (
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {([
-                { key: "library",      label: "Library" },
-                { key: "queue",        label: "Review Queue" },
-                { key: "model-inputs", label: "Model Inputs" },
-                { key: "agents",       label: "Agents" },
-                { key: "methodology",  label: "Methodology" },
-              ] as const).map(t => {
-                const activeTab = searchParams.get("tab") ?? "library";
-                const isActive = activeTab === t.key ||
-                  (t.key === "model-inputs" && ["substrates", "training", "reference"].includes(activeTab)) ||
-                  (t.key === "queue" && activeTab === "history");
-                return (
-                  <Link key={t.key} href={`/literature?tab=${t.key}`}
-                    className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors whitespace-nowrap ${
-                      isActive
-                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
-                    }`}
-                  >{t.label}</Link>
-                );
-              })}
-            </div>
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
@@ -1854,20 +1744,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           )}
           {/* Right side */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {pathname.startsWith("/literature") && (() => {
-              const activeTab = searchParams.get("tab") ?? "library";
-              return activeTab === "library" && (
-                <button
-                  onClick={() => window.dispatchEvent(new CustomEvent("literature:add-paper"))}
-                  className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-1.5"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-                  </svg>
-                  Add Paper
-                </button>
-              );
-            })()}
             {pathname.startsWith("/projects") && !pathname.startsWith("/projects/advisors") && (
               <Link
                 href={`/projects?tab=${projectTab}&create=1`}
@@ -1905,7 +1781,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         {viewingAs && <PreviewBanner who={previewOf} />}
-        <main key={pathname} id="main-content" tabIndex={-1} className={`flex-1 min-h-0 bg-[var(--color-paper)] focus:outline-none ${pathname.startsWith("/literature") || pathname.startsWith("/notebook") || pathname.startsWith("/crm") || pathname.startsWith("/marketing") || pathname.startsWith("/funding") || pathname === "/system-design" ? "overflow-hidden" : "overflow-auto p-6 pb-48"}`} suppressHydrationWarning>{children}</main>
+        <main key={pathname} id="main-content" tabIndex={-1} className={`flex-1 min-h-0 bg-[var(--color-paper)] focus:outline-none ${pathname.startsWith("/crm") || pathname.startsWith("/marketing") || pathname.startsWith("/funding") ? "overflow-hidden" : "overflow-auto p-6 pb-48"}`} suppressHydrationWarning>{children}</main>
       </div>
       <AssignmentToasts />
       {can("manage_users") && <DevAgentPanel />}

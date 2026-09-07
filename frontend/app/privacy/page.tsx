@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">1. Introduction</h2>
-            <p>Open ERP Bioculinary LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Open ERP Computational Biology Platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
+            <p>Your Company LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Open ERP platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
           </section>
 
           <section>
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             <p className="font-medium text-gray-800 dark:text-gray-200 mt-3 mb-1">2.1 Information You Provide</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="font-medium">Account information:</span> Name, email address, and password when your account is created by an administrator.</li>
-              <li><span className="font-medium">Research and operational data:</span> Strain records, substrate analyses, fermentation run logs, financial model inputs, and other content you enter into the Platform.</li>
+              <li><span className="font-medium">Operational data:</span> Project records, contact and CRM data, financial model inputs, and other content you enter into the Platform.</li>
               <li><span className="font-medium">Communications:</span> Any messages or feedback you submit to us.</li>
             </ul>
             <p className="font-medium text-gray-800 dark:text-gray-200 mt-3 mb-1">2.2 Information Collected Automatically</p>
@@ -116,14 +116,14 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">12. Contact Us</h2>
             <p>For questions, concerns, or requests related to this Privacy Policy, please contact:</p>
             <div className="mt-2 text-sm">
-              <p className="font-medium text-gray-800 dark:text-gray-200">Open ERP Bioculinary LLC</p>
+              <p className="font-medium text-gray-800 dark:text-gray-200">Your Company LLC</p>
               <p><a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a></p>
             </div>
           </section>
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} Open ERP Bioculinary LLC. All rights reserved. &nbsp;·&nbsp;
+          &copy; {new Date().getFullYear()} Your Company LLC. All rights reserved. &nbsp;·&nbsp;
           <Link href="/eula" className="hover:underline">EULA</Link>
         </p>
       </div>

@@ -237,23 +237,6 @@ def require_admin(request: Request) -> dict:
     return user
 
 
-def require_scientist_or_admin(request: Request) -> dict:
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    if user["role"] in ("admin", "user"):
-        return user
-    # Check any lab-relevant permission
-    uid = user.get("user_id", "")
-    perms = effective_permissions(
-        user["role"], _get_user_permissions_from_db(uid), _get_org_permissions_from_db(uid)
-    )
-    lab_perms = ["queue_upload", "queue_approve", "log_runs", "strains", "protocols", "notebook", "model_retrain"]
-    if any(perms.get(k) for k in lab_perms):
-        return user
-    raise HTTPException(status_code=403, detail="User or admin access required")
-
-
 def require_fpa(request: Request) -> dict:
     """Require FP&A access: admin role, or view_fpa permission override."""
     user = get_current_user(request)

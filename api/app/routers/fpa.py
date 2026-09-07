@@ -837,7 +837,7 @@ def export_model(request: Request):
     ws1.column_dimensions["A"].width = 35
     ws1.column_dimensions["B"].width = 20
 
-    ws1["A1"].value = "Open ERP Bioculinary — Returns Model"
+    ws1["A1"].value = "Open ERP — Returns Model"
     ws1["A1"].font = Font(bold=True, size=14)
 
     bold_label(ws1["A3"], "EXIT ASSUMPTIONS")
@@ -910,7 +910,7 @@ def export_model(request: Request):
     ws2 = wb.create_sheet("P&L Summary")
     ws2.column_dimensions["A"].width = 32
 
-    ws2["A1"].value = "Open ERP Bioculinary — P&L Summary ($)"
+    ws2["A1"].value = "Open ERP — P&L Summary ($)"
     ws2["A1"].font = Font(bold=True, size=13)
 
     years = [d["year"] for d in annual_data if isinstance(d, dict)]
@@ -1033,7 +1033,7 @@ def export_model(request: Request):
     ws4.column_dimensions["B"].width = 35
     ws4.column_dimensions["C"].width = 18
 
-    ws4["B1"].value = "Open ERP Bioculinary LLC"
+    ws4["B1"].value = "Your Company LLC"
     ws4["B1"].font = Font(bold=True, size=13)
     ws4["B2"].value = "Pro Forma Balance Sheet"
     ws4["B3"].value = "As of March 15, 2025"
@@ -1979,7 +1979,7 @@ def export_model_v2(request: Request):
 
     ws.merge_cells("A1:B1")
     c = ws["A1"]
-    c.value = "Open ERP Bioculinary — Financial Model"
+    c.value = "Open ERP — Financial Model"
     c.font = Font(bold=True, size=18, color=NAVY)
     c.alignment = Alignment(horizontal="left", vertical="center")
 

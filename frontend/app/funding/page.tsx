@@ -3744,7 +3744,7 @@ function InvestorDetailPanel({ inv, onClose, onSaved, onDelete }: {
                 <AutoField value={s(rec.investment_stage)} placeholder="Seed, Series A…" onSave={v => patch({ investment_stage: v })} />
               </DetailRow>
               <DetailRow label="Focus">
-                <AutoField value={s(rec.focus)} placeholder="Biotech, Deep Tech…" onSave={v => patch({ focus: v })} />
+                <AutoField value={s(rec.focus)} placeholder="Deep Tech, SaaS…" onSave={v => patch({ focus: v })} />
               </DetailRow>
               <DetailRow label="Check Min">
                 <AutoField value={s(rec.check_size_min)} placeholder="$500K" onSave={v => patch({ check_size_min: v })} />
@@ -3807,7 +3807,7 @@ function InvestorDetailPanel({ inv, onClose, onSaved, onDelete }: {
                 {rec.tags.length > 0 && (
                   <div className="mb-1.5"><TagList tags={rec.tags} /></div>
                 )}
-                <AutoField value={rec.tags.join(", ")} placeholder="+ federal, biotech, seed"
+                <AutoField value={rec.tags.join(", ")} placeholder="+ federal, seed"
                   onSave={v => patch({ tags: v ? v.split(",").map(x => x.trim()).filter(Boolean) : [] })} />
               </div>
               <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
@@ -5117,7 +5117,7 @@ function OpportunityDetailPanel({ opp, onClose, onSaved, onDelete }: {
                 {rec.tags.length > 0 && (
                   <div className="mb-1.5"><TagList tags={rec.tags} /></div>
                 )}
-                <AutoField value={rec.tags.join(", ")} placeholder="+ federal, biotech, phase-1"
+                <AutoField value={rec.tags.join(", ")} placeholder="+ federal, phase-1"
                   onSave={v => patch({ tags: v ? v.split(",").map(x => x.trim()).filter(Boolean) : [] })} />
               </div>
               <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
@@ -7609,7 +7609,7 @@ const DEFAULT_CRITERIA: ScoringCriteria = {
   target_raise_max: 3000000,
   target_stages: ["Pre-seed", "Seed"],
   target_geo: ["United States", "North America", "Canada"],
-  target_sectors: ["Biotech", "Synthetic Biology", "Food Tech", "Alt-protein", "Fermentation", "AgTech", "Food & Beverage"],
+  target_sectors: [],
   check_target_min: 500000,
   check_target_max: 2000000,
 };
@@ -8411,7 +8411,7 @@ function InvestorSettingsTab() {
               <span className="text-sm font-medium text-gray-900 dark:text-white">Investor Discovery</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-medium">On-demand</span>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Find new biotech/food investors via Fundable filter search</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Find new investors via Fundable filter search</p>
           </div>
           <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform shrink-0 ${discoveryExpanded ? "rotate-180" : ""}`}
             fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -8452,7 +8452,7 @@ function InvestorSettingsTab() {
               </div>
             )}
             <p className="text-[10px] text-gray-400">
-              Searches Fundable for investors with biotech/food portfolio companies. Deduplicates against existing records and imports net-new.
+              Searches Fundable for investors matching the configured industry filters. Deduplicates against existing records and imports net-new.
             </p>
           </div>
         )}
@@ -11665,7 +11665,7 @@ function ManagementTab() {
     const NCOLS1 = 7;
     let R = 0;
     // Title
-    setCells(ws1, R, [xlCell("OPEN ERP BIOCULINARY, LLC — CAP TABLE", S.title)]);
+    setCells(ws1, R, [xlCell("YOUR COMPANY LLC — CAP TABLE", S.title)]);
     mergeRow(ws1, R++, 0, NCOLS1 - 1);
     setCells(ws1, R, [xlCell(`As of ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}  |  Pre-Conversion (SAFE instruments outstanding)`, S.subtitle)]);
     mergeRow(ws1, R++, 0, NCOLS1 - 1);
@@ -11714,7 +11714,7 @@ function ManagementTab() {
     const ws2: XLSX.WorkSheet = { "!merges": [] };
     const NCOLS2 = 8;
     R = 0;
-    setCells(ws2, R, [xlCell("OPEN ERP BIOCULINARY — SAFE INSTRUMENT DETAIL", S.title)]);
+    setCells(ws2, R, [xlCell("YOUR COMPANY — SAFE INSTRUMENT DETAIL", S.title)]);
     mergeRow(ws2, R++, 0, NCOLS2 - 1);
     R++; // blank
     setCells(ws2, R, [
@@ -11761,7 +11761,7 @@ function ManagementTab() {
     const ws3: XLSX.WorkSheet = { "!merges": [] };
     const NCOLS3 = 5;
     R = 0;
-    setCells(ws3, R, [xlCell("OPEN ERP BIOCULINARY — SAFE CONVERSION MODEL", S.title)]);
+    setCells(ws3, R, [xlCell("YOUR COMPANY — SAFE CONVERSION MODEL", S.title)]);
     mergeRow(ws3, R++, 0, NCOLS3 - 1);
     setCells(ws3, R, [xlCell("Blue = inputs you can change  |  Black = calculated formulas", S.subtitle)]);
     mergeRow(ws3, R++, 0, NCOLS3 - 1);
@@ -11835,7 +11835,7 @@ function ManagementTab() {
     let R = 0;
 
     // Title
-    setCells(ws, R, [xlCell("OPEN ERP BIOCULINARY, LLC — INVESTOR CAP TABLE SUMMARY", S.title)]);
+    setCells(ws, R, [xlCell("YOUR COMPANY LLC — INVESTOR CAP TABLE SUMMARY", S.title)]);
     mergeRow(ws, R++, 0, NCOLS - 1);
     setCells(ws, R, [xlCell(`As of ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}  |  Post-Money Valuation (on conversion)`, S.subtitle)]);
     mergeRow(ws, R++, 0, NCOLS - 1);
@@ -11897,7 +11897,7 @@ function ManagementTab() {
 
     // Source note
     R++;
-    setCells(ws, R, [xlCell("Source: Executed SAFE agreements, Pro Rata Agreements, Side Letters, Term Sheets — Open ERP Bioculinary LLC (2025–2026)", { ...S.note, fill: undefined })]);
+    setCells(ws, R, [xlCell("Source: Executed SAFE agreements, Pro Rata Agreements, Side Letters, Term Sheets — Your Company LLC (2025–2026)", { ...S.note, fill: undefined })]);
     mergeRow(ws, R++, 0, NCOLS - 1);
     setCells(ws, R, [xlCell("Post-conversion % is illustrative; depends on Company Capitalization at conversion. Employee/Advisor pool excluded from SAFE denominator per SAFE definitions.", { ...S.note, fill: undefined })]);
     mergeRow(ws, R++, 0, NCOLS - 1);

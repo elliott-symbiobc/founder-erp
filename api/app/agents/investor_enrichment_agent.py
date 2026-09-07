@@ -386,7 +386,7 @@ def _make_tools(rubric: dict) -> list:
             "description": (
                 "Search the web for investor information not available from structured APIs. "
                 "Use for: fund size, check size range, active investment thesis, recent announcements, "
-                "notable portfolio companies in biotech/food/synbio."
+                "notable portfolio companies in the company's sector."
             ),
             "input_schema": {
                 "type": "object",
@@ -411,7 +411,7 @@ def _make_tools(rubric: dict) -> list:
                     "hq": {"type": "string", "description": "City, Country (e.g. 'Menlo Park, United States')"},
                     "geo_focus": {"type": "string", "description": "Regions where they invest (e.g. 'US, Europe')"},
                     "investment_stage": {"type": "string", "description": "e.g. 'Pre-seed to Seed', 'Seed–Series A'"},
-                    "focus": {"type": "string", "description": "Thesis/sectors e.g. 'Synthetic biology, foodtech, climate'"},
+                    "focus": {"type": "string", "description": "Thesis/sectors e.g. 'Enterprise SaaS, climate, fintech'"},
                     "fund_size": {"type": "string", "description": "Total fund size string e.g. '$200M'"},
                     "fund_launch_year": {"type": "string", "description": "Fund vintage or firm founding year (from Apollo founded_year or web search)"},
                     "website": {"type": "string"},
@@ -428,7 +428,7 @@ def _make_tools(rubric: dict) -> list:
                     "score_geo": {"type": "integer", "description": "0–4: geographic focus fit"},
                     "score_portfolio": {"type": "integer", "description": "0–4: portfolio fit"},
                     "enrichment_notes": {"type": "string", "description": "One sentence on what was found and confidence level"},
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Keyword tags from Apollo keywords + inferred from thesis e.g. ['pre-seed', 'foodtech', 'midwest']"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Keyword tags from Apollo keywords + inferred from thesis e.g. ['pre-seed', 'climate', 'midwest']"},
                 },
                 "required": ["investor_id", "score_focus", "score_stage", "score_check", "score_geo", "score_portfolio"],
             },
@@ -440,8 +440,8 @@ def _make_tools(rubric: dict) -> list:
 
 def _build_prompt(inv: dict) -> str:
     lines = [
-        "Enrich this investor record for Open ERP — an early-stage biotech/foodtech startup commercializing "
-        "fermentation-derived specialty ingredients (enzymatic dough improvers, natural colorants/flavors, "
+        "Enrich this investor record for an early-stage startup "
+        "the company's sector "
         "upcycled grain ingredients). We are at pre-seed/seed stage raising $500K–$3M.",
         "",
         f"**investor_id:** {inv['investor_id']}",

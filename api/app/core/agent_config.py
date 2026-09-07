@@ -327,7 +327,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "hq: city, country of headquarters\n"
             "geo_focus: regions where they invest, e.g. 'US, Europe'\n"
             "investment_stage: e.g. 'Pre-seed', 'Seed', 'Series A', 'Seed–Series B'\n"
-            "focus: thesis / sectors, e.g. 'Synthetic biology, foodtech, climate'\n"
+            "focus: thesis / sectors, e.g. 'Enterprise SaaS, climate, fintech'\n"
             "fund_size: total fund size as string, e.g. '$200M'\n"
             "check_size_min / check_size_max: typical check range, e.g. '$250K' / '$2M'\n"
             "partners: notable partners (comma-separated)\n"

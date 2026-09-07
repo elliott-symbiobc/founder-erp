@@ -2038,7 +2038,7 @@ function AgentsTab({ system }: { system: System | null }) {
                 </div>
               </Field>
               <Field label="Industries">
-                <TagInput values={form.target_industries} onChange={(v) => set("target_industries", v)} placeholder="e.g. SaaS, FinTech, BioTech" />
+                <TagInput values={form.target_industries} onChange={(v) => set("target_industries", v)} placeholder="e.g. SaaS, FinTech, Logistics" />
               </Field>
               <Field label="Regions">
                 <TagInput values={form.target_regions} onChange={(v) => set("target_regions", v)} placeholder="e.g. US, SF Bay Area, EU" />

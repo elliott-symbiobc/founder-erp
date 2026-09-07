@@ -1,7 +1,7 @@
 """
 investor_discovery_agent.py — Investor discovery agent.
 
-Queries Fundable POST /investors with biotech/food/synbio filters,
+Queries Fundable POST /investors with the configured industry filters,
 deduplicates against existing dilutive_investors, and bulk-inserts net-new records.
 
 Cost: $0.66/call dynamic pricing for POST /investors (up to 100 results per page).
@@ -21,17 +21,11 @@ import psycopg2.extras
 
 logger = logging.getLogger(__name__)
 
-# Fundable industry permalinks relevant to Open ERP
+# Fundable industry permalinks to filter discovery by. Set INVESTOR_INDUSTRIES
+# to a comma-separated list of permalinks for your sector; empty means no
+# industry filter, which returns a much broader set.
 OPENERP_INDUSTRIES = [
-    "biotechnology",
-    "food-and-beverage",
-    "plant-based-foods",
-    "agriculture",
-    "food-processing",
-    "health-care",
-    "pharmaceuticals",
-    "synthetic-biology",
-    "organic-food",
+    p.strip() for p in os.environ.get("INVESTOR_INDUSTRIES", "").split(",") if p.strip()
 ]
 
 # Minimum deal count in last 12 months to filter out inactive investors
