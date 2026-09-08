@@ -50,8 +50,15 @@ echo "nginx: serving $DOMAIN over http"
 if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
     echo "certificate already exists for ${DOMAIN}; leaving it alone"
 else
-    certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive \
-        ${EMAIL:+--email "$EMAIL"} ${EMAIL:---register-unsafely-without-email}
+    # Build the account args explicitly: ${EMAIL:-X} substitutes EMAIL itself
+    # when it is set, which appends the address a second time as a bare
+    # argument and certbot rejects the invocation.
+    if [ -n "$EMAIL" ]; then
+        acct=(--email "$EMAIL")
+    else
+        acct=(--register-unsafely-without-email)
+    fi
+    certbot --nginx -d "$DOMAIN" --redirect --agree-tos --non-interactive "${acct[@]}"
     nginx -t && systemctl reload nginx
 fi
 

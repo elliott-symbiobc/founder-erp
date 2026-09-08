@@ -3655,8 +3655,8 @@ CREATE TABLE public.users (
     notify_sms boolean DEFAULT false NOT NULL,
     phone text,
     org_id uuid,
-    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'user'::text, 'viewer'::text, 'student'::text]))),
-    CONSTRAINT users_user_type_check CHECK ((user_type = ANY (ARRAY['employee'::text, 'advisor'::text, 'partner'::text, 'contractor'::text, 'student'::text, 'other'::text])))
+    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'user'::text, 'viewer'::text, 'partner'::text]))),
+    CONSTRAINT users_user_type_check CHECK ((user_type = ANY (ARRAY['employee'::text, 'advisor'::text, 'partner'::text, 'contractor'::text, 'other'::text])))
 );
 
 
