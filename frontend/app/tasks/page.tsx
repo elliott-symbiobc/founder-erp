@@ -1776,12 +1776,6 @@ function KanbanView({
 
             {/* Cards area */}
             <div className="flex-1 space-y-2">
-              {/* Suggestions sit above the cards in Inbox, never in the other
-                  columns: they are the newest arrivals and the thing you are
-                  here to triage, so they should not be below a scroll. */}
-              {col.id === "inbox" && (
-              )}
-
               {colTasks.map(task => {
                 const overdue = isOverdue(task.due_date, task.status);
                 const priority = inferPriority(task);

@@ -222,15 +222,21 @@ def health_check():
         db_status = "error"
         db_error = str(e)
 
-    # Check Redis
-    try:
-        r = redis_lib.from_url(os.environ["REDIS_URL"], socket_connect_timeout=3)
-        r.ping()
-    except Exception as e:
-        redis_status = "error"
-        redis_error = str(e)
+    # Check Redis. It is optional: the Celery worker and the AI/integration
+    # features need it, core CRUD does not. An unset REDIS_URL means the
+    # operator chose to run without it, which is not a degraded state.
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    if not redis_url:
+        redis_status = "not configured"
+    else:
+        try:
+            r = redis_lib.from_url(redis_url, socket_connect_timeout=3)
+            r.ping()
+        except Exception as e:
+            redis_status = "error"
+            redis_error = str(e)
 
-    overall = "ok" if db_status == "connected" and redis_status == "connected" else "degraded"
+    overall = "ok" if db_status == "connected" and redis_status in ("connected", "not configured") else "degraded"
 
     response = {"status": overall, "db": db_status, "redis": redis_status}
     if db_error:

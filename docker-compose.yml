@@ -1,239 +1,126 @@
+# Open ERP — single-instance deployment.
+#
+# One organisation per deployment: the application is single-tenant, so each
+# organisation gets its own database and its own containers.
+#
+#   cp .env.example .env && ./scripts/gen-secrets.sh   # fill in secrets
+#   docker compose up -d
+#
+# Only the frontend is published, on 127.0.0.1. The API is reachable only from
+# inside this project's network: the frontend proxy is the authentication
+# boundary, so the API must never be exposed directly.
+#
+# Redis and the Celery worker drive the AI and integration features (note
+# analysis, task extraction, contact enrichment, Plaid/QBO/Gmail sync). Core
+# CRM, projects, funding, invoicing and FP&A do not need them, so they sit
+# behind the `full` profile:
+#
+#   docker compose --profile full up -d
+
+name: ${COMPOSE_PROJECT_NAME:-openerp}
+
 services:
-
-  traefik:
-    image: traefik:v3.0
-    container_name: openerp_traefik
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "8080:80"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    networks:
-      - openerp_net
-
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: openerp_postgres
+    container_name: ${INSTANCE:-openerp}_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: openerp
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: openerp
-      TZ: America/Chicago
-      PGTZ: America/Chicago
+      POSTGRES_USER: ${POSTGRES_USER:-openerp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-openerp}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./sql/views.sql:/docker-entrypoint-initdb.d/02_views.sql
-    networks:
-      - openerp_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openerp -d openerp"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openerp}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: openerp_redis
-    restart: unless-stopped
-    networks:
-      - openerp_net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      retries: 10
+    networks: [openerp_net]
 
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
-    container_name: openerp_api
+    image: openerp-api:latest
+    container_name: ${INSTANCE:-openerp}_api
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      TZ: America/Chicago
-      # running its first cell, and that kernel needs the same path the Jupyter
-      # kernels use.
-      # into the same import namespace as this repository's own.
-      DATABASE_URL: postgresql://openerp:${DB_PASSWORD}@postgres:5432/openerp
-      REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      USER_KEY_SECRET: ${USER_KEY_SECRET}
-      SECRET_KEY: ${SECRET_KEY}
-      # Shared with the frontend proxy: identity headers are only honoured when
-      # accompanied by this, so the API cannot be driven directly.
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      S2_API_KEY: ${S2_API_KEY:-}
-      CORE_API_KEY: ${CORE_API_KEY:-}
-      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
-      USDA_API_KEY: ${USDA_API_KEY:-DEMO_KEY}
-      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
-      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET}
-      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET}
-      PLAID_ENV: ${PLAID_ENV:-sandbox}
-      QBO_CLIENT_ID: ${QBO_CLIENT_ID:-}
-      QBO_CLIENT_SECRET: ${QBO_CLIENT_SECRET:-}
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      GRANOLA_API_KEY: ${GRANOLA_API_KEY:-}
-      GRANOLA_SYNC_USER_EMAIL: ${GRANOLA_SYNC_USER_EMAIL:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openerp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openerp}
+      # Empty unless you run --profile full; the API reports "not configured"
+      # rather than degraded when Redis is absent.
+      REDIS_URL: ${REDIS_URL:-}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      RAG_ENABLED: ${RAG_ENABLED:-true}
-      ATCC_API_KEY: ${ATCC_API_KEY:-}
-      ELSEVIER_API_KEY: ${ELSEVIER_API_KEY:-}
-      WILEY_TDM_TOKEN: ${WILEY_TDM_TOKEN:-}
-      TDM_API_TOKEN: ${WILEY_TDM_TOKEN:-}
-      SPRINGER_API_KEY: ${SPRINGER_API_KEY:-}
-      WP_BASE_URL: ${WP_BASE_URL:-http://wordpress-production}
-      WP_APP_USER: ${WP_APP_USER:-admin}
-      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-}
-      EIA_API_KEY: ${EIA_API_KEY:-}
-      FRED_API_KEY: ${FRED_API_KEY:-}
-      OPENEI_API_KEY: ${OPENEI_API_KEY:-DEMO_KEY}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
-      GOOSEWORKS_API_KEY: ${GOOSEWORKS_API_KEY:-}
-      GOOSEWORKS_API_BASE: ${GOOSEWORKS_API_BASE:-https://api.gooseworks.ai}
+      USER_KEY_SECRET: ${USER_KEY_SECRET:-}
+      TZ: ${TZ:-UTC}
     volumes:
-      - ./reports:/app/reports
       - uploads_data:/app/uploads
-      - ./models:/opt/openerp/models
-      - /root/.gooseworks:/root/.gooseworks:ro
-      # Whole package, not a per-file list: mounting only some paths meant edits
-      # to unmounted ones (app/tasks/) silently ran stale image code.
-      - ./api/app:/app/app
-      - ./.git/config:/app/.git/config:ro
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+    networks: [openerp_net]
+
+  frontend:
+    build:
+      context: ./frontend
+      target: runner
+    image: openerp-frontend:latest
+    container_name: ${INSTANCE:-openerp}_frontend
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000/api
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?set NEXTAUTH_URL in .env}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      TZ: ${TZ:-UTC}
     ports:
-      - "127.0.0.1:8001:8000"
-    networks:
-      - openerp_net
-      - wordpress_net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`erp.example.com`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "127.0.0.1:${FRONTEND_PORT:-8110}:3000"
+    depends_on: [api]
+    networks: [openerp_net]
+
+  # ── optional: AI and integration features ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ${INSTANCE:-openerp}_redis
+    restart: unless-stopped
+    profiles: [full]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [openerp_net]
 
   worker:
     build:
       context: .
       dockerfile: api/Dockerfile
-    container_name: openerp_worker
+    image: openerp-api:latest
+    container_name: ${INSTANCE:-openerp}_worker
     restart: unless-stopped
+    profiles: [full]
     command: celery -A app.worker worker --loglevel=info --beat --max-tasks-per-child=50
     environment:
-      TZ: America/Chicago
-      DATABASE_URL: postgresql://openerp:${DB_PASSWORD}@postgres:5432/openerp
-      REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      SECRET_KEY: ${SECRET_KEY}
-      S2_API_KEY: ${S2_API_KEY:-}
-      CORE_API_KEY: ${CORE_API_KEY:-}
-      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
-      USDA_API_KEY: ${USDA_API_KEY:-DEMO_KEY}
-      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
-      PLAID_SANDBOX_SECRET: ${PLAID_SANDBOX_SECRET}
-      PLAID_PRODUCTION_SECRET: ${PLAID_PRODUCTION_SECRET}
-      PLAID_ENV: ${PLAID_ENV:-sandbox}
-      QBO_CLIENT_ID: ${QBO_CLIENT_ID:-}
-      QBO_CLIENT_SECRET: ${QBO_CLIENT_SECRET:-}
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      GRANOLA_API_KEY: ${GRANOLA_API_KEY:-}
-      GRANOLA_SYNC_USER_EMAIL: ${GRANOLA_SYNC_USER_EMAIL:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openerp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openerp}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      RAG_ENABLED: ${RAG_ENABLED:-true}
-      ATCC_API_KEY: ${ATCC_API_KEY:-}
-      ELSEVIER_API_KEY: ${ELSEVIER_API_KEY:-}
-      WILEY_TDM_TOKEN: ${WILEY_TDM_TOKEN:-}
-      TDM_API_TOKEN: ${WILEY_TDM_TOKEN:-}
-      SPRINGER_API_KEY: ${SPRINGER_API_KEY:-}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
-      GOOSEWORKS_API_KEY: ${GOOSEWORKS_API_KEY:-}
-      GOOSEWORKS_API_BASE: ${GOOSEWORKS_API_BASE:-https://api.gooseworks.ai}
+      TZ: ${TZ:-UTC}
     volumes:
-      - ./reports:/app/reports
-      - ./scripts:/opt/openerp/scripts
-      - ./models:/opt/openerp/models
-      # Scheduled emails are sent from here, so the worker needs the same
-      # uploaded attachments the API wrote.
       - uploads_data:/app/uploads
-      - ./api/app:/app/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - openerp_net
-
-  frontend:
-    build:
-      context: ./frontend
-      target: dev
-    container_name: openerp_frontend
-    restart: unless-stopped
-    command: node_modules/.bin/next dev
-    environment:
-      TZ: America/Chicago
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      API_URL: http://api:8000/api
-      NEXT_PUBLIC_API_URL: https://erp.example.com/api
-      # Proves a request carrying X-User-Id really came from this proxy.
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-    volumes:
-      - ./frontend:/app
-      # into a Next.js route group: a folder in parentheses is excluded from the
-      # Components resolve through a tsconfig path alias rather than being
-      # mounted file by file: bind-mounting individual files into a
-      # bind-mounted directory makes Docker create empty placeholders on the
-      # host, which land in this repo as untracked junk on every deploy.
-      - frontend_node_modules:/app/node_modules
-    depends_on:
-      - api
-    networks:
-      - openerp_net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`erp.example.com`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-      - "traefik.http.routers.frontend-proxy.rule=Host(`erp.example.com`) && (PathPrefix(`/api/proxy`) || PathPrefix(`/api/auth`) || PathPrefix(`/api/logo`))"
-      - "traefik.http.routers.frontend-proxy.entrypoints=web"
-      - "traefik.http.routers.frontend-proxy.service=frontend"
-      # The investor room is served under the marketing domain; route the page,
-      # its Next assets and its API calls to this same service.
-      - "traefik.http.routers.investors.rule=Host(`example.com`) && (PathPrefix(`/investors`) || PathPrefix(`/_next`) || PathPrefix(`/api/proxy`) || PathPrefix(`/api/logo`))"
-      - "traefik.http.routers.investors.entrypoints=web"
-      - "traefik.http.routers.investors.service=frontend"
+    networks: [openerp_net]
 
 networks:
   openerp_net:
     driver: bridge
-  wordpress_net:
-    external: true
-    name: root_wordpress-production-network
 
 volumes:
   postgres_data:
   uploads_data:
-  frontend_node_modules:

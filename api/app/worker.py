@@ -209,11 +209,10 @@ def nightly_embed_task(self):
 # ---------------------------------------------------------------------------
 # Task registration.
 #
-# The task bodies live in worker_science.py and worker_ops.py. Importing them
-# here registers them with celery_app and keeps `from app.worker import <task>`
-# working for the fifteen modules that do exactly that. The import sits at the
-# bottom because both modules import celery_app from this one.
+# The task bodies live in worker_ops.py. Importing it here registers them with
+# celery_app and keeps `from app.worker import <task>` working for the modules
+# that do exactly that. The import sits at the bottom because worker_ops
+# imports celery_app from this one.
 # ---------------------------------------------------------------------------
 
-from app.worker_science import *  # noqa: E402,F401,F403
 from app.worker_ops import *      # noqa: E402,F401,F403
