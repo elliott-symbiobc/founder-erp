@@ -450,7 +450,7 @@ export default function InvestorRoomPage() {
           {/* Sized to the rail's width rather than a fixed height. The mark is
               a 2:1 wordmark, so a height that suited a top bar left most of the
               rail empty beside it. */}
-          <img src="/api/logo" alt="Open ERP" className="w-full h-auto"
+          <img src="/api/logo" alt="Founder ERP" className="w-full h-auto"
                onError={e => { const i = e.currentTarget; if (!i.src.includes("logo.svg")) i.src = "/logo.svg"; }} />
           <p className="mt-4 text-base font-medium text-gray-900 leading-snug">
             {portal.project_name}
@@ -636,7 +636,7 @@ export default function InvestorRoomPage() {
 
       <footer className="border-t border-gray-200 mt-auto">
         <div className="w-full px-6 lg:px-8 py-6 flex items-center justify-between gap-4 text-xs text-gray-400">
-          <span>Open ERP · Confidential, not for distribution</span>
+          <span>Founder ERP · Confidential, not for distribution</span>
           <span className="shrink-0">{new Date().getFullYear()}</span>
         </div>
       </footer>
@@ -1155,7 +1155,7 @@ function Gate({ onSuccess }: { onSuccess: (token: string, name: string | null) =
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
       <header className="border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center">
-          <img src="/api/logo" alt="Open ERP" className="h-9 w-auto"
+          <img src="/api/logo" alt="Founder ERP" className="h-9 w-auto"
                onError={e => { const i = e.currentTarget; if (!i.src.includes("logo.svg")) i.src = "/logo.svg"; }} />
         </div>
       </header>
@@ -1270,7 +1270,7 @@ function Gate({ onSuccess }: { onSuccess: (token: string, name: string | null) =
               <>
                 <h1 className="text-2xl font-semibold mb-1.5">Request sent</h1>
                 <p className="text-lg text-gray-500 leading-relaxed">
-                  Thanks, your request has been sent to the Open ERP team. If it&apos;s approved
+                  Thanks, your request has been sent to the Founder ERP team. If it&apos;s approved
                   you&apos;ll get an email at <span className="text-gray-700">{email}</span>
                   {" "}with a link to set your password.
                 </p>
@@ -1315,7 +1315,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
       <header className="border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center">
-          <img src="/api/logo" alt="Open ERP" className="h-9 w-auto"
+          <img src="/api/logo" alt="Founder ERP" className="h-9 w-auto"
                onError={e => { const i = e.currentTarget; if (!i.src.includes("logo.svg")) i.src = "/logo.svg"; }} />
         </div>
       </header>

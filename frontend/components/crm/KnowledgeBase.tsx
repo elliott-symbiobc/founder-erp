@@ -75,16 +75,16 @@ const AUTOMATIONS: { trigger: string; effect: string }[] = [
     effect: "Status (Nurture / Lost) and Re-approach Date are re-derived from the new category.",
   },
   {
-    trigger: "Set Status by hand (New / Awaiting Open ERP / Awaiting Client)",
+    trigger: "Set Status by hand (New / Awaiting Founder ERP / Awaiting Client)",
     effect: "The moment of the change is recorded. The Awaiting Client urgency clock runs from the instant Status was set to Awaiting Client.",
   },
   {
     trigger: "Reopen a closed deal (move out of Closed Won / Lost)",
-    effect: "End Date and Re-approach Date are cleared and Status is handed back to the owner as Awaiting Open ERP.",
+    effect: "End Date and Re-approach Date are cleared and Status is handed back to the owner as Awaiting Founder ERP.",
   },
   {
     trigger: "Recalculated on read (daily)",
-    effect: "The Urgency Flag is recomputed from Status + dates and is never editable. New: purple days 0–7 from Start Date, red from day 8. Awaiting Open ERP: green until the earliest open plan item is overdue, then yellow, then red past the stage red-trigger. Awaiting Client: green 7 days from the status change, yellow from day 8, red past the red-trigger. Won / Nurture / Lost are grey.",
+    effect: "The Urgency Flag is recomputed from Status + dates and is never editable. New: purple days 0–7 from Start Date, red from day 8. Awaiting Founder ERP: green until the earliest open plan item is overdue, then yellow, then red past the stage red-trigger. Awaiting Client: green 7 days from the status change, yellow from day 8, red past the red-trigger. Won / Nurture / Lost are grey.",
   },
   {
     trigger: "Red trigger, by stage",
@@ -128,7 +128,7 @@ const FIELD_GROUPS: { section: string; blurb: string; fields: Field[] }[] = [
       { name: "Status", req: "Required, always", what: "Who owes the next move. Set by hand while open; set by the system at close." },
       { name: "Urgency Flag", req: "Set automatically (daily)", what: "The system's read of how late the next move is. Read-only colour." },
       { name: "No Open Task Flag", req: "Set automatically", what: "Raised on any open deal with no open plan item." },
-      { name: "Deal Lead", req: "Required at Prospect", what: "The Open ERP owner accountable for the next action. Exactly one per open deal." },
+      { name: "Deal Lead", req: "Required at Prospect", what: "The Founder ERP owner accountable for the next action. Exactly one per open deal." },
       { name: "Start Date", req: "Required, always", what: "Date the deal was opened. Measures stage and cycle time." },
       { name: "Expected Close Date", req: "Required at Qualification", what: "Forecast close. Re-seeded to today + the stage offset on each stage change." },
       { name: "End Date", req: "Set automatically at close", what: "Stamped at Closed Won / Closed Lost. Drives cycle time and forecast accuracy." },
@@ -326,7 +326,7 @@ export default function KnowledgeBase() {
         </section>
 
         <p className="text-[11px] text-zinc-400 dark:text-zinc-600 pt-2">
-          Source: Open ERP CRM Properties/Fields template and Sales Pipeline template.
+          Source: Founder ERP CRM Properties/Fields template and Sales Pipeline template.
         </p>
       </div>
     </div>

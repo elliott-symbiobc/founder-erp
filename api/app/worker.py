@@ -10,7 +10,7 @@ from celery.schedules import crontab
 logger = logging.getLogger(__name__)
 
 celery_app = Celery(
-    "openerp",
+    "founder_erp",
     broker=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
     backend=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
 )
@@ -106,7 +106,7 @@ def _check_model_staleness() -> None:
     from datetime import datetime, timezone
     from pathlib import Path
 
-    model_path = Path("/opt/openerp/models/compatibility_model.pkl")
+    model_path = Path("/opt/founder-erp/models/compatibility_model.pkl")
     if not model_path.exists():
         logger.warning(
             "MODEL STALENESS: compatibility_model.pkl not found — "

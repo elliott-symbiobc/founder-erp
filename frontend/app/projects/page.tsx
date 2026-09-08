@@ -1684,7 +1684,7 @@ function ProjectsContent() {
             <option value="">All statuses</option>
             <option value="in_progress">In Progress</option>
             <option value="waiting_client">Awaiting Client</option>
-            <option value="waiting_sbc">Awaiting Open ERP</option>
+            <option value="waiting_sbc">Awaiting Founder ERP</option>
             <option value="awaiting_vendor">Awaiting Vendor</option>
           </select>
           <div className="ml-auto flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">

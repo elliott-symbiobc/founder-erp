@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy — Open ERP" };
+export const metadata = { title: "Privacy Policy — Founder ERP" };
 
 export default function PrivacyPage() {
   return (
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
             ← Back to Sign In
           </Link>
           <div className="mt-6 mb-2">
-            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Open ERP</span>
+            <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Founder ERP</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Privacy Policy</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Last updated: April 8, 2026</p>
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">1. Introduction</h2>
-            <p>Your Company LLC (&ldquo;Open ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Open ERP platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
+            <p>Your Company LLC (&ldquo;Founder ERP,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates the Founder ERP platform (the &ldquo;Platform&rdquo;). This Privacy Policy explains how we collect, use, disclose, and safeguard information when you access or use the Platform. Please read this policy carefully. If you disagree with its terms, please discontinue use of the Platform.</p>
           </section>
 
           <section>
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">4. Data Retention</h2>
-            <p>We retain your information for as long as your account is active or as needed to provide the Platform&rsquo;s services. Research data, financial models, and operational records are retained in accordance with Open ERP&rsquo;s internal data governance policies. You may request deletion of your account and associated personal data by contacting us at <a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a>. Note that certain data may be retained where required by law or legitimate business necessity.</p>
+            <p>We retain your information for as long as your account is active or as needed to provide the Platform&rsquo;s services. Research data, financial models, and operational records are retained in accordance with Founder ERP&rsquo;s internal data governance policies. You may request deletion of your account and associated personal data by contacting us at <a href="mailto:privacy@example.com" className="text-blue-600 dark:text-blue-400 hover:underline">privacy@example.com</a>. Note that certain data may be retained where required by law or legitimate business necessity.</p>
           </section>
 
           <section>
@@ -75,7 +75,7 @@ export default function PrivacyPage() {
               <li><span className="font-medium">Service providers:</span> To trusted vendors who assist us in operating the Platform (e.g., cloud hosting, AI services), under confidentiality obligations;</li>
               <li><span className="font-medium">Legal requirements:</span> When required by law, court order, or government authority;</li>
               <li><span className="font-medium">Business transfers:</span> In connection with a merger, acquisition, or sale of assets, with appropriate confidentiality protections;</li>
-              <li><span className="font-medium">Protection of rights:</span> To protect the rights, safety, or property of Open ERP, its users, or others.</li>
+              <li><span className="font-medium">Protection of rights:</span> To protect the rights, safety, or property of Founder ERP, its users, or others.</li>
             </ul>
           </section>
 

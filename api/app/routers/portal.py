@@ -2992,7 +2992,7 @@ you'll be asked to choose a password the first time.
 
 {_room_link(portal)}
 
-Open ERP
+Founder ERP
 """,
         )
 

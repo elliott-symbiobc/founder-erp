@@ -353,7 +353,7 @@ def _find_or_create_customer(key: str, inv: dict) -> str:
     created = _stripe("POST", "/customers", key, data={
         "email": email,
         "name": inv.get("contact_organization") or inv.get("contact_name") or email,
-        "metadata": {"openerp_contact_id": str(inv.get("contact_id") or "")},
+        "metadata": {"founder_erp_contact_id": str(inv.get("contact_id") or "")},
     })
     return created["id"]
 
@@ -472,8 +472,8 @@ def _push_and_finalize(invoice_id: str, request: Request) -> tuple[str, dict, di
         "auto_advance": False,
         "payment_settings": {"payment_method_types": PAYMENT_METHOD_TYPES},
         "metadata": {
-            "openerp_invoice_id": str(inv["invoice_id"]),
-            "openerp_invoice_number": inv["invoice_number"],
+            "founder_erp_invoice_id": str(inv["invoice_id"]),
+            "founder_erp_invoice_number": inv["invoice_number"],
         },
         "description": inv.get("notes") or None,
     }

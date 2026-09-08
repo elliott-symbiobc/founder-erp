@@ -144,7 +144,7 @@ def _build_system_prompt(user_id: str, conn) -> str:
     team_lines = [f'  - user_id={m["user_id"]} | {m["full_name"] or m["name"]}' for m in team]
     team_block = "\n".join(team_lines)
 
-    return f"""You are the Open ERP platform assistant, responding via SMS. Today is {today}.
+    return f"""You are the Founder ERP platform assistant, responding via SMS. Today is {today}.
 
 The user has {len(tasks)} open tasks total. Full list numbered for reference:
 {tasks_block}
@@ -332,7 +332,7 @@ async def twilio_webhook(
         if not user:
             logger.warning("SMS from unknown number %s", From)
             return Response(
-                content='<?xml version="1.0"?><Response><Message>Sorry, your number is not registered on the Open ERP platform.</Message></Response>',
+                content='<?xml version="1.0"?><Response><Message>Sorry, your number is not registered on the Founder ERP platform.</Message></Response>',
                 media_type="application/xml",
             )
 

@@ -103,10 +103,10 @@ const STATUS_DOT: Record<string, string> = {
   cancelled: "bg-gray-300",
 };
 
-const LS_FORMATTING_KEY = "openerp_invoice_formatting";
+const LS_FORMATTING_KEY = "founder_erp_invoice_formatting";
 
 const DEFAULT_FORMATTING: FormattingSettings = {
-  companyName: "Open ERP",
+  companyName: "Founder ERP",
   companyTagline: "",
   companyAddress: "",
   companyEmail: "",

@@ -2147,7 +2147,7 @@ _DEFAULT_RUBRIC = {
     },
     "check": {
         "label": "Check Size Fit",
-        "description": "Does the investor's typical first check fit Open ERP's round ($500K–$3M total raise)?",
+        "description": "Does the investor's typical first check fit Founder ERP's round ($500K–$3M total raise)?",
         "max": 4,
         "levels": {
             "0": "First check consistently >$5M (too large for our current round) OR angel-only (<$50K)",
@@ -2159,7 +2159,7 @@ _DEFAULT_RUBRIC = {
     },
     "geo": {
         "label": "Geographic Fit",
-        "description": "Will this investor back a US-based company? Open ERP is in Chicago. Remote-friendly or US-focused investors score higher.",
+        "description": "Will this investor back a US-based company? Founder ERP is in Chicago. Remote-friendly or US-focused investors score higher.",
         "max": 4,
         "levels": {
             "0": "Strictly invests in a single non-US region with no exceptions (e.g. Southeast Asia only, MENA only)",
@@ -2506,7 +2506,7 @@ def discover_investors(body: dict = None):
     Body params (all optional):
       - max_pages: int (default 2, each page ~$0.66, up to 100 results)
       - page_size: int (default 100, max 100)
-      - industries: list[str] (Fundable industry permalinks, defaults to Open ERP set)
+      - industries: list[str] (Fundable industry permalinks, defaults to Founder ERP set)
       - locations: list[str] (Fundable location permalinks, e.g. ['north-america'])
       - min_recent_deals: int (default 1, filters inactive investors)
     """

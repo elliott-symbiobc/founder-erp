@@ -72,7 +72,7 @@ export default function KbHomePage() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Knowledge Base</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Documentation for the Open ERP platform.
+          Documentation for the Founder ERP platform.
         </p>
       </div>
 

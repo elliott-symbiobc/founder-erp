@@ -231,7 +231,7 @@ function encodeBlocks(blocks: EmailBlock[]) {
 
 function decodeBlocks(html?: string | null): EmailBlock[] | null {
   if (!html) return null;
-  const match = html.match(/<!--openerp-email-blocks:([^>]+)-->/);
+  const match = html.match(/<!--founder_erp-email-blocks:([^>]+)-->/);
   if (!match) return null;
   try {
     const parsed = JSON.parse(decodeURIComponent(atob(match[1]))) as EmailBlock[];
@@ -470,7 +470,7 @@ function renderBlocks(blocks: EmailBlock[]) {
   const inner = rows.join("");
 
   const metadata = encodeBlocks(blocks);
-  const comment = metadata ? `<!--openerp-email-blocks:${metadata}-->` : "";
+  const comment = metadata ? `<!--founder_erp-email-blocks:${metadata}-->` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:${EMAIL_FONT}"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f3f4f6"><tr><td style="padding:28px 16px"><div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;padding:32px;border:1px solid #e5e7eb;font-family:${EMAIL_FONT}">${inner}</div></td></tr></table>${comment}</body></html>`;
 }
 
@@ -2331,7 +2331,7 @@ function BrandSettingsTab({ brand, onSaved }: { brand: BrandSettings; onSaved: (
           <div className="grid grid-cols-1 gap-3">
             <div>
               <label className={labelClass}>Business name</label>
-              <input value={form.business_name ?? ""} onChange={(e) => patch({ business_name: e.target.value || null })} placeholder="Open ERP Inc." className={inputClass} />
+              <input value={form.business_name ?? ""} onChange={(e) => patch({ business_name: e.target.value || null })} placeholder="Founder ERP Inc." className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Postal address</label>

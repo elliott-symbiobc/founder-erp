@@ -1,4 +1,4 @@
-# Open ERP — single-instance deployment.
+# Founder ERP — single-instance deployment.
 #
 # One organisation per deployment: the application is single-tenant, so each
 # organisation gets its own database and its own containers.
@@ -17,35 +17,35 @@
 #
 #   docker compose --profile full up -d
 
-name: ${COMPOSE_PROJECT_NAME:-openerp}
+name: ${COMPOSE_PROJECT_NAME:-founder_erp}
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: ${INSTANCE:-openerp}_postgres
+    container_name: ${INSTANCE:-founder_erp}_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-openerp}
+      POSTGRES_USER: ${POSTGRES_USER:-founder_erp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-openerp}
+      POSTGRES_DB: ${POSTGRES_DB:-founder_erp}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openerp}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-founder_erp}"]
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [openerp_net]
+    networks: [founder_net]
 
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
-    image: openerp-api:latest
-    container_name: ${INSTANCE:-openerp}_api
+    image: founder-erp-api:latest
+    container_name: ${INSTANCE:-founder_erp}_api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-openerp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openerp}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-founder_erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-founder_erp}
       # Empty unless you run --profile full; the API reports "not configured"
       # rather than degraded when Redis is absent.
       REDIS_URL: ${REDIS_URL:-}
@@ -59,14 +59,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [openerp_net]
+    networks: [founder_net]
 
   frontend:
     build:
       context: ./frontend
       target: runner
-    image: openerp-frontend:latest
-    container_name: ${INSTANCE:-openerp}_frontend
+    image: founder-erp-frontend:latest
+    container_name: ${INSTANCE:-founder_erp}_frontend
     restart: unless-stopped
     environment:
       API_URL: http://api:8000/api
@@ -77,12 +77,12 @@ services:
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-8110}:3000"
     depends_on: [api]
-    networks: [openerp_net]
+    networks: [founder_net]
 
   # ── optional: AI and integration features ────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: ${INSTANCE:-openerp}_redis
+    container_name: ${INSTANCE:-founder_erp}_redis
     restart: unless-stopped
     profiles: [full]
     healthcheck:
@@ -90,19 +90,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [openerp_net]
+    networks: [founder_net]
 
   worker:
     build:
       context: .
       dockerfile: api/Dockerfile
-    image: openerp-api:latest
-    container_name: ${INSTANCE:-openerp}_worker
+    image: founder-erp-api:latest
+    container_name: ${INSTANCE:-founder_erp}_worker
     restart: unless-stopped
     profiles: [full]
     command: celery -A app.worker worker --loglevel=info --beat --max-tasks-per-child=50
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-openerp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openerp}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-founder_erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-founder_erp}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -115,10 +115,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks: [openerp_net]
+    networks: [founder_net]
 
 networks:
-  openerp_net:
+  founder_net:
     driver: bridge
 
 volumes:

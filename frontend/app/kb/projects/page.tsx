@@ -14,7 +14,7 @@ export default function ProjectsKbPage() {
 
       <H2>Stage Pipeline</H2>
       <P>
-        Each project moves through a set of stages that reflect Open ERP's commercial process:
+        Each project moves through a set of stages that reflect Founder ERP's commercial process:
       </P>
       <SimpleTable
         headers={["Stage", "Meaning"]}

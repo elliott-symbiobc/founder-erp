@@ -1019,7 +1019,7 @@ export default function CRMDetailPanel({
               >
                 <option value="in_progress">In Progress</option>
                 <option value="waiting_client">Awaiting Client</option>
-                <option value="waiting_sbc">Awaiting Open ERP</option>
+                <option value="waiting_sbc">Awaiting Founder ERP</option>
                 <option value="awaiting_vendor">Awaiting Vendor</option>
                 <option value="inactive">Inactive</option>
                 <option value="won">Won</option>

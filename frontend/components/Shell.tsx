@@ -290,7 +290,7 @@ function pageTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/portals")) return "Portals";
   if (pathname.startsWith("/reports")) return "Reports";
   if (pathname.startsWith("/inventory")) return "Inventory";
-  return "Open ERP";
+  return "Founder ERP";
 }
 
 function moduleKeyFromPath(pathname: string): string | null {
@@ -1260,7 +1260,7 @@ function PreviewBanner({ who }: { who: string | null }) {
   function exit() {
     // Clearing the cookie is all it takes — the proxy stops sending X-View-As,
     // so the very next request is the admin's own again.
-    document.cookie = "openerp_view_as=; path=/; max-age=0";
+    document.cookie = "founder_erp_view_as=; path=/; max-age=0";
     window.location.href = "/admin/users";
   }
   return (
@@ -1301,7 +1301,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const [moduleOwners, setModuleOwners] = useState<Record<string, ModuleOwner>>({});
 
   useEffect(() => {
-    setViewingAs(document.cookie.includes("openerp_view_as="));
+    setViewingAs(document.cookie.includes("founder_erp_view_as="));
   }, [pathname]);
 
   useEffect(() => {

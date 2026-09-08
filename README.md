@@ -1,10 +1,10 @@
-# Open ERP
+# Founder ERP
 
 A sector-agnostic operations platform: CRM and sales pipeline, projects and tasks,
 FP&A and invoicing, fundraising and cap table, contacts and communications,
 marketing campaigns, client portals, and a partner/learning programme.
 
-Open ERP is the core-operations half of a larger platform, re-derived with every
+Founder ERP is the core-operations half of a larger platform, re-derived with every
 scientific and laboratory module removed. There is no ELN, no protocol bank,
 no inventory of chemicals or equipment, and no domain-specific modelling —
 only infrastructure that applies to any organisation.
@@ -29,8 +29,8 @@ only infrastructure that applies to any organisation.
 ## Quick start
 
 ```bash
-git clone https://github.com/elliott-symbiobc/open-erp.git
-cd open-erp
+git clone https://github.com/elliott-symbiobc/founder-erp.git
+cd founder-erp
 cp .env.example .env        # fill in your keys
 docker compose up -d
 ```

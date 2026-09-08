@@ -373,7 +373,7 @@ const useFundingTypes = fundingTypesStore.useOptions;
 
 /** The other half of what funding_type used to mean. Two values and a blank —
  *  a lookup table would be ceremony, so this one stays a constant. */
-const OPENERP_FIT_OPTIONS = ["Tier 1", "Tier 2", "Tier 3", "Unrated"] as const;
+const ORG_FIT_OPTIONS = ["Tier 1", "Tier 2", "Tier 3", "Unrated"] as const;
 
 const RECORD_STATUS_OPTIONS = [
   "Unenriched", "Enriched (desk)", "Enriched (verified)", "Ineligible",
@@ -390,7 +390,7 @@ const FIT_STYLES: Record<string, string> = {
 function FitChip({ value }: { value: string | null | undefined }) {
   if (!value || value === "Unrated") return null;
   return (
-    <span title={`Open ERP fit: ${value}`}
+    <span title={`Founder ERP fit: ${value}`}
       className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${FIT_STYLES[value] ?? FIT_STYLES.Unrated}`}>
       {value}
     </span>
@@ -5061,10 +5061,10 @@ function OpportunityDetailPanel({ opp, onClose, onSaved, onDelete }: {
               panel is worth reading at all. */}
           <DetailSection title="Screening" summary={screeningSummary} defaultOpen>
             <div className="space-y-2.5">
-              <DetailRow label="Open ERP Fit">
+              <DetailRow label="Founder ERP Fit">
                 <QuietSelect value={rec.org_fit ?? "Unrated"}
                   onChange={v => patch({ org_fit: v })}>
-                  {OPENERP_FIT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  {ORG_FIT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </QuietSelect>
               </DetailRow>
               <DetailRow label="Eligibility">
@@ -7911,7 +7911,7 @@ function SignatureSettings() {
             rows={5} className={SETTINGS_INPUT + " w-full resize-y font-mono text-[11px]"} />
           <p className="text-[10px] text-gray-400">
             One line per line. <span className="font-mono">Label [https://…]</span> becomes a link.
-            The Open ERP logo is added for you.
+            The Founder ERP logo is added for you.
           </p>
           <div className="flex items-center gap-1.5">
             <button onClick={save} disabled={busy}
@@ -11811,7 +11811,7 @@ function ManagementTab() {
     XLSX.utils.book_append_sheet(wb, ws1, "Cap Table Summary");
     XLSX.utils.book_append_sheet(wb, ws2, "SAFE Instrument Detail");
     XLSX.utils.book_append_sheet(wb, ws3, "Conversion Model");
-    XLSX.writeFile(wb, `OpenERP_CapTable_Internal_${new Date().toISOString().slice(0, 10)}.xlsx`, { cellStyles: true });
+    XLSX.writeFile(wb, `FounderERP_CapTable_Internal_${new Date().toISOString().slice(0, 10)}.xlsx`, { cellStyles: true });
   }
 
   // Investor-facing export — simple, shareable, formatted
@@ -11908,7 +11908,7 @@ function ManagementTab() {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Investor Summary");
-    XLSX.writeFile(wb, `OpenERP_Investor_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`, { cellStyles: true });
+    XLSX.writeFile(wb, `FounderERP_Investor_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`, { cellStyles: true });
   }
 
   // ── Patch helpers ──
@@ -12462,7 +12462,7 @@ type ResearchPlatform = {
 type SettingsSection = "kb" | "discovery" | "types";
 
 const SETTINGS_SECTIONS: { id: SettingsSection; label: string; blurb: string }[] = [
-  { id: "kb", label: "Open ERP Knowledge Base",
+  { id: "kb", label: "Founder ERP Knowledge Base",
     blurb: "Answers and information used to fill out applications — general questions and requirements, information about us, links to videos and material, and documents." },
   { id: "discovery", label: "Opportunity Discovery",
     blurb: "Where new competitions, accelerators, grants and other opportunities get found." },

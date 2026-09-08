@@ -7,14 +7,14 @@ export default function ContactsKbPage() {
     <article>
       <H1>Contacts & Relationship Management</H1>
       <Lead>
-        The Contacts module is a lightweight CRM built specifically for Open ERP's business development
+        The Contacts module is a lightweight CRM built specifically for Founder ERP's business development
         workflow. It tracks partners, investors, advisors, and clients — with automated Gmail and Calendar
         sync to keep interaction history current without manual data entry.
       </Lead>
 
       <H2>What Lives Here</H2>
       <P>
-        Every person or organisation that matters to Open ERP has a contact record. The module is divided
+        Every person or organisation that matters to Founder ERP has a contact record. The module is divided
         into three views, all accessible from the Contacts nav item:
       </P>
       <SimpleTable

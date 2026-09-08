@@ -68,7 +68,7 @@ export default function SmsConsentPage() {
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">What you will receive</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Daily task digest messages sent each morning summarizing your open and overdue tasks assigned within the
-                  Open ERP Platform. You may also receive conversational responses when you reply to these messages to
+                  Founder ERP Platform. You may also receive conversational responses when you reply to these messages to
                   manage tasks, ask questions, or get status updates.
                 </p>
               </div>

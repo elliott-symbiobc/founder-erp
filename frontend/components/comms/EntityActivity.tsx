@@ -1486,7 +1486,7 @@ export function EntityActivity({ entityType, entityId, assignedTo = null, outrea
                   if (ok) setActivityTitle("");
                 }}
                 disabled={busy === "touch-in"}
-                title="Records a reply received outside email — also flips the status to Awaiting Open ERP"
+                title="Records a reply received outside email — also flips the status to Awaiting Founder ERP"
                 className="text-[11px] px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50">
                 Log reply
               </button>
@@ -1596,7 +1596,7 @@ export function EntityActivity({ entityType, entityId, assignedTo = null, outrea
                 rows={5} className={D_INPUT + " w-full resize-y font-mono text-[11px]"} />
               <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
                 One line per line. <span className="font-mono">Label [https://…]</span> becomes a link.
-                The Open ERP logo is added for you.
+                The Founder ERP logo is added for you.
               </p>
               <div className="flex items-center gap-1.5">
                 <button onClick={saveSignature} disabled={busy === "signature"}

@@ -377,7 +377,7 @@ def get_invoice(invoice_id: str, request: Request):
 def download_invoice_pdf(
     invoice_id: str,
     request: Request,
-    company_name: str = "Open ERP",
+    company_name: str = "Founder ERP",
     company_tagline: str = "",
     company_address: str = "",
     company_email: str = "",

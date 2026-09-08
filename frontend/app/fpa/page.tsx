@@ -5753,7 +5753,7 @@ function FpaPageInner() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "OpenERP_Financial_Model.xlsx";
+      a.download = "FounderERP_Financial_Model.xlsx";
       a.click();
       URL.revokeObjectURL(url);
     }

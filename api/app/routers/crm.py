@@ -1020,7 +1020,7 @@ def update_deal(deal_id: str, body: DealUpdate, request: Request):
     if body.status and body.status not in USER_SETTABLE_STATUSES and body.status not in ("lost", "nurture"):
         raise HTTPException(
             status_code=400,
-            detail="Only New / Awaiting Open ERP / Awaiting Client — or Lost / Nurture on a Closed Lost deal — can be set by hand.",
+            detail="Only New / Awaiting Founder ERP / Awaiting Client — or Lost / Nurture on a Closed Lost deal — can be set by hand.",
         )
 
     conn = _conn()

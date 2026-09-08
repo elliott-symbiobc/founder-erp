@@ -1001,7 +1001,7 @@ def enrich_contact(contact_id: str) -> dict:
                 ' "industry_focus": "primary sector",\n'
                 ' "company_focus": "1-2 sentences on what their employer does",\n'
                 ' "relevance_to_business": "why this contact matters to the company specifically",\n'
-                ' "partnership_potential": "1-2 concrete sentences on how Open ERP could work with them",\n'
+                ' "partnership_potential": "1-2 concrete sentences on how Founder ERP could work with them",\n'
                 ' "suggested_tags": ["up to 5 short tags"]}\n\n'
                 "RULES:\n"
                 "- Ground every claim in the verified facts above. Do not invent job history, "

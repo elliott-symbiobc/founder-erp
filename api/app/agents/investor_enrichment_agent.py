@@ -420,7 +420,7 @@ def _make_tools(rubric: dict) -> list:
                     "partners": {"type": "string", "description": "Notable partners comma-separated"},
                     "check_size_min": {"type": "string", "description": "e.g. '$250K'"},
                     "check_size_max": {"type": "string", "description": "e.g. '$2M'"},
-                    "description": {"type": "string", "description": "2-3 sentence summary of firm and fit for Open ERP"},
+                    "description": {"type": "string", "description": "2-3 sentence summary of firm and fit for Founder ERP"},
                     "portfolio": {"type": "array", "items": {"type": "string"}, "description": "Notable portfolio companies (max 10)"},
                     "score_focus": {"type": "integer", "description": "0–4: sector focus fit"},
                     "score_stage": {"type": "integer", "description": "0–4: stage fit"},

@@ -150,8 +150,8 @@ def list_projects(
 
 DEFAULT_STATUS_CRITERIA = {
     "in_progress": "Active work is underway. Recent outbound emails or meetings have occurred, tasks are being completed, and the client is engaged.",
-    "waiting_client": "Open ERP has sent the most recent communication and is waiting for a client reply. No response received in the last 3-7 days.",
-    "waiting_sbc": "The client sent the most recent email or is expecting a response or deliverable from Open ERP. Open Open ERP-assigned tasks exist.",
+    "waiting_client": "Founder ERP has sent the most recent communication and is waiting for a client reply. No response received in the last 3-7 days.",
+    "waiting_sbc": "The client sent the most recent email or is expecting a response or deliverable from Founder ERP. Open Founder ERP-assigned tasks exist.",
     "awaiting_vendor": "Progress is blocked on a third-party vendor, lab result, or external dependency. Not waiting on the client directly.",
 }
 

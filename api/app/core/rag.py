@@ -1,5 +1,5 @@
 """
-rag.py — Retrieval-Augmented Generation core for the Open ERP dashboard agent.
+rag.py — Retrieval-Augmented Generation core for the Founder ERP dashboard agent.
 
 Pipeline:
   1. embed_query()         — embed the user's latest message

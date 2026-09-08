@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Import Odoo project tasks into openerp project_tasks table."""
+"""Import Odoo project tasks into founder_erp project_tasks table."""
 import re
 import os
 import psycopg2
 import psycopg2.extras
 
 ODOO_DSN  = os.environ.get("ODOO_DSN", "host=localhost port=5432 dbname=odoo user=odoo password=")
-OPENERP_DSN = "host=172.22.0.4 port=5432 dbname=openerp user=openerp password=EnoHammock3413!"
+FOUNDER_ERP_DSN = os.environ["FOUNDER_ERP_DSN"]  # e.g. host=... dbname=... user=... password=...
 
 def strip_html(t):
     if not t: return None
@@ -22,12 +22,12 @@ def extract(v):
     return m.group(1) if m else str(v)
 
 odoo   = psycopg2.connect(ODOO_DSN)
-openerp = psycopg2.connect(OPENERP_DSN)
+founder_erp = psycopg2.connect(FOUNDER_ERP_DSN)
 oc = odoo.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-sc = openerp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-sw = openerp.cursor()
+sc = founder_erp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+sw = founder_erp.cursor()
 
-# Odoo project_id → openerp project_id
+# Odoo project_id → founder_erp project_id
 sc.execute("SELECT project_id, odoo_project_id FROM projects WHERE odoo_project_id IS NOT NULL")
 proj_map = {r['odoo_project_id']: r['project_id'] for r in sc.fetchall()}
 
@@ -81,9 +81,9 @@ for t in tasks:
         """, (str(pid), t['id'], t['name'], stage, state, is_done, deadline, desc))
         inserted += 1
 
-openerp.commit()
+founder_erp.commit()
 print(f"Inserted: {inserted}, Updated: {updated}, Skipped (no project match): {skipped}")
 sc.execute("SELECT COUNT(*) FROM project_tasks")
 print(f"Total tasks: {sc.fetchone()['count']}")
-odoo.close(); openerp.close()
+odoo.close(); founder_erp.close()
 print("Done.")

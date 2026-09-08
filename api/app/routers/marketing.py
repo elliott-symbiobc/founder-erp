@@ -230,7 +230,7 @@ def _parse_doc_id(url_or_id: str) -> str:
 #
 # The Google Doc uses this human-readable plain-text format:
 #
-#   # Open ERP Key Language Library
+#   # Founder ERP Key Language Library
 #
 #   ---
 #
@@ -398,7 +398,7 @@ def _entries_to_text(entries: list[dict]) -> str:
     """
     Produce plain text for a Google Doc. Format:
 
-        KEY LANGUAGE LIBRARY — Open ERP
+        KEY LANGUAGE LIBRARY — Founder ERP
 
         ════════════════════════════════
         TAGLINE
@@ -424,7 +424,7 @@ def _entries_to_text(entries: list[dict]) -> str:
         by_cat[cat].append(e)
 
     divider = "═" * 40
-    lines = ["KEY LANGUAGE LIBRARY — Open ERP", ""]
+    lines = ["KEY LANGUAGE LIBRARY — Founder ERP", ""]
     for cat, items in by_cat.items():
         lines += [divider, cat.upper(), divider, ""]
         for item in items:

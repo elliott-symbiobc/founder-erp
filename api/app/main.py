@@ -51,7 +51,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Open ERP API",
+    title="Founder ERP API",
     root_path="/api",
 )
 
@@ -197,7 +197,7 @@ def _init_db():
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Open ERP API starting up")
+    logger.info("Founder ERP API starting up")
     _init_db()
     _ensure_tables()
     module_owners.ensure_table()

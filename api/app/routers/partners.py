@@ -146,11 +146,11 @@ def _invite_message(org: dict, invite: dict, sender_name: str) -> tuple[str, str
     org_name = org["name"]
     greeting = f"Hi {invite['full_name'].split()[0]}," if invite.get("full_name") else "Hi,"
 
-    subject = f"You're invited to join {org_name} on Open ERP"
+    subject = f"You're invited to join {org_name} on Founder ERP"
 
     plain = f"""{greeting}
 
-{sender_name} has invited you to join {org_name} on the Open ERP platform.
+{sender_name} has invited you to join {org_name} on the Founder ERP platform.
 
 Set your password and get started here:
 {link}
@@ -164,7 +164,7 @@ If you weren't expecting this, you can ignore this email.
             font-size:15px;line-height:1.55;color:#1f2937;max-width:520px">
   <p>{greeting}</p>
   <p><strong>{sender_name}</strong> has invited you to join
-     <strong>{org_name}</strong> on the Open ERP platform.</p>
+     <strong>{org_name}</strong> on the Founder ERP platform.</p>
   <p style="margin:28px 0">
     <a href="{link}"
        style="background:#2563eb;color:#ffffff;text-decoration:none;
@@ -217,7 +217,7 @@ def _sender_name(cur, user_id: str) -> str:
     cur.execute("SELECT full_name, name, email FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
     if not row:
-        return "The Open ERP team"
+        return "The Founder ERP team"
     return row["full_name"] or row["name"] or row["email"]
 
 

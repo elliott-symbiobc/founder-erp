@@ -6,7 +6,7 @@ GET    /funding/funding-types                — the funding type vocabulary
 POST   /funding/funding-types                — add a type
 PATCH  /funding/funding-types/{type_id}      — rename / recolour / reorder a type
 DELETE /funding/funding-types/{type_id}      — remove a type, reassigning its records
-GET    /funding/kb                           — Open ERP Knowledge Base entries
+GET    /funding/kb                           — Founder ERP Knowledge Base entries
 POST   /funding/kb                           — add a knowledge base entry
 PATCH  /funding/kb/{entry_id}                — edit an entry
 DELETE /funding/kb/{entry_id}                — remove an entry
@@ -110,7 +110,7 @@ def _claim_unassigned(cur, opportunity_id, user_id) -> bool:
     return bool(cur.rowcount)
 
 
-OPENERP_FIT_VALUES = ("Tier 1", "Tier 2", "Tier 3", "Unrated")
+ORG_FIT_VALUES = ("Tier 1", "Tier 2", "Tier 3", "Unrated")
 RECORD_STATUS_VALUES = ("Unenriched", "Enriched (desk)", "Enriched (verified)", "Ineligible")
 
 _DETAIL_UPDATABLE = {
@@ -410,7 +410,7 @@ def delete_funding_type(type_id: int, reassign_to: Optional[str] = Query(None)):
         conn.close()
 
 
-# ── Open ERP Knowledge Base ─────────────────────────────────────────────────────
+# ── Founder ERP Knowledge Base ─────────────────────────────────────────────────────
 # Reusable answers to the questions every application asks. Read far more often
 # than written — the list endpoint returns everything, because the whole point
 # is to scan it while a form is open in the next tab.
@@ -1415,9 +1415,9 @@ def update_opportunity(opportunity_id: str, body: dict, request: Request):
         # '' would be written as text into a DATE column and error; the honest
         # value for "never verified" is NULL.
         updates["last_verified"] = None
-    if "org_fit" in updates and updates["org_fit"] not in OPENERP_FIT_VALUES:
+    if "org_fit" in updates and updates["org_fit"] not in ORG_FIT_VALUES:
         raise HTTPException(status_code=400,
-                            detail=f"org_fit must be one of {', '.join(OPENERP_FIT_VALUES)}")
+                            detail=f"org_fit must be one of {', '.join(ORG_FIT_VALUES)}")
 
     conn = get_conn()
     try:

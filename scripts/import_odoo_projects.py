@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Import CRM opportunities and projects from Odoo into openerp DB.
+Import CRM opportunities and projects from Odoo into founder_erp DB.
 - Marks CRM contact partners as is_client=True
 - Imports CRM leads as projects (type=crm_opportunity)
 - Imports Odoo projects as projects (type=internal/poc)
@@ -11,7 +11,7 @@ import psycopg2
 import psycopg2.extras
 
 ODOO_DSN = os.environ.get("ODOO_DSN", "host=localhost port=5432 dbname=odoo user=odoo password=")
-OPENERP_DSN = "host=172.22.0.4 port=5432 dbname=openerp user=openerp password=EnoHammock3413!"
+FOUNDER_ERP_DSN = os.environ["FOUNDER_ERP_DSN"]  # e.g. host=... dbname=... user=... password=...
 
 def strip_html(text):
     if not text:
@@ -33,12 +33,12 @@ def extract_lang(jsonb_name):
     return m.group(1) if m else str(jsonb_name)
 
 odoo = psycopg2.connect(ODOO_DSN)
-openerp = psycopg2.connect(OPENERP_DSN)
+founder_erp = psycopg2.connect(FOUNDER_ERP_DSN)
 odoo_cur = odoo.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-sym_cur = openerp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-sym_write = openerp.cursor()
+sym_cur = founder_erp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+sym_write = founder_erp.cursor()
 
-# ── Build openerp contact lookup ───────────────────────────────────────────────
+# ── Build founder_erp contact lookup ───────────────────────────────────────────────
 sym_cur.execute("SELECT contact_id, name, email, odoo_id FROM contacts")
 all_contacts = sym_cur.fetchall()
 by_odoo_id = {r['odoo_id']: r['contact_id'] for r in all_contacts if r['odoo_id']}
@@ -198,7 +198,7 @@ for proj in odoo_projects:
               proj['id'], date_start, date_end, notes))
         print(f"  + Project: {pname} [{ptype}] → {proj['partner_name'] or '—'}")
 
-openerp.commit()
+founder_erp.commit()
 
 # ── Summary ────────────────────────────────────────────────────────────────────
 sym_cur.execute("SELECT COUNT(*) FROM projects")
@@ -207,5 +207,5 @@ sym_cur.execute("SELECT COUNT(*) FROM contacts WHERE is_client = TRUE AND archiv
 print(f"Total clients: {sym_cur.fetchone()['count']}")
 
 odoo.close()
-openerp.close()
+founder_erp.close()
 print("\nDone.")

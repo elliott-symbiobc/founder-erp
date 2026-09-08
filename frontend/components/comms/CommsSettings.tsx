@@ -262,7 +262,7 @@ function SignatureSettings() {
             rows={5} className={SETTINGS_INPUT + " w-full resize-y font-mono text-[11px]"} />
           <p className="text-[10px] text-gray-400">
             One line per line. <span className="font-mono">Label [https://…]</span> becomes a link.
-            The Open ERP logo is added for you.
+            The Founder ERP logo is added for you.
           </p>
           <div className="flex items-center gap-1.5">
             <button onClick={save} disabled={busy}

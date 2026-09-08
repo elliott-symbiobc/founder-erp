@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Fundable industry permalinks to filter discovery by. Set INVESTOR_INDUSTRIES
 # to a comma-separated list of permalinks for your sector; empty means no
 # industry filter, which returns a much broader set.
-OPENERP_INDUSTRIES = [
+INVESTOR_INDUSTRIES = [
     p.strip() for p in os.environ.get("INVESTOR_INDUSTRIES", "").split(",") if p.strip()
 ]
 
@@ -180,7 +180,7 @@ def run_discovery(
     Args:
         max_pages: Number of pages to fetch (each page costs ~$0.66)
         page_size: Results per page (max 100)
-        industries: Fundable industry permalinks (defaults to OPENERP_INDUSTRIES)
+        industries: Fundable industry permalinks (defaults to INVESTOR_INDUSTRIES)
         locations: Fundable location permalinks (e.g. ['north-america', 'united-states'])
         min_recent_deals: Filter out investors with fewer than N deals in last 12 months
 
@@ -188,7 +188,7 @@ def run_discovery(
         dict with fetched, duplicates, inserted, pages, errors, credits_used
     """
     if industries is None:
-        industries = OPENERP_INDUSTRIES
+        industries = INVESTOR_INDUSTRIES
 
     existing_keys = _get_existing_keys()
     logger.info("Discovery: existing DB keys loaded (%d)", len(existing_keys))

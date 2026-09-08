@@ -185,7 +185,7 @@ export const PORTFOLIO_STAGE_GROUPS: StageGroup[] = [
 ];
 
 // ── Stage guidance (board tooltip + Knowledge Base) ──────────────────────────
-// Sourced from the Open ERP pipeline template: what each stage means and what has
+// Sourced from the Founder ERP pipeline template: what each stage means and what has
 // to be true before a deal leaves it.
 export const STAGE_INFO: Record<string, { description: string; requirements: string }> = {
   "Lead": {

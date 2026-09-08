@@ -733,7 +733,7 @@ function LeadDrawer({ lead, onClose, onSave, runId: initialRunId, traceSteps: in
                 <VRow label="Address" value={form.address} />
                 <VRow label="Revenue" value={form.est_revenue} source={form.field_sources?.est_revenue} />
                 <VRow label="Key products" value={form.key_products} source={form.field_sources?.key_products} />
-                <VRow label="Open ERP fit" value={form.org_fit} />
+                <VRow label="Founder ERP fit" value={form.org_fit} />
               </>
             ) : (
               <>
@@ -762,7 +762,7 @@ function LeadDrawer({ lead, onClose, onSave, runId: initialRunId, traceSteps: in
                 <ERow label="Address"><input value={form.address ?? ""} onChange={e => set("address", e.target.value)} className={iCls} /></ERow>
                 <ERow label="Revenue"><input value={form.est_revenue ?? ""} onChange={e => set("est_revenue", e.target.value)} className={iCls} /></ERow>
                 <ERow label="Key products"><AutoTextarea rows={2} value={form.key_products ?? ""} onChange={e => set("key_products", e.target.value)} className={tCls} /></ERow>
-                <ERow label="Open ERP fit"><AutoTextarea rows={3} value={form.org_fit ?? ""} onChange={e => set("org_fit", e.target.value)} className={tCls} /></ERow>
+                <ERow label="Founder ERP fit"><AutoTextarea rows={3} value={form.org_fit ?? ""} onChange={e => set("org_fit", e.target.value)} className={tCls} /></ERow>
               </>
             )}
           </Sect>
@@ -1329,7 +1329,7 @@ const SCORE_CATEGORIES = [
   { key: "contact_quality", label: "Contacts",        hint: "Verified email contacts found" },
   { key: "icp_match",       label: "ICP match",       hint: "Industry & region fit" },
   { key: "warm_connection", label: "Warm connection", hint: "Mutual connection present" },
-  { key: "engagement",      label: "Engagement",      hint: "Recommended action, Open ERP fit notes" },
+  { key: "engagement",      label: "Engagement",      hint: "Recommended action, Founder ERP fit notes" },
   { key: "completeness",    label: "Completeness",    hint: "Enrichment & data quality" },
 ];
 

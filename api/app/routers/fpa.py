@@ -837,7 +837,7 @@ def export_model(request: Request):
     ws1.column_dimensions["A"].width = 35
     ws1.column_dimensions["B"].width = 20
 
-    ws1["A1"].value = "Open ERP — Returns Model"
+    ws1["A1"].value = "Founder ERP — Returns Model"
     ws1["A1"].font = Font(bold=True, size=14)
 
     bold_label(ws1["A3"], "EXIT ASSUMPTIONS")
@@ -910,7 +910,7 @@ def export_model(request: Request):
     ws2 = wb.create_sheet("P&L Summary")
     ws2.column_dimensions["A"].width = 32
 
-    ws2["A1"].value = "Open ERP — P&L Summary ($)"
+    ws2["A1"].value = "Founder ERP — P&L Summary ($)"
     ws2["A1"].font = Font(bold=True, size=13)
 
     years = [d["year"] for d in annual_data if isinstance(d, dict)]
@@ -1086,7 +1086,7 @@ def export_model(request: Request):
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=OpenERP_Financial_Model.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=FounderERP_Financial_Model.xlsx"},
     )
 
 
@@ -1979,7 +1979,7 @@ def export_model_v2(request: Request):
 
     ws.merge_cells("A1:B1")
     c = ws["A1"]
-    c.value = "Open ERP — Financial Model"
+    c.value = "Founder ERP — Financial Model"
     c.font = Font(bold=True, size=18, color=NAVY)
     c.alignment = Alignment(horizontal="left", vertical="center")
 
@@ -2541,7 +2541,7 @@ def export_model_v2(request: Request):
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=OpenERP_Financial_Model_v2.xlsx"},
+        headers={"Content-Disposition": "attachment; filename=FounderERP_Financial_Model_v2.xlsx"},
     )
 
 
@@ -2725,7 +2725,7 @@ def create_link_token(request: Request):
         f"{_plaid_base()}/link/token/create",
         json={
             **_plaid_creds(),
-            "client_name": "Open ERP",
+            "client_name": "Founder ERP",
             "country_codes": ["US"],
             "language": "en",
             "user": {"client_user_id": "admin"},

@@ -36,7 +36,7 @@ async function forward(req: NextRequest, params: { path: string[] }) {
   // this caller may impersonate it, that the target really is a partner, and
   // that the request is a read. Nothing is trusted on this side, so a user
   // setting the cookie by hand gains nothing.
-  const viewAs = req.cookies.get("openerp_view_as")?.value;
+  const viewAs = req.cookies.get("founder_erp_view_as")?.value;
   if (viewAs) forwardHeaders["X-View-As"] = viewAs;
 
   // Carry the visitor's address through. Without this the API only ever sees

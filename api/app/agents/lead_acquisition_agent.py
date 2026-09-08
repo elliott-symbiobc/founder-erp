@@ -337,7 +337,7 @@ def run_event_scrape(url: str) -> dict:
     logger.info("Event scrape: fetching %s", url)
     try:
         resp = requests.get(url, timeout=20, headers={
-            "User-Agent": "Mozilla/5.0 (compatible; OpenERPBot/1.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; FounderERPBot/1.0)"
         })
         resp.raise_for_status()
     except Exception as e:

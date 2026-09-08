@@ -845,8 +845,8 @@ def set_message_notes(message_id: str, body: dict, request: Request = None):
 # Both the HTML and the plain-text part of the message are rendered from that
 # single source, so they cannot drift.
 
-LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "openerp-logo.png")
-LOGO_CID = "openerplogo"
+LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "founder_erp-logo.png")
+LOGO_CID = "founderErpLogo"
 LOGO_WIDTH = 180  # rendered at 360px, shown at half size so it stays sharp
 
 _LINK_LINE = re.compile(r"^(?P<label>.*?)\s*\[(?P<url>[^\]]+)\]\s*$")
@@ -911,7 +911,7 @@ def render_signature(raw: str) -> dict:
     logo_html = ""
     if os.path.exists(LOGO_PATH):
         logo_html = (f'<div style="margin-top:10px">'
-                     f'<img src="cid:{LOGO_CID}" width="{LOGO_WIDTH}" alt="Open ERP" '
+                     f'<img src="cid:{LOGO_CID}" width="{LOGO_WIDTH}" alt="Founder ERP" '
                      f'style="display:block;border:0"></div>')
 
     html = ('<div style="margin-top:18px;padding-top:10px;border-top:1px solid #e5e5e5;'
@@ -934,7 +934,7 @@ def _logo_part():
         return None
     part = MIMEImage(data, _subtype="png")
     part.add_header("Content-ID", f"<{LOGO_CID}>")
-    part.add_header("Content-Disposition", "inline", filename="openerp-logo.png")
+    part.add_header("Content-Disposition", "inline", filename="founder_erp-logo.png")
     return part
 
 

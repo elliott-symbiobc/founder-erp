@@ -765,7 +765,7 @@ function SendUpdateModal({
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Open ERP — Advisor Update, May 2026"
+                    placeholder="Founder ERP — Advisor Update, May 2026"
                     className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </div>
@@ -775,7 +775,7 @@ function SendUpdateModal({
                     rows={9}
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
-                    placeholder={"Hi {name},\n\nHere's a quick update on Open ERP…\n\nBest,\nElliott"}
+                    placeholder={"Hi {name},\n\nHere's a quick update on Founder ERP…\n\nBest,\nElliott"}
                     className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none font-mono"
                   />
                 </div>

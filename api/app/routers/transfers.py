@@ -270,7 +270,7 @@ def _plan_opportunity_to_investor(opp: dict, details: Optional[dict]) -> dict:
          ("Dispersion", opp.get("funding_dispersion")),
          ("Eligibility", opp.get("eligibility")),
          ("Cost share / match", opp.get("cost_share_match")),
-         ("Open ERP fit", None if opp.get("org_fit") == "Unrated" else opp.get("org_fit")),
+         ("Founder ERP fit", None if opp.get("org_fit") == "Unrated" else opp.get("org_fit")),
          ("Next action", opp.get("next_action")),
          ("Last verified", opp.get("last_verified")),
          ("Requirements", details.get("application_requirements")),

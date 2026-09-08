@@ -399,7 +399,7 @@ export default function PortalPage() {
                 {portalData.contacts.length > 0 && (
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                      Your Open ERP team
+                      Your Founder ERP team
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {portalData.contacts.map(c => <ContactChip key={c.id} contact={c} />)}
@@ -731,7 +731,7 @@ export default function PortalPage() {
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-4 px-6 shrink-0">
         <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center">
-          Shared via Open ERP Platform
+          Shared via Founder ERP Platform
         </p>
       </footer>
 
@@ -1056,7 +1056,7 @@ function LogoMark() {
   return (
     <img
       src="/api/logo"
-      alt="Open ERP"
+      alt="Founder ERP"
       style={{ height: 24, width: "auto" }}
       onError={(e) => {
         const i = e.currentTarget;
@@ -1159,7 +1159,7 @@ function PasswordGate({
             </form>
           </div>
           <p className="text-[11px] text-gray-300 dark:text-gray-600 text-center mt-5">
-            Shared via Open ERP Platform
+            Shared via Founder ERP Platform
           </p>
         </div>
       </div>
