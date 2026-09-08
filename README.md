@@ -40,6 +40,31 @@ applies `sql/schema.sql` to an empty database.
 
 ---
 
+## Publishing on your own server
+
+If you are running the stack on a host you control (a VPS behind nginx), the
+repository carries the pieces:
+
+```bash
+docker compose up -d                                  # or --profile full
+./scripts/setup-host.sh erp.example.com 8110 you@example.com
+```
+
+`setup-host.sh` checks the instance is actually serving, checks the domain's
+A record points at this host, installs the nginx server block from
+`deploy/nginx/founder-erp.conf.template`, obtains a Let's Encrypt certificate
+and reloads. It refuses rather than half-configures if either check fails, and
+is safe to re-run.
+
+`NEXTAUTH_URL` in `.env` must match the public URL exactly — NextAuth builds
+its sign-in callbacks from it, so a mismatch drops the session cookie.
+
+Running several organisations on one host: give each its own `.env` with a
+distinct `INSTANCE`, `COMPOSE_PROJECT_NAME`, `FRONTEND_PORT` and database, then
+run `setup-host.sh` once per domain.
+
+---
+
 ## Deploying to Railway
 
 The repository is set up for a Railway deployment of four services: **Postgres**
