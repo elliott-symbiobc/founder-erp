@@ -387,7 +387,7 @@ function PlaidCard() {
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg border border-gray-100 dark:border-gray-800 flex items-center justify-center bg-[#00B35A] shrink-0">
+          <div className="w-9 h-9 rounded-lg border border-gray-100 dark:border-gray-800 flex items-center justify-center bg-[#404040] shrink-0">
             <svg className="w-5 h-5 text-white" viewBox="0 0 32 32" fill="currentColor">
               <path d="M16 4C9.373 4 4 9.373 4 16s5.373 12 12 12 12-5.373 12-12S22.627 4 16 4zm0 21a9 9 0 110-18 9 9 0 010 18z"/>
               <circle cx="16" cy="16" r="4"/>
@@ -495,7 +495,7 @@ function QuickBooksCard({ flash }: { flash?: string }) {
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg border border-gray-100 dark:border-gray-800 flex items-center justify-center bg-[#2CA01C] shrink-0">
+          <div className="w-9 h-9 rounded-lg border border-gray-100 dark:border-gray-800 flex items-center justify-center bg-[#404040] shrink-0">
             <span className="text-white text-xs font-bold">QB</span>
           </div>
           <div>

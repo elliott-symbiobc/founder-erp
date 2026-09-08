@@ -387,7 +387,7 @@ function TimelineView({ projects }: { projects: Project[] }) {
     const target = d ? new Date(d) : fallback;
     return Math.max(0, Math.min(100, ((target.getTime() - minDate.getTime()) / (totalDays * 86_400_000)) * 100));
   }
-  const STATUS_BAR: Record<string, string> = { in_progress: "bg-green-500", waiting_client: "bg-amber-400", waiting_sbc: "bg-[#C31010]", awaiting_vendor: "bg-orange-400" };
+  const STATUS_BAR: Record<string, string> = { in_progress: "bg-green-500", waiting_client: "bg-amber-400", waiting_sbc: "bg-[#000000]", awaiting_vendor: "bg-orange-400" };
   const months: { label: string; pct: number }[] = [];
   const cursor = new Date(minDate); cursor.setDate(1);
   while (cursor <= maxDate) {
@@ -1348,7 +1348,7 @@ function TemplatesView({ tabKey }: { tabKey: TabKey }) {
 const STATUS_OPTIONS = [
   { key: "in_progress",    label: "In Progress",      dot: "bg-green-500" },
   { key: "waiting_client", label: "Awaiting Client", dot: "bg-amber-400" },
-  { key: "waiting_sbc",    label: "Awaiting Us",    dot: "bg-[#C31010]" },
+  { key: "waiting_sbc",    label: "Awaiting Us",    dot: "bg-[#000000]" },
   { key: "awaiting_vendor",label: "Awaiting Vendor",   dot: "bg-orange-400" },
 ];
 

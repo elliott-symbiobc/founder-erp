@@ -1193,8 +1193,6 @@ function _AssumptionsTab_REMOVED({ model, onSave }: { model: FpaModel; onSave: (
         );
       })}
 
-      {/* Equity rounds (collapsed by default) */}
-      <EquityRoundsSection model={model} onSave={onSave} />
     </div>
   );
 }
@@ -4979,7 +4977,7 @@ function VsModelTab({ model }: { model: FpaModel }) {
         Connect QuickBooks Online to compare actual revenue and expenses against your financial model.
       </p>
       <button onClick={connectQbo} disabled={connectingQbo}
-        className="px-5 py-2.5 bg-[#2CA01C] hover:bg-[#248016] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+        className="px-5 py-2.5 bg-[#404040] hover:bg-[#262626] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
         {connectingQbo ? "Redirecting…" : "Connect QuickBooks"}
       </button>
       <p className="text-xs text-gray-400">You'll be redirected to Intuit to authorize access.</p>
@@ -5687,7 +5685,7 @@ function AccountsTab() {
               </>
             ) : (
               <button onClick={connectQbo} disabled={connectingQbo}
-                className="px-4 py-1.5 text-xs bg-[#2CA01C] hover:bg-[#248016] text-white rounded transition-colors disabled:opacity-50">
+                className="px-4 py-1.5 text-xs bg-[#404040] hover:bg-[#262626] text-white rounded transition-colors disabled:opacity-50">
                 {connectingQbo ? "Redirecting…" : "Connect QuickBooks"}
               </button>
             )}

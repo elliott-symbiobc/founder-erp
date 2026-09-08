@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  allowedDevOrigins: ["erp.example.com", "example.com", "example.com"],
+  allowedDevOrigins: ["erp.elliottnotrica.com"],
   turbopack: {
     resolveAlias: { canvas: "./empty-module.js" },
   },

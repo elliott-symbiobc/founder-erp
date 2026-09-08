@@ -88,7 +88,7 @@ const STAGE_SEQUENCES: Record<string, string[]> = {
 
 const STATUS_COLORS: Record<string, string> = {
   in_progress: "bg-green-500", waiting_client: "bg-amber-400",
-  waiting_sbc: "bg-[#C31010]", awaiting_vendor: "bg-orange-400",
+  waiting_sbc: "bg-[#000000]", awaiting_vendor: "bg-orange-400",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -365,7 +365,7 @@ function StatusBar({ project, onUpdate }: { project: Project; onUpdate: () => vo
   }
   const STATUS_DOT_MAP: Record<string, string> = {
     in_progress: "bg-green-500", waiting_client: "bg-amber-400",
-    waiting_sbc: "bg-[#C31010]", awaiting_vendor: "bg-orange-400",
+    waiting_sbc: "bg-[#000000]", awaiting_vendor: "bg-orange-400",
   };
   const STATUS_LABEL_MAP: Record<string, string> = {
     in_progress: "In Progress", waiting_client: "Awaiting Client",
@@ -384,7 +384,7 @@ function StatusBar({ project, onUpdate }: { project: Project; onUpdate: () => vo
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border ${
             project.status === "in_progress"    ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/20 dark:border-green-800 dark:text-green-400" :
             project.status === "waiting_client" ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400" :
-            project.status === "waiting_sbc"    ? "bg-[#C31010]/10 border-[#C31010]/40 text-[#C31010] dark:bg-[#C31010]/25 dark:border-[#C31010]/50 dark:text-[#ef8f8f]" :
+            project.status === "waiting_sbc"    ? "bg-[#000000]/10 border-[#000000]/40 text-[#000000] dark:bg-[#000000]/25 dark:border-[#000000]/50 dark:text-[#a3a3a3]" :
             "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-950/20 dark:border-orange-800 dark:text-orange-400"
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT_MAP[project.status] ?? "bg-zinc-400"}`} />

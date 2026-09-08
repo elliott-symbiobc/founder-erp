@@ -179,7 +179,7 @@ export function ModuleTourInfoButton({ moduleKey, onClick }: { moduleKey: string
     <button
       onClick={onClick}
       title="Module guide"
-      className="w-5 h-5 rounded-full border border-current text-gray-400 dark:text-gray-500 hover:text-[#cef33c] hover:border-[#cef33c] transition-colors flex items-center justify-center text-xs font-bold leading-none"
+      className="w-5 h-5 rounded-full border border-current text-gray-400 dark:text-gray-500 hover:text-[#e5e5e5] hover:border-[#e5e5e5] transition-colors flex items-center justify-center text-xs font-bold leading-none"
     >
       i
     </button>
@@ -232,7 +232,7 @@ export default function ModuleTour({ moduleKey, forceOpen, onClose }: ModuleTour
         <button
           onClick={reopen}
           title={`${tour.moduleTitle} tour`}
-          className="fixed bottom-6 right-6 z-40 w-9 h-9 rounded-full bg-[#cef33c] text-black font-bold text-sm shadow-lg hover:bg-[#bfe02a] transition-colors flex items-center justify-center"
+          className="fixed bottom-6 right-6 z-40 w-9 h-9 rounded-full bg-[#e5e5e5] text-black font-bold text-sm shadow-lg hover:bg-[#d4d4d4] transition-colors flex items-center justify-center"
         >
           ?
         </button>
@@ -243,7 +243,7 @@ export default function ModuleTour({ moduleKey, forceOpen, onClose }: ModuleTour
         <div className="fixed inset-0 z-50 flex items-end justify-end p-6 pointer-events-none">
           <div className="pointer-events-auto w-80 bg-[#1b1a1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="bg-[#cef33c] px-5 py-4">
+            <div className="bg-[#e5e5e5] px-5 py-4">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-black text-xs font-semibold uppercase tracking-wider">Module Guide</p>
@@ -287,14 +287,14 @@ export default function ModuleTour({ moduleKey, forceOpen, onClose }: ModuleTour
               {isLast ? (
                 <button
                   onClick={dismiss}
-                  className="text-sm px-3 py-1.5 bg-[#cef33c] text-black font-semibold rounded-lg hover:bg-[#bfe02a] transition-colors"
+                  className="text-sm px-3 py-1.5 bg-[#e5e5e5] text-black font-semibold rounded-lg hover:bg-[#d4d4d4] transition-colors"
                 >
                   Got it ✓
                 </button>
               ) : (
                 <button
                   onClick={() => setStep(s => s + 1)}
-                  className="text-white text-sm hover:text-[#cef33c] transition-colors"
+                  className="text-white text-sm hover:text-[#e5e5e5] transition-colors"
                 >
                   Next →
                 </button>

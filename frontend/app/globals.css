@@ -13,48 +13,48 @@
      against this, so the neutral ramp below is warmed to match.            */
   /* Three tiers, darkest chrome → lightest card. The bars frame the work; the
      paper holds it; cards sit on top. Tonal steps alone carry the hierarchy. */
-  --color-chrome: #eae7da;   /* sidebar + header — the frame          */
-  --color-paper:  #faf8f1;   /* main content field                     */
+  --color-chrome: #ffffff;   /* sidebar + header */
+  --color-paper:  #ffffff;   /* main content field */
   /* card surface is --color-white (#fdfbf4), the lightest tier         */
 
-  --background: #faf8f1;   /* matches paper so overscroll doesn't flash */
-  --foreground: #171717;
+  --background: #ffffff;   /* matches paper so overscroll doesn't flash */
+  --foreground: #000000;
   color-scheme: light;
 
   /* ReactFlow node handle border */
-  --node-handle-border: #fdfbf4;
+  --node-handle-border: #ffffff;
 
   /* Semantic colors — light mode */
-  --color-surface:         #fdfbf4;   /* card — near-white, warm */
-  --color-surface-raised:  #f7f5ea;
-  --color-surface-overlay: #f1efe3;
-  --color-border:          #dedbcb;
-  --color-border-subtle:   #e8e5d7;
+  --color-surface:         #ffffff;   
+  --color-surface-raised:  #fafafa;
+  --color-surface-overlay: #f5f5f5;
+  --color-border:          #d4d4d4;
+  --color-border-subtle:   #e5e5e5;
 
-  --color-text-primary:    #111827;   /* gray-900 */
-  --color-text-secondary:  #374151;   /* gray-700 */
-  --color-text-muted:      #6b7280;   /* gray-500 */
-  --color-text-disabled:   #9ca3af;   /* gray-400 */
+  --color-text-primary:    #000000;
+  --color-text-secondary:  #404040;
+  --color-text-muted:      #737373;
+  --color-text-disabled:   #a3a3a3;
 
-  --color-primary:         #c31010;   /* brand red */
-  --color-primary-hover:   #a50e0e;   /* brand red dark */
-  --color-primary-surface: #fef2f2;   /* red-50 */
-  --color-primary-text:    #a50e0e;   /* red-700 */
+  --color-primary:         #000000;   /* accent — greyscale */
+  --color-primary-hover:   #262626;
+  --color-primary-surface: #f5f5f5;
+  --color-primary-text:    #000000;
 
-  --color-success:         #16a34a;   /* green-600 */
-  --color-success-surface: #f0fdf4;   /* green-50 */
-  --color-success-text:    #15803d;   /* green-700 */
+  --color-success:         #404040;
+  --color-success-surface: #f5f5f5;
+  --color-success-text:    #262626;
 
-  --color-warning:         #d97706;   /* amber-600 */
-  --color-warning-surface: #fffbeb;   /* amber-50 */
-  --color-warning-text:    #b45309;   /* amber-700 */
+  --color-warning:         #404040;
+  --color-warning-surface: #f5f5f5;
+  --color-warning-text:    #262626;
 
-  --color-danger:          #dc2626;   /* red-600 */
-  --color-danger-surface:  #fef2f2;   /* red-50 */
-  --color-danger-text:     #b91c1c;   /* red-700 */
+  --color-danger:          #000000;
+  --color-danger-surface:  #f5f5f5;
+  --color-danger-text:     #000000;
 
   /* Focus ring */
-  --focus-ring: 0 0 0 2px #fdfbf4, 0 0 0 4px #c31010;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #000000;
 
   /* Hairline used in place of blurred elevation — see @theme shadow remap */
   --shadow-hairline: rgb(0 0 0 / 0.10);
@@ -89,24 +89,24 @@
   --color-text-muted:      #707070;
   --color-text-disabled:   #505050;
 
-  --color-primary:         #ef4444;   /* red-500 (lighter for dark mode) */
-  --color-primary-hover:   #f87171;   /* red-400 */
-  --color-primary-surface: #3b0404;   /* red-950 */
-  --color-primary-text:    #fca5a5;   /* red-300 */
+  --color-primary:         #e5e5e5;
+  --color-primary-hover:   #ffffff;
+  --color-primary-surface: #2a2a2a;
+  --color-primary-text:    #e5e5e5;
 
-  --color-success:         #22c55e;   /* green-500 */
-  --color-success-surface: #052e16;   /* green-950 */
-  --color-success-text:    #86efac;   /* green-300 */
+  --color-success:         #a3a3a3;
+  --color-success-surface: #2a2a2a;
+  --color-success-text:    #d4d4d4;
 
-  --color-warning:         #f59e0b;   /* amber-400 */
-  --color-warning-surface: #1c1007;   /* amber-950 */
-  --color-warning-text:    #fcd34d;   /* amber-300 */
+  --color-warning:         #a3a3a3;
+  --color-warning-surface: #2a2a2a;
+  --color-warning-text:    #d4d4d4;
 
-  --color-danger:          #ef4444;   /* red-500 */
-  --color-danger-surface:  #3b0404;   /* red-950 */
-  --color-danger-text:     #fca5a5;   /* red-300 */
+  --color-danger:          #e5e5e5;
+  --color-danger-surface:  #2a2a2a;
+  --color-danger-text:     #e5e5e5;
 
-  --focus-ring: 0 0 0 2px #2a2a2a, 0 0 0 4px #ef4444;
+  --focus-ring: 0 0 0 2px #2a2a2a, 0 0 0 4px #e5e5e5;
 
   /* Cast shadows read as nothing on dark surfaces; lean on the ring instead. */
   --shadow-hairline: rgb(255 255 255 / 0.14);
@@ -128,13 +128,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-sans: Helvetica, "Helvetica Neue", Arial, system-ui, -apple-system, sans-serif;
 
   /* One typeface. `font-mono` was overwhelmingly used to force digit alignment
      in numeric columns (80 uses in fpa alone) — body-level tabular-nums now does
      that better, so the utility resolves to Inter and the UI reads as one voice.
      Literal code (<pre>/<code>) is exempted below, where mono earns its keep.  */
-  --font-mono: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: Helvetica, "Helvetica Neue", Arial, system-ui, -apple-system, sans-serif;
 
   /* ── Type scale: one dense step below text-xs ───────────────────────────
      Dense data UI genuinely needs a tier under 12px for row metadata and
@@ -179,7 +179,7 @@
   /* ── Surface white → warm paper ─────────────────────────────────────────
      bg-white compiles to var(--color-white), so retoning it here lifts all
      ~1,349 card surfaces off the page tone at once — no page files change.
-     Stays near-white, so `text-white` on the brand red and on avatar fills
+     Stays near-white, so `text-white` on the accent and on avatar fills
      is unaffected.                                                         */
   --color-white: #fdfbf4;
 
@@ -200,20 +200,21 @@
   --color-gray-900: #2a2a2a;
   --color-gray-950: #1e1e1e;
 
-  /* ── Brand color: remap blue → Founder ERP red ─────────────────────────────
-     All existing bg-blue-*, text-blue-*, border-blue-*, ring-blue-* classes
-     automatically become the brand red. No page files need updating.        */
-  --color-blue-50:  #fef2f2;
-  --color-blue-100: #fee2e2;
-  --color-blue-200: #fecaca;
-  --color-blue-300: #fca5a5;
-  --color-blue-400: #f87171;
-  --color-blue-500: #ef4444;
-  --color-blue-600: #c31010;   /* brand primary */
-  --color-blue-700: #a50e0e;
-  --color-blue-800: #7f1212;
-  --color-blue-900: #5c0d0d;
-  --color-blue-950: #3b0404;
+  /* ── Accent: remap blue → greyscale ───────────────────────────────────────
+     Page files are full of bg-blue-*, text-blue-*, border-blue-* and
+     ring-blue-* classes. Remapping the scale here turns every one of them
+     neutral without touching a single page.                                */
+  --color-blue-50:  #fafafa;
+  --color-blue-100: #f5f5f5;
+  --color-blue-200: #e5e5e5;
+  --color-blue-300: #d4d4d4;
+  --color-blue-400: #a3a3a3;
+  --color-blue-500: #737373;
+  --color-blue-600: #000000;   /* accent */
+  --color-blue-700: #262626;
+  --color-blue-800: #171717;
+  --color-blue-900: #0a0a0a;
+  --color-blue-950: #000000;
 }
 
 /* ── Base styles ────────────────────────────────────────────────────────── */

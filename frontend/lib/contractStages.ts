@@ -315,7 +315,7 @@ export const DEAL_STATUS_LABEL: Record<string, string> = {
 
 export const DEAL_STATUS_DOT: Record<string, string> = {
   new:             "bg-green-500",
-  awaiting_internal: "bg-[#C31010]",
+  awaiting_internal: "bg-[#000000]",
   awaiting_client: "bg-amber-400",
   won:             "bg-emerald-600",
   nurture:         "bg-violet-500",

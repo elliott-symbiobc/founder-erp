@@ -49,14 +49,14 @@ export interface CardTask {
 export const STATUS_CARD: Record<string, string> = {
   in_progress:     "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/50",
   waiting_client:  "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800/50",
-  waiting_sbc:     "bg-[#C31010]/10 border-[#C31010]/30 dark:bg-[#C31010]/15 dark:border-[#C31010]/40",
+  waiting_sbc:     "bg-[#000000]/10 border-[#000000]/30 dark:bg-[#000000]/15 dark:border-[#000000]/40",
   awaiting_vendor: "bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-800/50",
 };
 
 export const STATUS_DOT: Record<string, string> = {
   in_progress:     "bg-green-500",
   waiting_client:  "bg-amber-400",
-  waiting_sbc:     "bg-[#C31010]",
+  waiting_sbc:     "bg-[#000000]",
   awaiting_vendor: "bg-orange-400",
 };
 

@@ -119,7 +119,7 @@ export default function SetupPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Colors step
-  const [primaryColor, setPrimaryColor] = useState("#cef33c");
+  const [primaryColor, setPrimaryColor] = useState("#e5e5e5");
   const [darkColor, setDarkColor] = useState("#1b1a1a");
 
   // Integrations step
@@ -183,18 +183,18 @@ export default function SetupPage() {
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-2 flex-1">
               <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors
-                ${i < step ? "bg-[#cef33c] text-black" : i === step ? "bg-[#cef33c] text-black" : "bg-white/10 text-white/40"}`}>
+                ${i < step ? "bg-[#e5e5e5] text-black" : i === step ? "bg-[#e5e5e5] text-black" : "bg-white/10 text-white/40"}`}>
                 {i < step ? "✓" : i + 1}
               </div>
               {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 transition-colors ${i < step ? "bg-[#cef33c]" : "bg-white/10"}`} />
+                <div className={`flex-1 h-0.5 transition-colors ${i < step ? "bg-[#e5e5e5]" : "bg-white/10"}`} />
               )}
             </div>
           ))}
         </div>
         <div className="flex justify-between mt-2">
           {STEPS.map((s, i) => (
-            <span key={s} className={`text-xs ${i === step ? "text-[#cef33c]" : "text-white/30"}`}>{s}</span>
+            <span key={s} className={`text-xs ${i === step ? "text-[#e5e5e5]" : "text-white/30"}`}>{s}</span>
           ))}
         </div>
       </div>
@@ -205,7 +205,7 @@ export default function SetupPage() {
         {/* Step 0: Welcome */}
         {step === 0 && (
           <div className="text-center space-y-6">
-            <div className="w-16 h-16 rounded-2xl bg-[#cef33c] flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-[#e5e5e5] flex items-center justify-center mx-auto">
               <span className="text-3xl font-black text-black">C</span>
             </div>
             <div>
@@ -246,7 +246,7 @@ export default function SetupPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="px-4 py-2 bg-[#cef33c] text-black font-semibold rounded-lg text-sm hover:bg-[#bfe02a] transition-colors"
+                  className="px-4 py-2 bg-[#e5e5e5] text-black font-semibold rounded-lg text-sm hover:bg-[#d4d4d4] transition-colors"
                 >
                   Upload Logo
                 </button>
@@ -298,7 +298,7 @@ export default function SetupPage() {
                     type="text"
                     value={primaryColor}
                     onChange={e => setPrimaryColor(e.target.value)}
-                    className="flex-1 bg-white/10 text-white px-3 py-2 rounded-lg text-sm font-mono border border-white/10 focus:outline-none focus:border-[#cef33c]"
+                    className="flex-1 bg-white/10 text-white px-3 py-2 rounded-lg text-sm font-mono border border-white/10 focus:outline-none focus:border-[#e5e5e5]"
                   />
                 </div>
                 <div className="h-10 rounded-lg transition-colors" style={{ backgroundColor: primaryColor }} />
@@ -316,14 +316,14 @@ export default function SetupPage() {
                     type="text"
                     value={darkColor}
                     onChange={e => setDarkColor(e.target.value)}
-                    className="flex-1 bg-white/10 text-white px-3 py-2 rounded-lg text-sm font-mono border border-white/10 focus:outline-none focus:border-[#cef33c]"
+                    className="flex-1 bg-white/10 text-white px-3 py-2 rounded-lg text-sm font-mono border border-white/10 focus:outline-none focus:border-[#e5e5e5]"
                   />
                 </div>
                 <div className="h-10 rounded-lg border border-white/10 transition-colors" style={{ backgroundColor: darkColor }} />
               </div>
             </div>
             <button
-              onClick={() => { setPrimaryColor("#cef33c"); setDarkColor("#1b1a1a"); }}
+              onClick={() => { setPrimaryColor("#e5e5e5"); setDarkColor("#1b1a1a"); }}
               className="text-white/40 text-sm hover:text-white/70 transition-colors underline"
             >
               Reset to Collective defaults
@@ -348,8 +348,8 @@ export default function SetupPage() {
               <h2 className="text-2xl font-bold text-white mb-1">Connect Your Tools</h2>
               <p className="text-white/50">Set up integrations now or skip and do it later from Settings. Required ones are marked.</p>
             </div>
-            <div className="bg-[#cef33c]/5 border border-[#cef33c]/20 rounded-xl p-4 space-y-2">
-              <p className="text-[#cef33c] text-sm font-semibold">What is an API key?</p>
+            <div className="bg-[#e5e5e5]/5 border border-[#e5e5e5]/20 rounded-xl p-4 space-y-2">
+              <p className="text-[#e5e5e5] text-sm font-semibold">What is an API key?</p>
               <p className="text-white/60 text-sm">An API key is a unique password that lets Collective ERP talk to another service on your behalf — without you needing to share your actual login credentials. Think of it like a valet key: it gives limited, controlled access to a specific service.</p>
               <p className="text-white/60 text-sm">You generate the key inside that service&apos;s developer settings, then paste it here. It stays encrypted in your database and is never shared with anyone. You can revoke it from the original service at any time.</p>
             </div>
@@ -360,13 +360,13 @@ export default function SetupPage() {
                   ? int.fields?.every(f => intValues[f.key])
                   : intValues[int.key];
                 return (
-                  <div key={int.key} className={`rounded-xl border transition-colors ${isExpanded ? "border-[#cef33c]/40 bg-white/5" : "border-white/10 bg-white/[0.02]"}`}>
+                  <div key={int.key} className={`rounded-xl border transition-colors ${isExpanded ? "border-[#e5e5e5]/40 bg-white/5" : "border-white/10 bg-white/[0.02]"}`}>
                     <button
                       className="w-full flex items-center justify-between px-4 py-3 text-left"
                       onClick={() => setExpandedInt(isExpanded ? null : int.key)}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${hasValue ? "bg-[#cef33c]" : int.optional ? "bg-white/20" : "bg-yellow-400"}`} />
+                        <div className={`w-2 h-2 rounded-full ${hasValue ? "bg-[#e5e5e5]" : int.optional ? "bg-white/20" : "bg-yellow-400"}`} />
                         <span className="text-white font-medium text-sm">{int.label}</span>
                         {!int.optional && <span className="text-xs text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full">Recommended</span>}
                         {int.optional && <span className="text-xs text-white/30 bg-white/5 px-2 py-0.5 rounded-full">Optional</span>}
@@ -383,11 +383,11 @@ export default function SetupPage() {
                           <p className="text-white/70 text-xs font-semibold uppercase tracking-wider">How to get your API key</p>
                           {int.howTo.map((step, i) => (
                             <div key={i} className="flex gap-2 text-xs text-white/50">
-                              <span className="text-[#cef33c] font-bold shrink-0">{i + 1}.</span>
+                              <span className="text-[#e5e5e5] font-bold shrink-0">{i + 1}.</span>
                               <span>{step}</span>
                             </div>
                           ))}
-                          <a href={int.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[#cef33c] hover:underline mt-1">
+                          <a href={int.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[#e5e5e5] hover:underline mt-1">
                             {int.linkLabel} →
                           </a>
                         </div>
@@ -402,7 +402,7 @@ export default function SetupPage() {
                                   placeholder={`Paste your ${f.label}`}
                                   value={intValues[f.key] || ""}
                                   onChange={e => setIntValues(v => ({ ...v, [f.key]: e.target.value }))}
-                                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm border border-white/10 focus:outline-none focus:border-[#cef33c] font-mono"
+                                  className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm border border-white/10 focus:outline-none focus:border-[#e5e5e5] font-mono"
                                 />
                               </div>
                             ))}
@@ -413,7 +413,7 @@ export default function SetupPage() {
                             placeholder="Paste your API key here"
                             value={intValues[int.key] || ""}
                             onChange={e => setIntValues(v => ({ ...v, [int.key]: e.target.value }))}
-                            className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm border border-white/10 focus:outline-none focus:border-[#cef33c] font-mono"
+                            className="w-full bg-black/30 text-white px-3 py-2 rounded-lg text-sm border border-white/10 focus:outline-none focus:border-[#e5e5e5] font-mono"
                           />
                         )}
                       </div>
@@ -437,11 +437,11 @@ export default function SetupPage() {
                 <div
                   key={t.href}
                   className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all
-                    ${tourStep === i ? "border-[#cef33c]/60 bg-[#cef33c]/5" : "border-white/10 bg-white/[0.02] hover:border-white/20"}`}
+                    ${tourStep === i ? "border-[#e5e5e5]/60 bg-[#e5e5e5]/5" : "border-white/10 bg-white/[0.02] hover:border-white/20"}`}
                   onClick={() => setTourStep(i)}
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors
-                    ${tourStep === i ? "bg-[#cef33c] text-black" : "bg-white/10 text-white/40"}`}>
+                    ${tourStep === i ? "bg-[#e5e5e5] text-black" : "bg-white/10 text-white/40"}`}>
                     {i + 1}
                   </div>
                   <div className="flex-1">
@@ -451,7 +451,7 @@ export default function SetupPage() {
                   <a
                     href={t.href}
                     onClick={e => e.stopPropagation()}
-                    className="text-xs text-[#cef33c] hover:underline shrink-0 mt-0.5"
+                    className="text-xs text-[#e5e5e5] hover:underline shrink-0 mt-0.5"
                   >
                     Open →
                   </a>
@@ -482,7 +482,7 @@ export default function SetupPage() {
               <button
                 onClick={nextStep}
                 disabled={saving}
-                className="px-6 py-2 bg-[#cef33c] text-black font-semibold rounded-lg text-sm hover:bg-[#bfe02a] transition-colors disabled:opacity-50"
+                className="px-6 py-2 bg-[#e5e5e5] text-black font-semibold rounded-lg text-sm hover:bg-[#d4d4d4] transition-colors disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Continue →"}
               </button>
@@ -490,7 +490,7 @@ export default function SetupPage() {
               <button
                 onClick={finish}
                 disabled={saving}
-                className="px-6 py-2 bg-[#cef33c] text-black font-semibold rounded-lg text-sm hover:bg-[#bfe02a] transition-colors disabled:opacity-50"
+                className="px-6 py-2 bg-[#e5e5e5] text-black font-semibold rounded-lg text-sm hover:bg-[#d4d4d4] transition-colors disabled:opacity-50"
               >
                 {saving ? "Finishing…" : "Launch Platform →"}
               </button>
